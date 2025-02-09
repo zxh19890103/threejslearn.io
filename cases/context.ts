@@ -12,7 +12,7 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, 1 / 1, 0.1, 1000);
 
 // Create a WebGLRenderer and attach it to the DOM
-const renderer = new THREE.WebGLRenderer();
+const renderer = new THREE.WebGLRenderer({});
 element.appendChild(renderer.domElement);
 
 const onResize = () => {
@@ -60,6 +60,7 @@ __add_nextframe_fn__ = (fn: NextFrameFn) => {
 
 setTimeout(() => {
   __main__?.(scene, camera, renderer);
+  __updateTHREEJs__?.(null, null);
   __updateControlsDOM__?.();
 }, 0);
 

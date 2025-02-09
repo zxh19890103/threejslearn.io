@@ -29,6 +29,9 @@ writeToMenu.write('<div class="MenuItems">');
 while ((dirent = cases.readSync())) {
   if (dirent.isDirectory()) {
     const indexfile = join(cases.path, dirent.name, "index.md");
+    const tsfile = join(cases.path, dirent.name, "run.ts");
+
+    const statTsfile = fs.statSync(tsfile);
 
     fs.writeFileSync(
       indexfile,
@@ -36,6 +39,12 @@ while ((dirent = cases.readSync())) {
 layout: playground
 title: ${dirent.name}
 ---
+
+<div class="TsfileDate rounded">
+  <h4>file "run.ts" modificated logs:</h4>
+  <div>Created at: ${statTsfile.birthtime}</div>
+  <div>Updated at: ${statTsfile.mtime}</div>
+</div>
 
 {% include_relative _explain.md %}
 

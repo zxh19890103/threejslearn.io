@@ -9,8 +9,9 @@
 </head>
 
 <body>
+  <div class="BG"></div>
   <div class="Content">
-    <div class="Menu" onclick="if(event.target.dataset.toggle){this.classList.toggle('inview')}">
+    <div class="Menu" id="Menu" onclick="if(event.target.dataset.toggle) {this.classList.toggle('inview')}">
       {% include menu.html %}
       <div class="MenuButtons">
         <a href="/" class="MenuButton">🏡</a>
@@ -24,13 +25,13 @@
     <div class="Explain">
       <h2 class="underline">{{page.title}}</h2>
       <div>
-        <h3>Code</h3>
+        <h3>🖥️ Code</h3>
         <div class="language-ts highlighter-rouge rounded">
           <div class="highlight">
             <pre class="highlight" id="TsCode"></pre>
           </div>
         </div>
-        <h3>Explain</h3>
+        <h3>💬 Explaination</h3>
         <div>
           {{ content }}
         </div>
