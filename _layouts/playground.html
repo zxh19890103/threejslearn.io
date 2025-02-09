@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+  {% include head.html %}
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
+  <link rel="stylesheet" href="/assets/playground.css?ts={{site.time | date: '%s'}}">
+</head>
+
+<body>
+  <div class="Content">
+    <div class="Menu" onclick="if(event.target.dataset.toggle){this.classList.toggle('inview')}">
+      {% include menu.html %}
+      <div class="MenuButtons">
+        <a href="/" class="MenuButton">🏡</a>
+        <a href="javascript:void(0);" data-toggle="1" class="MenuButton Toggle">📚</a>
+      </div>
+    </div>
+    <div class="PgAppWrap">
+      <div id="PgApp" class="PgApp"></div>
+      <div id="PgAppControls" class="PgAppControls rounded"></div>
+    </div>
+    <div class="Explain">
+      <h2 class="underline">{{page.title}}</h2>
+      <div>
+        <h3>Code</h3>
+        <div class="language-ts highlighter-rouge rounded">
+          <div class="highlight">
+            <pre class="highlight" id="TsCode"></pre>
+          </div>
+        </div>
+        <h3>Explain</h3>
+        <div>
+          {{ content }}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+  <script>
+    fetch(`run.ts?t=${Date.now()}`).then(r => r.text()).then(code => {
+      const highlightedCode = hljs.highlight(
+        code,
+        { language: 'ts' }
+      );
+      document.querySelector('#TsCode').innerHTML = highlightedCode.value;
+    })
+
+    var JekyllEnv = "{{jekyll.environment}}";
+    var __main__ = null;
+    var __dev__ = () => {
+      if (JekyllEnv === 'production') return;
+      document.querySelector('.Explain')?.classList.add('hidden');
+    }
+    var __add_nextframe_fn__ = null;
+    var __onControlsDOMChanged__ = null;
+    var __updateControlsDOM__ = null;
+    var __defineControl__ = null;
+    var __updateTHREEJs__ = null;
+    var __renderControls__ = null;
+    var __onControlsDOMChanged__iter__ = null;
+    var __3_objects__ = {};
+  </script>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "/assets/jslibs/three.module.min.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.173.0/examples/jsm/"
+      }
+    }
+  </script>
+
+  <script type="module" src="/_cases/context.js?ts={{site.time | date: '%s'}}"></script>
+  <script type="module" src="/_cases/context.js?ts={{site.time | date: '%s'}}"></script>
+  <script type="module" src="/_cases{{page.url | slice: 6, 100 }}run.js?ts={{site.time | date: '%s'}}"></script>
+</body>
+
+</html>

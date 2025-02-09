@@ -1,0 +1,12 @@
+---
+---
+
+@import "./var";
+@import "./base";
+
+.Content {
+  padding: 1rem 2rem;
+  height: 100%;
+  overflow-y: auto;
+  background-color: #fdfdf9;
+}

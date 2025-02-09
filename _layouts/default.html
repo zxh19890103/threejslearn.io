@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+  {% include head.html %}
+  <link rel="stylesheet" href="/assets/default.css?ts={{site.time | date: '%s'}}">
+</head>
+
+<body>
+  <div class="Content">
+    {% if page.title %}<h2 class="underline">{{page.title}}</h2>{% endif %}
+    {{ content }}
+  </div>
+</body>
+
+</html>

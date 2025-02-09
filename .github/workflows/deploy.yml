@@ -1,0 +1,59 @@
+name: Deploy Jekyll + Node.js to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main # Change this if your branch is different
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18 # Adjust the version if needed
+
+      - name: Install Node.js dependencies
+        run: npm install
+
+      - name: Run Node.js build script
+        run: npm run build # Adjust this based on your package.json
+
+      - name: Setup Ruby and Jekyll
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 3.1 # Adjust if needed
+          bundler-cache: true
+
+      - name: Install Jekyll dependencies
+        run: bundle install
+
+      - name: Build Jekyll site
+        run: bundle exec jekyll build
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v2
+        with:
+          path: _site # Jekyll's output folder
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v2

@@ -1,0 +1,26 @@
+{
+  "name": "threejslearn.io",
+  "version": "1.0.0",
+  "type": "commonjs",
+  "description": "run some scripts.",
+  "main": "no.js",
+  "repository": "git@github.com:zxh19890103/threejslearn.io.git",
+  "author": "singhi",
+  "license": "MIT",
+  "private": false,
+  "scripts": {
+    "cc": "node scripts/Create",
+    "postcc": "npm run gen",
+    "gen": "node scripts/Gen",
+    "predev": "npm run gen",
+    "dev": "jekyll serve --livereload & tsc --watch",
+    "prebuild": "npm run gen",
+    "build": "jekyll build & tsc"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "@types/three": "^0.173.0"
+  }
+}
