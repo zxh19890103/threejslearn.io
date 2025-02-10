@@ -4,7 +4,7 @@
 
 <head>
   {% include head.html %}
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
+  <link rel="stylesheet" href="/assets/jslibs/hls/style.min.css">
   <link rel="stylesheet" href="/assets/playground.css?ts={{site.time | date: '%s'}}">
 </head>
 
@@ -39,7 +39,7 @@
     </div>
   </div>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+  <script src="/assets/jslibs/hls/hl.min.js"></script>
   <script>
     fetch(`run.ts?t=${Date.now()}`).then(r => r.text()).then(code => {
       const highlightedCode = hljs.highlight(
@@ -74,7 +74,6 @@
     }
   </script>
 
-  <script type="module" src="/_cases/context.js?ts={{site.time | date: '%s'}}"></script>
   <script type="module" src="/_cases/context.js?ts={{site.time | date: '%s'}}"></script>
   <script type="module" src="/_cases{{page.url | slice: 6, 100 }}run.js?ts={{site.time | date: '%s'}}"></script>
 </body>
