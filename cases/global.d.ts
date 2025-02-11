@@ -1,11 +1,14 @@
 type ControlType = "number" | "enum" | "color" | "string" | "bit";
+type ControlValueType = "number" | "string" | "bit";
 
 type ControlOption<T> = { label: string; value: T };
+type DefCtrlExtras<T> = Omit<Control, "value" | "$el" | "name" | "value">;
 
 interface Control<T = any> {
   $el?: HTMLDivElement;
   value?: T;
-  options?: ControlOption<T>;
+  valueType?: ControlValueType;
+  options?: ControlOption<T>[];
   type: ControlType;
   label: string;
   name: string;
@@ -34,10 +37,11 @@ let __onControlsDOMChanged__iter__: (
   val: any
 ) => void;
 let __updateControlsDOM__: () => void;
-let __defineControl__: (
+let __defineControl__: <T>(
   name: string,
   type: ControlType,
-  initialVal?: any
+  initialVal: T,
+  extras?: DefCtrlExtras<T>
 ) => void;
 let __renderControls__: (data: Record<string, any>) => void;
 let __updateTHREEJs__: (k: string, val: any) => void;

@@ -58,7 +58,15 @@ const $cDOM = (c: Control): HTMLDivElement => {
     case "enum": {
       const input = document.createElement("select");
       input.name = c.name;
-      // input.options.add();
+
+      c.options.forEach((opt) => {
+        const optionEl = document.createElement("option");
+        optionEl.value = opt.value;
+        optionEl.label = opt.label;
+        optionEl.selected = opt.value === c.value;
+        input.options.add(optionEl);
+      });
+
       input.onchange = $onchange;
       div.appendChild(input);
       break;
@@ -106,11 +114,17 @@ const $uDOM = (c: Control) => {
 
 const controls: Record<string, Control> = {};
 
-__defineControl__ = (name: string, type: ControlType, iniVal: any) => {
+__defineControl__ = <T>(
+  name: string,
+  type: ControlType,
+  iniVal: any,
+  extras: DefCtrlExtras<T>
+) => {
   controls[name] = {
     label: name,
     name,
     type,
+    ...extras,
     value: iniVal ?? null,
   };
 };
