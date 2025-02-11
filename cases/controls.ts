@@ -118,7 +118,7 @@ __defineControl__ = <T>(
   name: string,
   type: ControlType,
   iniVal: any,
-  extras: DefCtrlExtras<T>
+  extras: Partial<DefCtrlExtras<T>>
 ) => {
   controls[name] = {
     label: name,

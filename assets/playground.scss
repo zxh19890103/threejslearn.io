@@ -2,72 +2,107 @@
 ---
 
 .Content {
-  display: flex;
-  flex-direction: row;
   padding: 0;
   width: 100%;
-  overflow: hidden;
+}
+
+.Section {
+  position: relative;
+  height: 100vh;
+
+  .Pager {
+    position: absolute;
+    right: 0.2rem;
+    bottom: 0.2rem;
+    display: block;
+    width: 3rem;
+    height: 3rem;
+    line-height: 3rem;
+    text-align: center;
+    color: #444;
+    background-color: #fff;
+    border-radius: 50%;
+  }
+}
+
+@media (min-width: 1200px) {
+  .Content {
+    display: flex;
+    flex-direction: row;
+    overflow: hidden;
+  }
+
+  .Menu {
+  }
+
+  .Section {
+    width: 0;
+    flex: 1;
+    .Pager {
+      display: none;
+    }
+
+    &.Explain {
+      height: 100vh;
+      overflow: auto;
+    }
+  }
 }
 
 .BG {
   display: none;
 }
 
-.PgAppWrap {
-  position: relative;
-  flex: 1 1 0;
-  width: 0;
-  height: 100vh;
-  border-right: 1px dashed #eee;
-}
-
 .PgApp {
   width: 100%;
   height: 100%;
-}
 
-.PgAppControls {
-  position: absolute;
-  padding: 0.5rem 1rem;
-  top: 3px;
-  right: 3px;
-  min-width: 100px;
-  width: fit-content;
-  max-width: 300px;
-  min-height: 100px;
-  height: fit-content;
-  background-color: #57575787;
-  color: #fefefe;
-  border: 1px solid #fff;
+  &Wrap {
+    position: relative;
+    height: 100vh;
+  }
 
-  .Control {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 0.5rem;
-    margin: 2px 0;
+  &Controls {
+    position: absolute;
+    padding: 0.5rem 1rem;
+    top: 3px;
+    right: 3px;
+    min-width: 100px;
+    width: fit-content;
+    max-width: 300px;
+    min-height: 100px;
+    height: fit-content;
+    background-color: #57575787;
+    color: #fefefe;
+    border: 1px solid #fff;
 
-    input {
-      display: block;
-      outline: none;
-      border: 1px solid #fff;
-      border-radius: 2px;
-    }
+    .Control {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+      margin: 2px 0;
 
-    label {
-      font-size: 0.8rem;
-      &::after {
-        content: ":";
+      input {
+        display: block;
+        outline: none;
+        border: 1px solid #fff;
+        border-radius: 2px;
+      }
+
+      label {
+        font-size: 0.8rem;
+        &::after {
+          content: ":";
+        }
       }
     }
   }
 }
 
 .Explain {
-  width: 50%;
   padding: 1rem 2rem;
-  height: 100vh;
-  overflow: auto;
+  height: auto;
 
   > h3 {
     margin: 0;
@@ -92,13 +127,17 @@
   padding: 1rem 2rem;
   top: -100%;
   right: 0;
-  width: 512px;
+  width: 100%;
   height: 100%;
   background-color: rgba(255, 255, 255, 0.98);
   color: black;
   transition: top 0.2s linear;
   font-size: 1.2rem;
   box-shadow: 1px 0 2px 2px #ddd;
+
+  @media (min-width: 1200px) {
+    width: 90%;
+  }
 
   &.inview {
     top: 0;
@@ -107,9 +146,12 @@
   &Buttons {
     display: flex;
     position: fixed;
-    right: 3px;
     top: 3px;
+    left: 3px;
     gap: 0.2rem;
+    @media (min-width: 1200px) {
+      right: 3px;
+    }
   }
 
   &Button {

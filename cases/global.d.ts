@@ -2,7 +2,10 @@ type ControlType = "number" | "enum" | "color" | "string" | "bit";
 type ControlValueType = "number" | "string" | "bit";
 
 type ControlOption<T> = { label: string; value: T };
-type DefCtrlExtras<T> = Omit<Control, "value" | "$el" | "name" | "value">;
+type DefCtrlExtras<T> = Omit<
+  Control,
+  "value" | "$el" | "type" | "name" | "value"
+>;
 
 interface Control<T = any> {
   $el?: HTMLDivElement;
@@ -41,7 +44,7 @@ let __defineControl__: <T>(
   name: string,
   type: ControlType,
   initialVal: T,
-  extras?: DefCtrlExtras<T>
+  extras?: Partial<DefCtrlExtras<T>>
 ) => void;
 let __renderControls__: (data: Record<string, any>) => void;
 let __updateTHREEJs__: (k: string, val: any) => void;

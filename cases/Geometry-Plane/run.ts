@@ -4,11 +4,11 @@
 
 import * as THREE from "three";
 
-let side = THREE.DoubleSide;
+let side: THREE.Side = THREE.DoubleSide;
 
 //#region reactive
 // __dev__();
-__defineControl__("side", "enum", side, {
+__defineControl__<THREE.Side>("side", "enum", side, {
   options: [
     { label: "FrontSide", value: THREE.FrontSide },
     { label: "BackSide", value: THREE.BackSide },

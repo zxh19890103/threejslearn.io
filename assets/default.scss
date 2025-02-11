@@ -3,9 +3,24 @@
 
 .Content {
   z-index: 100;
-  width: 640px;
   margin: 0 auto;
   box-shadow: 0 0 1px 1px #ddd;
+
+  /* 适配不同设备 */
+  @media (max-width: 576px) {
+    /* 手机 */
+    width: 100%;
+  }
+  @media (min-width: 577px) and (max-width: 768px) {
+    /* 平板 */
+    width: 90%;
+    max-width: 720px;
+  }
+  @media (min-width: 769px) {
+    width: 80%;
+    max-width: 1200px;
+    margin: auto;
+  }
 }
 
 .Home {

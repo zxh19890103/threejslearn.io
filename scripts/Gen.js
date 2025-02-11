@@ -42,7 +42,7 @@ title: ${dirent.name}
 
 <div class="TsfileDate rounded">
   <h4>file "run.ts" modificated logs:</h4>
-  <div>Created at: ${statTsfile.birthtime}</div>
+  <div>Created at: ${statTsfile.ctime}</div>
   <div>Updated at: ${statTsfile.mtime}</div>
 </div>
 
