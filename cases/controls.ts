@@ -1,16 +1,46 @@
 const $onchange = (event: Event) => {
   const input = event.target as HTMLInputElement;
+  const { $meta4ctrl } = input;
 
   let $key: string = input.name;
   let $value: any = null;
 
-  switch (input.type) {
+  switch ($meta4ctrl.type) {
     case "color": {
       $value = hexToColor(input.value);
       break;
     }
     case "number": {
       $value = input.valueAsNumber;
+      break;
+    }
+    case "enum": {
+      const select = input as unknown as HTMLSelectElement;
+      switch ($meta4ctrl.valueType) {
+        case "string":
+          $value = select.value;
+          break;
+        case "number":
+          $value = Number(select.value);
+          break;
+        case "bit":
+          $value = select.value === "0" ? false : true;
+          break;
+      }
+      break;
+    }
+    case "bit": {
+      const checkbox = input as HTMLInputElement;
+      $value = checkbox.checked;
+      break;
+    }
+    case "string": {
+      $value = input.value;
+      break;
+    }
+    case "range": {
+      const scale = ($meta4ctrl.max - $meta4ctrl.min) / 100;
+      $value = scale * input.valueAsNumber;
       break;
     }
   }
@@ -41,7 +71,8 @@ const $cDOM = (c: Control): HTMLDivElement => {
     case "bit": {
       const input = document.createElement("input");
       input.name = c.name;
-      input.type = "radio";
+      input.type = "checkbox";
+      input.$meta4ctrl = c;
       input.onchange = $onchange;
       div.appendChild(input);
       break;
@@ -51,6 +82,7 @@ const $cDOM = (c: Control): HTMLDivElement => {
       input.name = c.name;
       input.type = "color";
       input.value = colorToHex(c.value);
+      input.$meta4ctrl = c;
       input.onchange = $onchange;
       div.appendChild(input);
       break;
@@ -58,6 +90,7 @@ const $cDOM = (c: Control): HTMLDivElement => {
     case "enum": {
       const input = document.createElement("select");
       input.name = c.name;
+      input.$meta4ctrl = c;
 
       c.options.forEach((opt) => {
         const optionEl = document.createElement("option");
@@ -76,6 +109,7 @@ const $cDOM = (c: Control): HTMLDivElement => {
       input.name = c.name;
       input.type = "number";
       input.value = c.value;
+      input.$meta4ctrl = c;
       input.onchange = $onchange;
       div.appendChild(input);
       break;
@@ -85,6 +119,23 @@ const $cDOM = (c: Control): HTMLDivElement => {
       input.name = c.name;
       input.type = "text";
       input.value = c.value;
+      input.$meta4ctrl = c;
+      input.onchange = $onchange;
+      div.appendChild(input);
+      break;
+    }
+    case "range": {
+      const input = document.createElement("input");
+      input.name = c.name;
+      input.type = "range";
+      input.step = "1";
+      input.min = "0";
+      input.max = "100";
+
+      const scale = 100 / (c.max - c.min);
+      input.value = "" + scale * c.value;
+
+      input.$meta4ctrl = c;
       input.onchange = $onchange;
       div.appendChild(input);
       break;
@@ -132,7 +183,6 @@ __defineControl__ = <T>(
 let isUpdate = false;
 
 __renderControls__ = (data: Record<string, any>) => {
-  console.log("__renderControls__", data);
   // reassign
   for (const k in data) {
     if (!controls[k]) continue;
@@ -172,7 +222,7 @@ __onControlsDOMChanged__ = (data) => {
       continue;
     } else {
       if ($t === "string") {
-        __onControlsDOMChanged__iter__?.(`${k} = "${data[k]};"`, k, $v);
+        __onControlsDOMChanged__iter__?.(`${k} = "${data[k]}";`, k, $v);
       } else {
         __onControlsDOMChanged__iter__?.(`${k} = ${data[k]};`, k, $v);
       }

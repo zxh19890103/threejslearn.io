@@ -12,7 +12,8 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, 1 / 1, 0.1, 1000);
 
 // Create a WebGLRenderer and attach it to the DOM
-const renderer = new THREE.WebGLRenderer({});
+const renderer = new THREE.WebGLRenderer({ alpha: false, antialias: true });
+
 element.appendChild(renderer.domElement);
 
 const onResize = () => {
@@ -71,6 +72,41 @@ animate();
   type Vec3 = [number, number, number];
 
   const Utils = {
+    ambLight: (
+      c: THREE.ColorRepresentation = 0xffffff,
+      intensity: number = 0.6
+    ) => {
+      const light = new THREE.AmbientLight(c, intensity);
+      scene.add(light);
+    },
+    dirLight: (
+      c: THREE.ColorRepresentation = 0xffffff,
+      intensity: number = 0.6
+    ) => {
+      const light = new THREE.DirectionalLight(c, intensity);
+      scene.add(light);
+      return {
+        helper: (size: number, color: THREE.ColorRepresentation) => {
+          const helper = new THREE.DirectionalLightHelper(light, size, color);
+          scene.add(helper);
+        },
+      };
+    },
+    ptLight: (
+      c: THREE.ColorRepresentation = 0xffffff,
+      intensity: number = 0.6,
+      dist: number = 1,
+      decay: number = 0
+    ) => {
+      const light = new THREE.PointLight(c, intensity, dist, decay);
+      scene.add(light);
+      return {
+        helper: (size: number, color: THREE.ColorRepresentation) => {
+          const helper = new THREE.PointLightHelper(light, size, color);
+          scene.add(helper);
+        },
+      };
+    },
     cam: () => {
       const helper = new THREE.CameraHelper(camera);
       scene.add(helper);
@@ -97,9 +133,9 @@ animate();
 
     ball: (p: Vec3, r: number): THREE.Mesh => {
       const geometry = new THREE.SphereGeometry(r, 32, 32);
-      const material = new THREE.MeshBasicMaterial({
-        color: 0xffffff,
-        wireframe: true,
+      const material = new THREE.MeshPhongMaterial({
+        color: 0x45910f,
+        wireframe: false,
       });
       const sphere = new THREE.Mesh(geometry, material);
       sphere.position.set(...p);

@@ -5,10 +5,15 @@
 import * as THREE from "three";
 
 let side: THREE.Side = THREE.DoubleSide;
+let opacity = 1;
+let transparent = false;
+let colorWrite = false;
+let depthWrite = false;
 
 //#region reactive
 // __dev__();
 __defineControl__<THREE.Side>("side", "enum", side, {
+  valueType: "number",
   options: [
     { label: "FrontSide", value: THREE.FrontSide },
     { label: "BackSide", value: THREE.BackSide },
@@ -16,9 +21,22 @@ __defineControl__<THREE.Side>("side", "enum", side, {
   ],
 });
 
+__defineControl__("opacity", "range", opacity, {
+  min: 0,
+  max: 1,
+});
+
+__defineControl__("transparent", "bit", transparent);
+__defineControl__("colorWrite", "bit", colorWrite);
+__defineControl__("depthWrite", "bit", depthWrite);
+
 __updateControlsDOM__ = () => {
   __renderControls__({
     side,
+    opacity,
+    transparent,
+    colorWrite,
+    depthWrite,
   });
 };
 
@@ -37,13 +55,30 @@ __main__ = (
   __3_objects__.axes();
 
   const planeGeo = new THREE.PlaneGeometry(10, 10, 10);
-  const planeMat = new THREE.MeshBasicMaterial({ color: 0xfe9109, side: side });
+  const planeMat = new THREE.MeshBasicMaterial({
+    color: 0xfe9109,
+    side: side,
+    opacity: 0.5,
+    colorWrite: colorWrite,
+    transparent: transparent,
+  });
   const plane = new THREE.Mesh(planeGeo, planeMat);
   s.add(plane);
 
+  __3_objects__.dirLight(0xffffff, 0.9).helper(10, 0xfe9010);
+  __3_objects__.ball([10, 0, 0], 10);
+
   __updateTHREEJs__ = (k: string, val: any) => {
     // variables changed, run your code!
-    planeMat.side = side;
+
+    planeMat.setValues({
+      side,
+      opacity,
+      transparent,
+      colorWrite,
+      depthWrite,
+    });
+
     planeMat.needsUpdate = true;
   };
 };
