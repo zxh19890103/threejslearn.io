@@ -44,6 +44,9 @@ Email: zhangxinghai79@gmail.com
 </li><li>
 WeChat: singhijohn89
 </li>
+<li>
+<a href="https://discord.gg/hhFjPdvW" target="_blank">Discord</a>
+</li>
 </ul>
 </p>
 

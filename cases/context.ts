@@ -107,20 +107,38 @@ animate();
         },
       };
     },
-    cam: () => {
+    cam: (on = true) => {
       const helper = new THREE.CameraHelper(camera);
       scene.add(helper);
       return helper;
     },
-    grid: () => {
-      const grid = new THREE.GridHelper(10, 10);
-      scene.add(grid);
-      return grid;
+    grid: (on = true) => {
+      if (on) {
+        if (__3__cache__["grid"]) return;
+        const grid = new THREE.GridHelper(10, 10);
+        scene.add(grid);
+        __3__cache__["grid"] = grid;
+        return grid;
+      } else {
+        if (__3__cache__["grid"]) {
+          scene.remove(__3__cache__["grid"]);
+          __3__cache__["grid"] = null;
+        }
+      }
     },
-    axes: () => {
-      const axesHelper = new THREE.AxesHelper(5); // 5 is the size of the axes
-      scene.add(axesHelper);
-      return axesHelper;
+    axes: (on = true) => {
+      if (on) {
+        if (__3__cache__["axes"]) return;
+        const axesHelper = new THREE.AxesHelper(5); // 5 is the size of the axes
+        scene.add(axesHelper);
+        __3__cache__["axes"] = axesHelper;
+        return axesHelper;
+      } else {
+        if (__3__cache__["axes"]) {
+          scene.remove(__3__cache__["axes"]);
+          __3__cache__["axes"] = null;
+        }
+      }
     },
     line: (...ps: Vec3[]): THREE.Line => {
       const points = ps.map((p) => new THREE.Vector3(...p));
@@ -171,47 +189,10 @@ animate();
     vec: (x: number, y: number, z: number) => new THREE.Vector3(x, y, z),
     deg2rad: Math.PI / 180,
     rad2deg: 180 / Math.PI,
-    grid3d: (size: number, divisions: number) => {
-      const material = new THREE.LineBasicMaterial({ color: 0xaaaaaa });
-      const geometry = new THREE.BufferGeometry();
-
-      const positions = [];
-
-      const unit = size / divisions;
-
-      // Create the grid lines along the X axis
-      for (let x = -divisions; x <= divisions; x++) {
-        const X = x * unit;
-
-        for (let y = -divisions; y <= divisions; y++) {
-          const Y = y * unit;
-
-    
-
-          for (let z = -divisions; z <= divisions; z++) {
-            const Z = z * unit;
-
-            positions.push(X, -size, Z);
-            positions.push(X, size, Z);
-  
-            positions.push(-size, Y, Z);
-            positions.push(size, Y, Z);
-          }
-        }
-      }
-
-      // Set the positions as a Float32Array to use BufferGeometry
-      geometry.setAttribute(
-        "position",
-        new THREE.Float32BufferAttribute(positions, 3)
-      );
-
-      // Create the line from the geometry and material
-      const grid = new THREE.LineSegments(geometry, material);
-
-      scene.add(grid);
-    },
+    grid3d: (size: number, divisions: number) => {},
   };
+
+  const __3__cache__: { [k: string]: any } = {};
 
   Object.assign(__3_objects__, Utils);
 }

@@ -2,7 +2,6 @@ const fs = require("fs");
 const { join } = require("path");
 
 const cases = fs.opendirSync(join(__dirname, "../cases"), {});
-cases.readSync().isDirectory;
 
 let sortedDirs = [];
 let sorted = false;
@@ -63,6 +62,13 @@ title: ${dirent.name}
 
 {% include_relative _explain.md %}
 
+<h3>📝 Git logs</h3>
+<div class="RuntsGitLogs">
+<pre>
+${readGitLogs(dirent.name)}
+</pre>
+</div>
+
 `,
       { encoding: "utf8" }
     );
@@ -82,3 +88,14 @@ writeToMenu.write("</div>");
 writeToMenu.end();
 writeToIndex.end();
 cases.close();
+
+function readGitLogs(_case) {
+  const { execSync } = require("child_process");
+
+  const path = join(__dirname, "../cases/", _case, "run.ts");
+
+  // 执行 Git 命令
+  const output = execSync(`git log ${path}`, { encoding: "utf8" });
+
+  return output;
+}

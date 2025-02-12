@@ -80,10 +80,10 @@ type ThreeObjects = {
   ) => {
     helper: (size: number, color: number, dist: number, decay: number) => void;
   };
-  cam: () => THREE.CameraHelper;
-  grid: () => THREE.GridHelper;
+  cam: (on?: boolean) => THREE.CameraHelper;
+  grid: (on?: boolean) => THREE.GridHelper;
   grid3d: (size: number, divisions: number) => void;
-  axes: () => THREE.AxesHelper;
+  axes: (on?: boolean) => THREE.AxesHelper;
   line: (...ps: Vec3[]) => THREE.Line;
   ball: (p: Vec3, r: number) => THREE.Mesh;
   box: (p0: Vec3, l: number, w: number, h: number) => THREE.Mesh;
