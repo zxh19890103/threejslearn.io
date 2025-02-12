@@ -3,6 +3,7 @@
 
 .Content {
   padding: 0;
+  background-color: aliceblue;
   width: 100%;
 }
 
@@ -22,6 +23,7 @@
     color: #444;
     background-color: #fff;
     border-radius: 50%;
+    border: 1px solid #444;
   }
 }
 
@@ -86,8 +88,17 @@
       input {
         display: block;
         outline: none;
-        border: 1px solid #fff;
         border-radius: 2px;
+        border: 1px solid #fff;
+
+        &[type="button"] {
+          min-width: 5rem;
+          cursor: pointer;
+          &:hover {
+            border-color: #fefefe;
+            background-color: #eeeeee;
+          }
+        }
       }
 
       label {
@@ -103,6 +114,7 @@
 .Explain {
   padding: 1rem 2rem;
   height: auto;
+  background-color: white;
 
   > h3 {
     margin: 0;
@@ -112,7 +124,8 @@
 
   .highlighter-rouge {
     overflow: auto;
-    max-height: 340px;
+    max-height: 100vh;
+    height: fit-content;
     background-color: aliceblue;
     padding: 0.5rem;
     border: 1px solid #fefefe;
@@ -133,10 +146,10 @@
   color: black;
   transition: top 0.2s linear;
   font-size: 1.2rem;
-  box-shadow: 1px 0 2px 2px #ddd;
+  box-shadow: 1px 0 2px 2px #fff;
 
   @media (min-width: 1200px) {
-    width: 90%;
+    width: 50%;
   }
 
   &.inview {
@@ -166,9 +179,9 @@
     color: white;
     border-radius: 50%;
     border: 1px solid #ddd;
-    box-shadow: 0px 2px 2px 1px #ddd;
+    box-shadow: 0px 2px 2px 1px #fff;
     &:hover {
-      box-shadow: 0px 2px 2px 2px #ddd;
+      box-shadow: 0px 2px 2px 2px #fefefe;
     }
   }
 }

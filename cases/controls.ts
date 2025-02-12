@@ -43,12 +43,26 @@ const $onchange = (event: Event) => {
       $value = scale * input.valueAsNumber;
       break;
     }
+    case "btn": {
+      __updateTHREEJs__invoke__[$key]?.(input.value);
+      return;
+    }
+    default: {
+      console.log(`don't know the type: ${$meta4ctrl.type}`);
+      break;
+    }
   }
 
   __onControlsDOMChanged__?.({
     [$key]: $value,
   });
-  __updateTHREEJs__?.($key, $value);
+
+  if (Object.hasOwn(__updateTHREEJs__only__, $key)) {
+    __updateTHREEJs__only__[$key]($value);
+  } else {
+    __updateTHREEJs__?.($key, $value);
+  }
+  __updateTHREEJs__after__?.();
 };
 
 const colorToHex = (color: number) => {
@@ -140,9 +154,19 @@ const $cDOM = (c: Control): HTMLDivElement => {
       div.appendChild(input);
       break;
     }
+    case "btn": {
+      const input = document.createElement("input");
+      input.name = c.name;
+      input.type = "button";
+      input.value = "val:" + c.value;
+      input.$meta4ctrl = c;
+      input.onclick = $onchange;
+      div.appendChild(input);
+      break;
+    }
     default: {
       const span = document.createElement("span");
-      span.innerText = `cant identified: ${c.type}`;
+      span.innerText = `can't identify: ${c.type}`;
       div.appendChild(span);
       break;
     }

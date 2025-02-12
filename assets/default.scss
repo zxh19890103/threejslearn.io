@@ -24,11 +24,30 @@
 }
 
 .Home {
-  height: 100%;
+  height: fit-content;
   display: flex;
   justify-content: center;
   align-items: center;
   font-size: 1.3rem;
+}
+
+.ThreeJsLogo {
+  width: 5rem;
+  transform-origin: center;
+  transition: transform 0.5s linear;
+
+  &Box {
+    display: block;
+    width: 5rem;
+    height: 5rem;
+    border: 1px solid #767676;
+    border-radius: 50%;
+    position: relative;
+  }
+
+  &:hover {
+    transform: rotate(180deg);
+  }
 }
 
 .BG {

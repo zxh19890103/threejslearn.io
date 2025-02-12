@@ -167,6 +167,50 @@ animate();
       scene.add(plane);
       return plane;
     },
+
+    vec: (x: number, y: number, z: number) => new THREE.Vector3(x, y, z),
+    deg2rad: Math.PI / 180,
+    rad2deg: 180 / Math.PI,
+    grid3d: (size: number, divisions: number) => {
+      const material = new THREE.LineBasicMaterial({ color: 0xaaaaaa });
+      const geometry = new THREE.BufferGeometry();
+
+      const positions = [];
+
+      const unit = size / divisions;
+
+      // Create the grid lines along the X axis
+      for (let x = -divisions; x <= divisions; x++) {
+        const X = x * unit;
+
+        for (let y = -divisions; y <= divisions; y++) {
+          const Y = y * unit;
+
+    
+
+          for (let z = -divisions; z <= divisions; z++) {
+            const Z = z * unit;
+
+            positions.push(X, -size, Z);
+            positions.push(X, size, Z);
+  
+            positions.push(-size, Y, Z);
+            positions.push(size, Y, Z);
+          }
+        }
+      }
+
+      // Set the positions as a Float32Array to use BufferGeometry
+      geometry.setAttribute(
+        "position",
+        new THREE.Float32BufferAttribute(positions, 3)
+      );
+
+      // Create the line from the geometry and material
+      const grid = new THREE.LineSegments(geometry, material);
+
+      scene.add(grid);
+    },
   };
 
   Object.assign(__3_objects__, Utils);
