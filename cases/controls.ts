@@ -41,6 +41,9 @@ const $onchange = (event: Event) => {
     case "range": {
       const scale = ($meta4ctrl.max - $meta4ctrl.min) / 100;
       $value = scale * input.valueAsNumber;
+      if ($meta4ctrl.valueType === "int") {
+        $value = Math.floor($value);
+      }
       break;
     }
     case "btn": {
@@ -75,6 +78,7 @@ const hexToColor = (hex: string) => {
 const $cDOM = (c: Control): HTMLDivElement => {
   const div = document.createElement("div");
   div.className = "Control";
+  div.style.position = "relative";
 
   const label = document.createElement("label");
   label.innerText = c.label;
@@ -145,6 +149,23 @@ const $cDOM = (c: Control): HTMLDivElement => {
       input.step = "1";
       input.min = "0";
       input.max = "100";
+
+      const span = document.createElement("span");
+      span.style.position = "absolute";
+      span.style.right = "0px";
+      span.style.top = "50%";
+      span.style.transform = `translate(100%, -50%)`;
+      span.style.fontSize = "0.6rem";
+      span.style.pointerEvents = "none";
+
+      div.appendChild(span);
+      input.oninput = () => {
+        const scale = (c.max - c.min) / 100;
+        const val = scale * input.valueAsNumber;
+        span.innerText = (
+          c.valueType === "int" ? Math.floor(val) : val
+        ).toFixed(2);
+      };
 
       const scale = 100 / (c.max - c.min);
       input.value = "" + scale * c.value;

@@ -6,7 +6,7 @@ type ControlType =
   | "string"
   | "bit"
   | "btn";
-type ControlValueType = "number" | "string" | "bit";
+type ControlValueType = "number" | "int" | "string" | "bit";
 
 type ControlOption<T> = { label: string; value: T };
 type DefCtrlExtras<T> = Omit<
@@ -84,6 +84,9 @@ type ThreeObjects = {
   grid: (on?: boolean) => THREE.GridHelper;
   grid3d: (size: number, divisions: number) => void;
   axes: (on?: boolean) => THREE.AxesHelper;
+  /** local coordinated system for an object */
+  crs: (obj3d: THREE.Object3D) => void;
+  l: (color: THREE.ColorRepresentation, ...ps: Vec3[]) => THREE.Line;
   line: (...ps: Vec3[]) => THREE.Line;
   ball: (p: Vec3, r: number) => THREE.Mesh;
   box: (p0: Vec3, l: number, w: number, h: number) => THREE.Mesh;
@@ -92,6 +95,8 @@ type ThreeObjects = {
   deg2rad: number;
   rad2deg: number;
 };
+
+type Vec3 = [number, number, number];
 
 const __3_objects__: ThreeObjects;
 /**

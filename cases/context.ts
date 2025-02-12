@@ -185,11 +185,23 @@ animate();
       scene.add(plane);
       return plane;
     },
-
     vec: (x: number, y: number, z: number) => new THREE.Vector3(x, y, z),
+    l: (color: THREE.ColorRepresentation, ...ps: Vec3[]) => {
+      const points = ps.map((p) => new THREE.Vector3(...p));
+      const geometry = new THREE.BufferGeometry().setFromPoints(points);
+      const material = new THREE.LineBasicMaterial({ color });
+      const line = new THREE.Line(geometry, material);
+      return line;
+    },
     deg2rad: Math.PI / 180,
     rad2deg: 180 / Math.PI,
     grid3d: (size: number, divisions: number) => {},
+    crs: (obj3d: THREE.Object3D) => {
+      const lineX = __3__.l(0xe10191, [0, 0, 0], [5, 0, 0]);
+      const lineY = __3__.l(0x02fe01, [0, 0, 0], [0, 5, 0]);
+      const lineZ = __3__.l(0x3491fe, [0, 0, 0], [0, 0, 5]);
+      obj3d.add(lineX, lineY, lineZ);
+    },
   };
 
   const __3__cache__: { [k: string]: any } = {};
