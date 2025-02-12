@@ -12,6 +12,9 @@ let depthWrite = false;
 
 //#region reactive
 // __dev__();
+
+__defineControl__("call", "btn", 0);
+
 __defineControl__<THREE.Side>("side", "enum", side, {
   valueType: "number",
   options: [
@@ -68,6 +71,18 @@ __main__ = (
   __3_objects__.dirLight(0xffffff, 0.9).helper(10, 0xfe9010);
   __3_objects__.ball([10, 0, 0], 10);
 
+  __updateTHREEJs__only__.side = () => {
+    planeMat.side = side;
+  };
+
+  __updateTHREEJs__after__ = () => {
+    planeMat.needsUpdate = true;
+  };
+
+  __updateTHREEJs__invoke__.call = () => {
+    s.rotateOnAxis(__3__.vec(0, 1, 1), __3__.deg2rad * 23);
+  };
+
   __updateTHREEJs__ = (k: string, val: any) => {
     // variables changed, run your code!
 
@@ -78,7 +93,5 @@ __main__ = (
       colorWrite,
       depthWrite,
     });
-
-    planeMat.needsUpdate = true;
   };
 };

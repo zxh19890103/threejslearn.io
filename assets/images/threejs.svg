@@ -1,0 +1,93 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <!-- Front Triangle -->
+    <g transform="rotate(-45) translate(-49 30)">
+	<g>
+			<g transform="translate(14 50) rotate(0)">
+		<polygon points="0,-7 8,7 -8,7" fill="#fff" stroke="black" stroke-width="1" />	
+	</g>
+				<g transform="translate(23 50) rotate(180)">
+		<polygon points="0,-7 8,7 -8,7" fill="#fff" stroke="black" stroke-width="1" />	
+	</g>
+			<g transform="translate(32 50)">
+		<polygon points="0,-7 8,7 -8,7" fill="#fff" stroke="black" stroke-width="1" />	
+	</g>
+		<g transform="translate(41 50) rotate(180)">
+		<polygon points="0,-7 8,7 -8,7" fill="#fff" stroke="black" stroke-width="1" />	
+	</g>
+	<g transform="translate(50 50)">
+		<polygon points="0,-7 8,7 -8,7" fill="#fff" stroke="black" stroke-width="1" />	
+	</g>
+	<g transform="translate(59 50) rotate(180)">
+		<polygon points="0,-7 8,7 -8,7" fill="#fff" stroke="black" stroke-width="1" />	
+	</g>
+	<g transform="translate(68 50)">
+		<polygon points="0,-7 8,7 -8,7" fill="#fff" stroke="black" stroke-width="1" />	
+	</g>
+		<g transform="translate(77 50) rotate(180)">
+		<polygon points="0,-7 8,7 -8,7" fill="#fff" stroke="black" stroke-width="1" />	
+	</g>
+			<g transform="translate(86 50) rotate(0)">
+		<polygon points="0,-7 8,7 -8,7" fill="#fff" stroke="black" stroke-width="1" />	
+	</g>
+	</g>
+	
+	<g transform="translate(9 -15)">
+					<g transform="translate(14 50) rotate(0)">
+		<polygon points="0,-7 8,7 -8,7" fill="#fff" stroke="black" stroke-width="1" />	
+	</g>
+				<g transform="translate(23 50) rotate(180)">
+		<polygon points="0,-7 8,7 -8,7" fill="#fff" stroke="black" stroke-width="1" />	
+	</g>
+			<g transform="translate(32 50)">
+		<polygon points="0,-7 8,7 -8,7" fill="#fff" stroke="black" stroke-width="1" />	
+	</g>
+		<g transform="translate(41 50) rotate(180)">
+		<polygon points="0,-7 8,7 -8,7" fill="#fff" stroke="black" stroke-width="1" />	
+	</g>
+	<g transform="translate(50 50)">
+		<polygon points="0,-7 8,7 -8,7" fill="#fff" stroke="black" stroke-width="1" />	
+	</g>
+	<g transform="translate(59 50) rotate(180)">
+		<polygon points="0,-7 8,7 -8,7" fill="#fff" stroke="black" stroke-width="1" />	
+	</g>
+	<g transform="translate(68 50)">
+		<polygon points="0,-7 8,7 -8,7" fill="#fff" stroke="black" stroke-width="1" />	
+	</g>
+	</g>
+	
+		<g transform="translate(18 -30)">
+					<g transform="translate(14 50) rotate(0)">
+		<polygon points="0,-7 8,7 -8,7" fill="#fff" stroke="black" stroke-width="1" />	
+	</g>
+				<g transform="translate(23 50) rotate(180)">
+		<polygon points="0,-7 8,7 -8,7" fill="#fff" stroke="black" stroke-width="1" />	
+	</g>
+			<g transform="translate(32 50)">
+		<polygon points="0,-7 8,7 -8,7" fill="#fff" stroke="black" stroke-width="1" />	
+	</g>
+		<g transform="translate(41 50) rotate(180)">
+		<polygon points="0,-7 8,7 -8,7" fill="#fff" stroke="black" stroke-width="1" />	
+	</g>
+	<g transform="translate(50 50)">
+		<polygon points="0,-7 8,7 -8,7" fill="#fff" stroke="black" stroke-width="1" />	
+	</g>
+	</g>
+	
+			<g transform="translate(27 -45)">
+					<g transform="translate(14 50) rotate(0)">
+		<polygon points="0,-7 8,7 -8,7" fill="#fff" stroke="black" stroke-width="1" />	
+	</g>
+				<g transform="translate(23 50) rotate(180)">
+		<polygon points="0,-7 8,7 -8,7" fill="#fff" stroke="black" stroke-width="1" />	
+	</g>
+			<g transform="translate(32 50)">
+		<polygon points="0,-7 8,7 -8,7" fill="#fff" stroke="black" stroke-width="1" />	
+	</g>
+	</g>
+						<g transform="translate(36 -60)">
+					<g transform="translate(14 50) rotate(0)">
+		<polygon points="0,-7 8,7 -8,7" fill="#fff" stroke="black" stroke-width="1" />	
+	</g>
+	</g>
+			</g>
+  </svg>

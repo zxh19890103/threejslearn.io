@@ -2,10 +2,34 @@ const fs = require("fs");
 const { join } = require("path");
 
 const cases = fs.opendirSync(join(__dirname, "../cases"), {});
+cases.readSync().isDirectory;
+
+let sortedDirs = [];
+let sorted = false;
+let readCursor = -1;
+
+function readDir() {
+  if (!sorted) {
+    let dirent = null;
+    while ((dirent = cases.readSync())) {
+      if (dirent.isDirectory()) {
+        sortedDirs.push(dirent);
+      }
+    }
+
+    sortedDirs.sort((a, b) =>
+      String.prototype.localeCompare.call(a.name, b.name)
+    );
+
+    sorted = true;
+  }
+
+  return sortedDirs[++readCursor];
+}
 
 let dirent = null;
 
-const writeToIndex = fs.createWriteStream(join(__dirname, "../playground.md"), {
+const writeToIndex = fs.createWriteStream(join(__dirname, "../cases.md"), {
   encoding: "utf8",
 });
 
@@ -18,7 +42,7 @@ const writeToMenu = fs.createWriteStream(
 
 writeToIndex.write(`---
 layout: default
-title: PlayGround
+title: Cases
 ---
 
 
@@ -26,25 +50,16 @@ title: PlayGround
 
 writeToMenu.write('<div class="MenuItems">');
 
-while ((dirent = cases.readSync())) {
+while ((dirent = readDir())) {
   if (dirent.isDirectory()) {
     const indexfile = join(cases.path, dirent.name, "index.md");
-    const tsfile = join(cases.path, dirent.name, "run.ts");
-
-    const statTsfile = fs.statSync(tsfile);
 
     fs.writeFileSync(
       indexfile,
       `---
-layout: playground
+layout: case
 title: ${dirent.name}
 ---
-
-<div class="TsfileDate rounded">
-  <h4>file "run.ts" modificated logs:</h4>
-  <div>Created at: ${statTsfile.ctime}</div>
-  <div>Updated at: ${statTsfile.mtime}</div>
-</div>
 
 {% include_relative _explain.md %}
 
@@ -58,6 +73,10 @@ title: ${dirent.name}
     );
   }
 }
+
+sortedDirs = [];
+readCursor = -1;
+sorted = false;
 
 writeToMenu.write("</div>");
 writeToMenu.end();

@@ -1,18 +1,21 @@
 <!DOCTYPE html>
 
 <html>
+  <head>
+    {% include head.html %}
+    <link
+      rel="stylesheet"
+      href="/assets/default.css?ts={{site.time | date: '%s'}}"
+    />
+  </head>
 
-<head>
-  {% include head.html %}
-  <link rel="stylesheet" href="/assets/default.css?ts={{site.time | date: '%s'}}">
-</head>
-
-<body>
-  <div class="BG"></div>
-  <div class="Content">
-    {% if page.title %}<h2 class="underline">{{page.title}}</h2>{% endif %}
-    {{ content }}
-  </div>
-</body>
-
+  <body>
+    <div class="BG"></div>
+    <div class="Content">
+      <img style="width: 80px;" src="/assets/images/threejs.svg" />
+      {% if page.title %}
+      <h2 class="underline">{{page.title}}</h2>
+      {% endif %} {{ content }}
+    </div>
+  </body>
 </html>
