@@ -21,6 +21,7 @@ const $onchange = (event: Event) => {
           $value = select.value;
           break;
         case "number":
+        case "int":
           $value = Number(select.value);
           break;
         case "bit":
@@ -210,7 +211,7 @@ const $uDOM = (c: Control) => {
 
 const controls: Record<string, Control> = {};
 
-__defineControl__ = <T>(
+__defineControl__ = (<T>(
   name: string,
   type: ControlType,
   iniVal: any,
@@ -223,7 +224,20 @@ __defineControl__ = <T>(
     ...extras,
     value: iniVal ?? null,
   };
-};
+}) as DefineControl;
+
+__defineControl__.rint = (min: number, max: number) => ({
+  label: "",
+  valueType: "int",
+  min,
+  max,
+});
+__defineControl__.rfloat = (min: number, max: number) => ({
+  valueType: "number",
+  min,
+  max,
+});
+__defineControl__.r01 = () => ({ min: 0, max: 1, valueType: "number" });
 
 let isUpdate = false;
 

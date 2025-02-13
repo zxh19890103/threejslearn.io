@@ -10,5 +10,6 @@ title: Cases
 - [Geometry-Sphere](/cases/Geometry-Sphere)
 - [Materials-LineBasicMaterial](/cases/Materials-LineBasicMaterial)
 - [Materials-MeshStandardMaterial](/cases/Materials-MeshStandardMaterial)
+- [Materials-x-Blend](/cases/Materials-x-Blend)
 - [Setup](/cases/Setup)
 - [WebGLRenderer](/cases/WebGLRenderer)

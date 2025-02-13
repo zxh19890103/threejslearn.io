@@ -50,12 +50,19 @@ let __onControlsDOMChanged__iter__: (
 ) => void;
 let __updateControlsDOM__: () => void;
 
-let __defineControl__: <T>(
-  name: string,
-  type: ControlType,
-  initialVal: T,
-  extras?: Partial<DefCtrlExtras<T>>
-) => void;
+type DefineControl = {
+  <T>(
+    name: string,
+    type: ControlType,
+    initialVal: T,
+    extras?: Partial<DefCtrlExtras<T>>
+  ): void;
+  r01: () => Partial<DefCtrlExtras<T>>;
+  rint: (min: number, max: number) => Partial<DefCtrlExtras<T>>;
+  rfloat: (min: number, max: number) => Partial<DefCtrlExtras<T>>;
+};
+
+let __defineControl__: DefineControl;
 
 let __renderControls__: (data: Record<string, any>) => void;
 

@@ -82,6 +82,7 @@ __main__ = (
 
   const material = new THREE.MeshBasicMaterial({
     color: 0xed99e9,
+    blendAlpha: 0,
     wireframe: true,
   });
 
