@@ -11,5 +11,6 @@ title: Cases
 - [Materials-LineBasicMaterial](/cases/Materials-LineBasicMaterial)
 - [Materials-MeshStandardMaterial](/cases/Materials-MeshStandardMaterial)
 - [Materials-x-Blend](/cases/Materials-x-Blend)
+- [Materials-X-Map](/cases/Materials-X-Map)
 - [Setup](/cases/Setup)
 - [WebGLRenderer](/cases/WebGLRenderer)
