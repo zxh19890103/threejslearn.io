@@ -42,7 +42,6 @@ const JekyllEnv: "development" | "production";
 
 let __main__: NextFrameFn;
 let __dev__: () => void;
-let __onControlsDOMChanged__: (data: Record<string, any>) => void;
 let __onControlsDOMChanged__iter__: (
   evalExp: string,
   k: string,
@@ -73,7 +72,10 @@ type UpdateTHREEJs = {
 let __updateTHREEJs__: UpdateTHREEJs;
 let __updateTHREEJs__after__: () => void;
 const __updateTHREEJs__invoke__: Record<string, (val: any) => void>;
-const __updateTHREEJs__only__: Record<string, (val: any) => void>;
+const __updateTHREEJs__only__: Record<
+  string,
+  (val: any) => Promise<unknown> | boolean | void
+>;
 
 type ThreeObjects = {
   ambLight: (c: THREE.ColorRepresentation, intensity: number) => void;

@@ -57,15 +57,35 @@ const $onchange = (event: Event) => {
     }
   }
 
-  __onControlsDOMChanged__?.({
-    [$key]: $value,
-  });
+  let lastValue = $meta4ctrl.value;
+
+  $meta4ctrl.value = $value;
+
+  __onControlsDOMChanged__?.({ [$key]: $value });
 
   if (Object.hasOwn(__updateTHREEJs__only__, $key)) {
-    __updateTHREEJs__only__[$key]($value);
+    const res = __updateTHREEJs__only__[$key]($value);
+    if (res !== undefined && res !== null) {
+      if (res instanceof Promise) {
+        input.disabled = true;
+        res.then(
+          () => {
+            input.disabled = false;
+          },
+          () => {
+            // revoke the value of input.
+            __renderControls__({ [$key]: lastValue });
+            input.disabled = false;
+          }
+        );
+      } else if (!res) {
+        __renderControls__({ [$key]: lastValue });
+      }
+    }
   } else {
     __updateTHREEJs__?.($key, $value);
   }
+
   __updateTHREEJs__after__?.();
 };
 
@@ -206,6 +226,20 @@ const $uDOM = (c: Control) => {
       input.value = colorToHex(c.value);
       break;
     }
+    case "bit": {
+      const input = c.$el.querySelector("input");
+      input.checked = c.value;
+      break;
+    }
+    case "range": {
+      const input = c.$el.querySelector("input");
+      const scale = 100 / (c.max - c.min);
+      input.value = "" + scale * c.value;
+      break;
+    }
+    default: {
+      break;
+    }
   }
 };
 
@@ -227,7 +261,6 @@ __defineControl__ = (<T>(
 }) as DefineControl;
 
 __defineControl__.rint = (min: number, max: number) => ({
-  label: "",
   valueType: "int",
   min,
   max,
@@ -252,10 +285,10 @@ __renderControls__ = (data: Record<string, any>) => {
   const container = document.querySelector("#PgAppControls") as HTMLDivElement;
 
   if (isUpdate) {
+    console.log("here!", data);
     // update!
     for (const k in controls) {
-      const ctrl = controls[k];
-      $uDOM(ctrl);
+      $uDOM(controls[k]);
     }
   } else {
     isUpdate = true;
@@ -268,7 +301,7 @@ __renderControls__ = (data: Record<string, any>) => {
   }
 };
 
-__onControlsDOMChanged__ = (data) => {
+const __onControlsDOMChanged__ = (data: Record<string, any>) => {
   for (const k in data) {
     const $v = data[k];
     const $t = typeof $v;
