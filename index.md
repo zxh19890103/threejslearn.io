@@ -30,12 +30,20 @@ Have a look: <a href="/skills"><em>Skills</em></a>
 <h4>About the Author</h4>
 Hi, I’m Singhi, a Web3D developer from China.
 <br/>
+<br/>
 I created this website as part of my journey to master Three.js. While I have years of experience in Web3D development, I’ve found Three.js to be challenging, and I’m eager to truly understand each setting and its purpose.
+<br/>
 <br/>
 If you’re also a 3D developer, I’d love to connect with you. Let’s learn and grow together!
 <br/>
+<br/>
 Feel free to reach out.
 <br/>
+<br/>
+By the way, I'm searching for a job of Webgl/threejs. 
+If your company need this dev role, connect to me please.
+<br>
+Here is my CV: <a href="https://www.zhangxinghai.cn/cv" target="_blank">CV</a>.
 
 <h4>Contacts</h4>
 <ul style="text-transform: none">

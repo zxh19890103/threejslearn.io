@@ -85,7 +85,9 @@ type ThreeObjects = {
   ) => { helper: (size: number, color: number) => void };
   ptLight: (
     c?: THREE.ColorRepresentation,
-    intensity?: number
+    intensity?: number,
+    dist?: number,
+    decay?: number
   ) => {
     helper: (size: number, color: number, dist: number, decay: number) => void;
   };
@@ -97,7 +99,12 @@ type ThreeObjects = {
   crs: (obj3d: THREE.Object3D) => void;
   l: (color: THREE.ColorRepresentation, ...ps: Vec3[]) => THREE.Line;
   line: (...ps: Vec3[]) => THREE.Line;
-  ball: (p: Vec3, r: number, color?: ColorRepresentation, wire?: boolean) => THREE.Mesh;
+  ball: (
+    p: Vec3,
+    r: number,
+    color?: ColorRepresentation,
+    wire?: boolean
+  ) => THREE.Mesh;
   box: (p0: Vec3, l: number, w: number, h: number) => THREE.Mesh;
   plane: (c: Vec3, l: number, w: number) => THREE.Mesh;
   vec: (x: number, y: number, z: number) => THREE.Vector3;

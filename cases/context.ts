@@ -9,7 +9,12 @@ const element = document.querySelector("#PgApp")!;
 const scene = new THREE.Scene();
 
 // Create a camera (Field of view, aspect ratio, near and far clipping plane)
-const camera = new THREE.PerspectiveCamera(75, 1 / 1, 0.1, 1000);
+const camera = new THREE.PerspectiveCamera(
+  75,
+  1 / 1,
+  0.1,
+  Number.MAX_SAFE_INTEGER
+);
 
 // Create a WebGLRenderer and attach it to the DOM
 const renderer = new THREE.WebGLRenderer({ alpha: false, antialias: true });
@@ -29,7 +34,7 @@ const onResize = () => {
 onResize();
 
 // Position the camera so it's not inside the cube
-camera.position.z = 10;
+camera.position.z = 1000;
 renderer.setClearColor(0x000000);
 
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -100,6 +105,7 @@ animate();
     ) => {
       const light = new THREE.PointLight(c, intensity, dist, decay);
       scene.add(light);
+      light.position.set(0, 0, 0);
       return {
         helper: (size: number, color: THREE.ColorRepresentation) => {
           const helper = new THREE.PointLightHelper(light, size, color);
@@ -158,7 +164,7 @@ animate();
       const geometry = new THREE.SphereGeometry(r, 32, 32);
       const material = new THREE.MeshStandardMaterial({
         color: color ?? 0xffffff,
-        wireframe: wire,
+        wireframe: wire ?? false,
         metalness: 0.8,
         roughness: 0.6,
       });

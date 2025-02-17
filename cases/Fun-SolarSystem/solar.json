@@ -1,13 +1,14 @@
 {
   "name": "Sun",
   "mass": "1.989 x 10^30 kg",
-  "diameter": 1392684.0,
+  "diameter": 1391000,
   "distance_from_sun": 0.0,
   "color": "#FFD700",
   "planets": [
     {
       "name": "Mercury",
       "mass": "3.301 x 10^23 kg",
+      "speed": 47.87,
       "diameter": 4880.0,
       "distance_from_sun": 0.387,
       "color": "#B0B0B0",
@@ -16,6 +17,7 @@
     {
       "name": "Venus",
       "mass": "4.867 x 10^24 kg",
+      "speed": 35.02,
       "diameter": 12104.0,
       "distance_from_sun": 0.723,
       "color": "#D4AF37",
@@ -24,6 +26,7 @@
     {
       "name": "Earth",
       "mass": "5.972 x 10^24 kg",
+      "speed": 29.78,
       "diameter": 12742.0,
       "distance_from_sun": 1.0,
       "color": "#1F77B4",
@@ -40,6 +43,7 @@
     {
       "name": "Mars",
       "mass": "6.417 x 10^23 kg",
+      "speed": 24.07,
       "diameter": 6779.0,
       "distance_from_sun": 1.524,
       "color": "#B22222",
@@ -63,6 +67,7 @@
     {
       "name": "Jupiter",
       "mass": "1.898 x 10^27 kg",
+      "speed": 13.07,
       "diameter": 139820.0,
       "distance_from_sun": 5.204,
       "color": "#FF8C00",
@@ -100,6 +105,7 @@
     {
       "name": "Saturn",
       "mass": "5.683 x 10^26 kg",
+      "speed": 9.69,
       "diameter": 116460.0,
       "distance_from_sun": 9.582,
       "color": "#F4A300",
@@ -137,6 +143,7 @@
     {
       "name": "Uranus",
       "mass": "8.681 x 10^25 kg",
+      "speed": 6.81,
       "diameter": 50724.0,
       "distance_from_sun": 19.191,
       "color": "#A7D8D9",
@@ -181,6 +188,7 @@
     {
       "name": "Neptune",
       "mass": "1.024 x 10^26 kg",
+      "speed": 5.43,
       "diameter": 49244.0,
       "distance_from_sun": 30.07,
       "color": "#000080",
