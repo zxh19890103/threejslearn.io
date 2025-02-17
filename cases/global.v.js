@@ -5,7 +5,6 @@ var __dev__ = () => {
   document.querySelector(".Explain")?.classList.add("hidden");
 };
 var __add_nextframe_fn__ = null;
-var __onControlsDOMChanged__ = null;
 var __updateControlsDOM__ = null;
 var __defineControl__ = null;
 var __renderControls__ = null;
