@@ -1,7 +1,7 @@
 {
   "name": "threejslearn.io",
   "version": "1.0.0",
-  "type": "commonjs",
+  "type": "module",
   "description": "run some scripts.",
   "main": "no.js",
   "repository": "git@github.com:zxh19890103/threejslearn.io.git",

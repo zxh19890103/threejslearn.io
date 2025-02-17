@@ -1,0 +1,205 @@
+{
+  "name": "Sun",
+  "mass": "1.989 x 10^30 kg",
+  "diameter": 1392684.0,
+  "distance_from_sun": 0.0,
+  "color": "#FFD700",
+  "planets": [
+    {
+      "name": "Mercury",
+      "mass": "3.301 x 10^23 kg",
+      "diameter": 4880.0,
+      "distance_from_sun": 0.387,
+      "color": "#B0B0B0",
+      "moons": []
+    },
+    {
+      "name": "Venus",
+      "mass": "4.867 x 10^24 kg",
+      "diameter": 12104.0,
+      "distance_from_sun": 0.723,
+      "color": "#D4AF37",
+      "moons": []
+    },
+    {
+      "name": "Earth",
+      "mass": "5.972 x 10^24 kg",
+      "diameter": 12742.0,
+      "distance_from_sun": 1.0,
+      "color": "#1F77B4",
+      "moons": [
+        {
+          "name": "Moon",
+          "mass": "7.347 x 10^22 kg",
+          "diameter": 3474.8,
+          "distance_from_planet": 384400.0,
+          "color": "#808080"
+        }
+      ]
+    },
+    {
+      "name": "Mars",
+      "mass": "6.417 x 10^23 kg",
+      "diameter": 6779.0,
+      "distance_from_sun": 1.524,
+      "color": "#B22222",
+      "moons": [
+        {
+          "name": "Phobos",
+          "mass": "1.0659 x 10^16 kg",
+          "diameter": 22.4,
+          "distance_from_planet": 9377.0,
+          "color": "#A9A9A9"
+        },
+        {
+          "name": "Deimos",
+          "mass": "1.4762 x 10^15 kg",
+          "diameter": 12.4,
+          "distance_from_planet": 23460.0,
+          "color": "#A9A9A9"
+        }
+      ]
+    },
+    {
+      "name": "Jupiter",
+      "mass": "1.898 x 10^27 kg",
+      "diameter": 139820.0,
+      "distance_from_sun": 5.204,
+      "color": "#FF8C00",
+      "moons": [
+        {
+          "name": "Io",
+          "mass": "8.9319 x 10^22 kg",
+          "diameter": 3643.2,
+          "distance_from_planet": 421700.0,
+          "color": "#F4A300"
+        },
+        {
+          "name": "Europa",
+          "mass": "4.7998 x 10^22 kg",
+          "diameter": 3121.6,
+          "distance_from_planet": 670900.0,
+          "color": "#F5F5F5"
+        },
+        {
+          "name": "Ganymede",
+          "mass": "1.4819 x 10^23 kg",
+          "diameter": 5268.2,
+          "distance_from_planet": 1070400.0,
+          "color": "#D3D3D3"
+        },
+        {
+          "name": "Callisto",
+          "mass": "1.0759 x 10^23 kg",
+          "diameter": 4821.0,
+          "distance_from_planet": 1882700.0,
+          "color": "#D3D3D3"
+        }
+      ]
+    },
+    {
+      "name": "Saturn",
+      "mass": "5.683 x 10^26 kg",
+      "diameter": 116460.0,
+      "distance_from_sun": 9.582,
+      "color": "#F4A300",
+      "moons": [
+        {
+          "name": "Titan",
+          "mass": "1.3452 x 10^23 kg",
+          "diameter": 5151.8,
+          "distance_from_planet": 1222000.0,
+          "color": "#FF8C00"
+        },
+        {
+          "name": "Rhea",
+          "mass": "2.306 x 10^21 kg",
+          "diameter": 1527.6,
+          "distance_from_planet": 527000.0,
+          "color": "#D3D3D3"
+        },
+        {
+          "name": "Iapetus",
+          "mass": "1.806 x 10^21 kg",
+          "diameter": 1471.6,
+          "distance_from_planet": 3561300.0,
+          "color": "#000000"
+        },
+        {
+          "name": "Dione",
+          "mass": "1.095 x 10^21 kg",
+          "diameter": 1123.2,
+          "distance_from_planet": 377400.0,
+          "color": "#D3D3D3"
+        }
+      ]
+    },
+    {
+      "name": "Uranus",
+      "mass": "8.681 x 10^25 kg",
+      "diameter": 50724.0,
+      "distance_from_sun": 19.191,
+      "color": "#A7D8D9",
+      "moons": [
+        {
+          "name": "Miranda",
+          "mass": "6.6 x 10^19 kg",
+          "diameter": 471.6,
+          "distance_from_planet": 129000.0,
+          "color": "#A9A9A9"
+        },
+        {
+          "name": "Ariel",
+          "mass": "1.35 x 10^21 kg",
+          "diameter": 1158.8,
+          "distance_from_planet": 191000.0,
+          "color": "#D3D3D3"
+        },
+        {
+          "name": "Umbriel",
+          "mass": "1.17 x 10^21 kg",
+          "diameter": 1169.4,
+          "distance_from_planet": 266000.0,
+          "color": "#2F4F4F"
+        },
+        {
+          "name": "Titania",
+          "mass": "3.49 x 10^21 kg",
+          "diameter": 1578.8,
+          "distance_from_planet": 436000.0,
+          "color": "#D3D3D3"
+        },
+        {
+          "name": "Oberon",
+          "mass": "3.01 x 10^21 kg",
+          "diameter": 1523.6,
+          "distance_from_planet": 583000.0,
+          "color": "#D3D3D3"
+        }
+      ]
+    },
+    {
+      "name": "Neptune",
+      "mass": "1.024 x 10^26 kg",
+      "diameter": 49244.0,
+      "distance_from_sun": 30.07,
+      "color": "#000080",
+      "moons": [
+        {
+          "name": "Triton",
+          "mass": "2.14 x 10^22 kg",
+          "diameter": 2706.8,
+          "distance_from_planet": 354800.0,
+          "color": "#A9A9A9"
+        },
+        {
+          "name": "Nereid",
+          "mass": "4.0 x 10^18 kg",
+          "diameter": 340.0,
+          "distance_from_planet": 5513400.0,
+          "color": "#A9A9A9"
+        }
+      ]
+    }
+  ]
+}

@@ -5,6 +5,7 @@ title: Cases
 
 
 - [Camera](/cases/Camera)
+- [Fun-SolarSystem](/cases/Fun-SolarSystem)
 - [Geometry-Circle](/cases/Geometry-Circle)
 - [Geometry-Plane](/cases/Geometry-Plane)
 - [Geometry-Sphere](/cases/Geometry-Sphere)

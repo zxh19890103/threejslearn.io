@@ -29,7 +29,7 @@ const onResize = () => {
 onResize();
 
 // Position the camera so it's not inside the cube
-camera.position.z = 5;
+camera.position.z = 10;
 renderer.setClearColor(0x000000);
 
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -149,11 +149,18 @@ animate();
       return line;
     },
 
-    ball: (p: Vec3, r: number): THREE.Mesh => {
+    ball: (
+      p: Vec3,
+      r: number,
+      color?: THREE.ColorRepresentation,
+      wire?: boolean
+    ): THREE.Mesh => {
       const geometry = new THREE.SphereGeometry(r, 32, 32);
-      const material = new THREE.MeshPhongMaterial({
-        color: 0x45910f,
-        wireframe: false,
+      const material = new THREE.MeshStandardMaterial({
+        color: color ?? 0xffffff,
+        wireframe: wire,
+        metalness: 0.8,
+        roughness: 0.6,
       });
       const sphere = new THREE.Mesh(geometry, material);
       sphere.position.set(...p);

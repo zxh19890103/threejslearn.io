@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-const fs = require("fs");
-const { join } = require("path");
+import fs from "fs";
+import { join } from "path";
 
 const name = process.argv[2];
 const folder = join(__dirname, "../cases", name);

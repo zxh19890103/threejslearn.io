@@ -1,5 +1,13 @@
-const fs = require("fs");
-const { join } = require("path");
+import fs from "fs";
+import { fileURLToPath } from "url";
+import { join, dirname } from "path";
+import { execSync } from "child_process";
+
+// Get the current file's URL
+const __filename = fileURLToPath(import.meta.url);
+
+// Get the current directory
+const __dirname = dirname(__filename);
 
 const cases = fs.opendirSync(join(__dirname, "../cases"), {});
 
@@ -90,8 +98,6 @@ writeToIndex.end();
 cases.close();
 
 function readGitLogs(_case) {
-  const { execSync } = require("child_process");
-
   const path = join(__dirname, "../cases/", _case, "run.ts");
 
   // 执行 Git 命令
