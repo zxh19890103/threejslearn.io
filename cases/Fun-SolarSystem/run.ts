@@ -38,20 +38,23 @@ __main__ = async (
   const AU = 149597870.7; // 149597870.7;
   const aFactor = 5.93 * 0.001; // m/s²
 
-  let t = performance.now();
-
   const _s_: THREE.Vector3 = new THREE.Vector3();
 
-  const reduce = (
-    far: number,
-    p: THREE.Vector3,
-    s: THREE.Vector3,
-    dt: number
-  ) => {
-    _s_.copy(s);
-    const a = far * aFactor;
-    const S = _s_.multiplyScalar(dt);
-    p.add(S);
+  const reduce = (p: THREE.Vector3, s: THREE.Vector3, dt: number) => {
+    const D = p.length();
+
+    const ds = _s_
+      .copy(p)
+      .setLength(D * aFactor)
+      .multiplyScalar(dt);
+
+    const dp = _s_
+      .copy(s)
+      .multiplyScalar(dt)
+      .add(_s_.copy(ds).multiplyScalar(0.5 * dt));
+
+    p.add(dp);
+    s.add(ds);
   };
 
   const planets = solarSysDat.planets.map((planet: any) => {
@@ -61,22 +64,17 @@ __main__ = async (
     ball.userData = {
       inf: planet,
       sunfar: far,
-      s: new THREE.Vector3(planet.speed, 0, 0),
+      s: new THREE.Vector3(0, planet.speed, 0),
     };
     console.log(`${planet.name}`, far, r);
     return ball;
   });
 
-  const { sin, cos } = Math;
-
-  let rad = 0;
-  __add_nextframe_fn__(() => {
+  __add_nextframe_fn__((s, c, r, dt) => {
+    const delta = dt * 900;
     for (const planet of planets) {
-      const r = planet.userData.sunfar;
-
-      planet.position.set(r * cos(rad), r * sin(rad), 0);
+      reduce(planet.position, planet.userData.s, delta);
     }
-    rad += 0.001;
   });
 
   __3__.ambLight(0xffffff, 0.3);

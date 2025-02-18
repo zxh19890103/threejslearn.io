@@ -3,6 +3,8 @@
 import fs from "fs";
 import { join } from "path";
 
+import { __dirname } from "./env.js";
+
 const name = process.argv[2];
 const folder = join(__dirname, "../cases", name);
 

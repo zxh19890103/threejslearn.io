@@ -34,13 +34,20 @@ interface ControlDefineProps {
 type NextFrameFn = (
   scene: THREE.Scene,
   camera: THREE.Camera,
+  renderer: THREE.WebGLRenderer,
+  delta: number
+) => void;
+
+type MainFunc = (
+  scene: THREE.Scene,
+  camera: THREE.Camera,
   renderer: THREE.WebGLRenderer
 ) => void;
 
 let __add_nextframe_fn__: (fn: NextFrameFn) => void;
 const JekyllEnv: "development" | "production";
 
-let __main__: NextFrameFn;
+let __main__: MainFunc;
 let __dev__: () => void;
 let __onControlsDOMChanged__iter__: (
   evalExp: string,
