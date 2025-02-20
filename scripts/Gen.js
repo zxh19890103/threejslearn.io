@@ -1,13 +1,7 @@
 import fs from "fs";
-import { fileURLToPath } from "url";
-import { join, dirname } from "path";
+import { join } from "path";
 import { execSync } from "child_process";
-
-// Get the current file's URL
-const __filename = fileURLToPath(import.meta.url);
-
-// Get the current directory
-const __dirname = dirname(__filename);
+import { __dirname } from "./env.js";
 
 const cases = fs.opendirSync(join(__dirname, "../cases"), {});
 

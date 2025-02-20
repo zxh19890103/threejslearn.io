@@ -34,7 +34,7 @@ const onResize = () => {
 onResize();
 
 // Position the camera so it's not inside the cube
-camera.position.z = 1000;
+camera.position.z = 10;
 renderer.setClearColor(0x000000);
 
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -49,7 +49,7 @@ function animate() {
   renderer.clearColor();
   controls.update(clock.getDelta());
 
-  for (const fn of nextFrameFns) fn(scene, camera, renderer);
+  for (const fn of nextFrameFns) fn(scene, camera, renderer, clock.getDelta());
   // Render the scene from the perspective of the camera
   renderer.render(scene, camera);
 }
