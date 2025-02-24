@@ -1,77 +1,67 @@
 <!DOCTYPE html>
 
 <html>
-  <head>
-    {% include head.html %}
-    <link rel="stylesheet" href="/assets/jslibs/hls/style.min.css" />
-    <link
-      rel="stylesheet"
-      href="/assets/case.css?ts={{site.time | date: '%s'}}"
-    />
-  </head>
 
-  <body>
-    <div class="BG"></div>
-    <div class="Content">
-      <div
-        class="Menu"
-        id="Menu"
-        onclick="if(event.target.dataset.toggle) {this.classList.toggle('inview')}"
-      >
-        {% include menu.html %}
-        <div class="MenuButtons">
-          <a href="/" class="MenuButton">🏡</a>
-          <a
-            href="javascript:void(0);"
-            data-toggle="1"
-            class="MenuButton Toggle"
-            >📚</a
-          >
-        </div>
-      </div>
-      <div id="SectionPgAppWrap" class="PgAppWrap Section">
-        <div id="PgApp" class="PgApp"></div>
-        <div id="PgAppControls" class="PgAppControls rounded"></div>
-        <a href="#SectionExplain" class="Pager">Down</a>
-      </div>
-      <div id="SectionExplain" class="Explain Section">
-        <a href="#SectionPgAppWrap" class="Pager">Up</a>
-        <h2 class="underline">
-          <img src="/assets/images/threejs.svg" style="width: 60px" />
-          {{page.title}}
-        </h2>
-        <div>
-          <h3>🖥️ Code</h3>
-          <div class="language-ts highlighter-rouge rounded">
-            <div class="highlight">
-              <pre class="highlight" id="TsCode">loading...</pre>
-            </div>
-          </div>
-          <h3>💬 Explanation</h3>
-          <div class="AxisLengend">
-            <div class="Axis AxisX" style="background-color: orange">x</div>
-            <div class="Axis AxisY" style="background-color: green">y</div>
-            <div class="Axis AxisZ" style="background-color: blue">z</div>
-          </div>
-          <div>{{ content }}</div>
-        </div>
+<head>
+  {% include head.html %}
+  <link rel="stylesheet" href="/assets/jslibs/hls/style.min.css" />
+  <link rel="stylesheet" href="/assets/case.css?ts={{site.time | date: '%s'}}" />
+  <script defer src='/assets/jslibs/big.min.js'></script>
+</head>
+
+<body>
+  <div class="BG"></div>
+  <div class="Content">
+    <div class="Menu" id="Menu" onclick="if(event.target.dataset.toggle) {this.classList.toggle('inview')}">
+      {% include menu.html %}
+      <div class="MenuButtons">
+        <a href="/" class="MenuButton">🏡</a>
+        <a href="javascript:void(0);" data-toggle="1" class="MenuButton Toggle">📚</a>
       </div>
     </div>
+    <div id="SectionPgAppWrap" class="PgAppWrap Section">
+      <div id="PgApp" class="PgApp"></div>
+      <div id="PgAppControls" class="PgAppControls rounded"></div>
+      <a href="#SectionExplain" class="Pager">Down</a>
+    </div>
+    <div id="SectionExplain" class="Explain Section">
+      <a href="#SectionPgAppWrap" class="Pager">Up</a>
+      <h2 class="underline">
+        <img src="/assets/images/threejs.svg" style="width: 60px" />
+        {{page.title}}
+      </h2>
+      <div>
+        <h3>🖥️ Code</h3>
+        <div class="language-ts highlighter-rouge rounded">
+          <div class="highlight">
+            <pre class="highlight" id="TsCode">loading...</pre>
+          </div>
+        </div>
+        <h3>💬 Explanation</h3>
+        <div class="AxisLengend">
+          <div class="Axis AxisX" style="background-color: orange">x</div>
+          <div class="Axis AxisY" style="background-color: green">y</div>
+          <div class="Axis AxisZ" style="background-color: blue">z</div>
+        </div>
+        <div>{{ content }}</div>
+      </div>
+    </div>
+  </div>
 
-    <script src="/assets/jslibs/hls/hl.min.js"></script>
-    <script>
-      fetch(`run.ts?t=${Date.now()}`)
-        .then((r) => r.text())
-        .then((code) => {
-          const highlightedCode = hljs.highlight(code, { language: "ts" });
-          document.querySelector("#TsCode").innerHTML = highlightedCode.value;
-        });
+  <script src="/assets/jslibs/hls/hl.min.js"></script>
+  <script>
+    fetch(`run.ts?t=${Date.now()}`)
+      .then((r) => r.text())
+      .then((code) => {
+        const highlightedCode = hljs.highlight(code, { language: "ts" });
+        document.querySelector("#TsCode").innerHTML = highlightedCode.value;
+      });
 
-      var JekyllEnv = "{{jekyll.environment}}";
-    </script>
-    <script src="/cases/global.v.js?ts={{site.time | date: '%s'}}"></script>
+    var JekyllEnv = "{{jekyll.environment}}";
+  </script>
+  <script src="/cases/global.v.js?ts={{site.time | date: '%s'}}"></script>
 
-    <script type="importmap">
+  <script type="importmap">
       {
         "imports": {
           "three": "/assets/jslibs/three/three.module.min.js",
@@ -80,13 +70,8 @@
       }
     </script>
 
-    <script
-      type="module"
-      src="/_cases/context.js?ts={{site.time | date: '%s'}}"
-    ></script>
-    <script
-      type="module"
-      src="/_cases{{page.url | slice: 6, 100 }}run.js?ts={{site.time | date: '%s'}}"
-    ></script>
-  </body>
+  <script type="module" src="/_cases/context.js?ts={{site.time | date: '%s'}}"></script>
+  <script type="module" src="/_cases{{page.url | slice: 6, 100 }}run.js?ts={{site.time | date: '%s'}}"></script>
+</body>
+
 </html>

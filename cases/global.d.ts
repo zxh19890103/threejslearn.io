@@ -21,6 +21,7 @@ interface Control<T extends ControlValueType = any> {
   options?: ControlOption<T>[];
   min?: number;
   max?: number;
+  help?: string;
   type: ControlType;
   label: string;
   name: string;
@@ -44,9 +45,16 @@ type MainFunc = (
   renderer: THREE.WebGLRenderer
 ) => void;
 
+type Config = {
+  camFv: number;
+  camFar: number;
+  camPos: Vec3;
+};
+
 let __add_nextframe_fn__: (fn: NextFrameFn) => void;
 const JekyllEnv: "development" | "production";
 
+let __config__: Config;
 let __main__: MainFunc;
 let __dev__: () => void;
 let __onControlsDOMChanged__iter__: (
@@ -87,8 +95,9 @@ const __updateTHREEJs__only__: Record<
 type ThreeObjects = {
   ambLight: (c: THREE.ColorRepresentation, intensity: number) => void;
   dirLight: (
-    c: THREE.ColorRepresentation,
-    intensity: number
+    c?: THREE.ColorRepresentation,
+    intensity?: number,
+    direction?: THREE.Vector3
   ) => { helper: (size: number, color: number) => void };
   ptLight: (
     c?: THREE.ColorRepresentation,
@@ -105,7 +114,18 @@ type ThreeObjects = {
   /** local coordinated system for an object */
   crs: (obj3d: THREE.Object3D) => void;
   l: (color: THREE.ColorRepresentation, ...ps: Vec3[]) => THREE.Line;
-  line: (...ps: Vec3[]) => THREE.Line;
+  line: (...ps: Vec3[]) => {
+    update: (...pts: Vec3[]) => void;
+    update2: (...vs: THREE.Vector3[]) => void;
+  };
+  track: (
+    p: Vec3,
+    color: THREE.ColorRepresentation
+  ) => {
+    userData: Record<string, any>;
+    append: (...pts: Vec3[]) => void;
+    position: THREE.Vector3;
+  };
   ball: (
     p: Vec3,
     r: number,

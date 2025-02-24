@@ -22,6 +22,9 @@ __updateControlsDOM__ = () => {
 __onControlsDOMChanged__iter__ = (exp) => eval(exp);
 //#endregion
 
+__config__.camFv = 145;
+__config__.camPos = [0, 1, 8];
+
 __main__ = async (
   s: THREE.Scene,
   c: THREE.PerspectiveCamera,
@@ -30,51 +33,20 @@ __main__ = async (
   // your code
   const solarSysDat = await fetch("./solar.json").then((r) => r.json());
 
-  const diameter_scale = 0.00001;
-  const R = (solarSysDat.diameter * diameter_scale) / 2;
-
-  __3__.ball([0, 0, 0], R, solarSysDat.color, true);
-
-  const AU = 149597870.7; // 149597870.7;
-  const aFactor = 5.93 * 0.001; // m/s²
-
-  const _s_: THREE.Vector3 = new THREE.Vector3();
-
-  const reduce = (p: THREE.Vector3, s: THREE.Vector3, dt: number) => {
-    const D = p.length();
-
-    const ds = _s_
-      .copy(p)
-      .setLength(D * aFactor)
-      .multiplyScalar(dt);
-
-    const dp = _s_
-      .copy(s)
-      .multiplyScalar(dt)
-      .add(_s_.copy(ds).multiplyScalar(0.5 * dt));
-
-    p.add(dp);
-    s.add(ds);
-  };
-
-  const planets = solarSysDat.planets.map((planet: any) => {
-    const far = planet.distance_from_sun * AU * diameter_scale;
-    const r = (planet.diameter * 0.01) / 2;
-    const ball = __3__.ball([far, 0, 0], r, planet.color, false);
-    ball.userData = {
-      inf: planet,
-      sunfar: far,
-      s: new THREE.Vector3(0, planet.speed, 0),
-    };
-    console.log(`${planet.name}`, far, r);
-    return ball;
-  });
+  const planets = solarSysDat.planets
+    .map((inf: any) => {
+      if (inf.name === "Earth") {
+        const planet = new Planet(inf);
+        s.add(planet);
+        return planet;
+      }
+      return null;
+    })
+    .filter(Boolean) as Planet[];
 
   __add_nextframe_fn__((s, c, r, dt) => {
-    const delta = dt * 900;
-    for (const planet of planets) {
-      reduce(planet.position, planet.userData.s, delta);
-    }
+    const delta = dt * 100000; // 10ms = 1s
+    // for (const planet of planets) planet.move(delta);
   });
 
   __3__.ambLight(0xffffff, 0.3);
@@ -87,3 +59,84 @@ __main__ = async (
     // variables changed, run your code!
   };
 };
+
+class Planet extends THREE.Line {
+  public readonly _speed: THREE.Vector3 = new THREE.Vector3();
+  public readonly _position: THREE.Vector3 = new THREE.Vector3();
+  private _positionArr: number[] = [];
+
+  constructor(private inf: PlanetInfo) {
+    const geo = new THREE.BufferGeometry();
+    const mat = new THREE.LineBasicMaterial({ color: inf.color });
+
+    super(geo, mat);
+
+    this._speed.set(0, inf.speed * SPEEDUNIT, 0);
+    this._position.set(inf.distance_from_sun * AU, 0, 0);
+  }
+
+  move(dt: number) {
+    reduceSpatialChangeAfter(this, dt);
+
+    this._positionArr.push(
+      this._position.x / AU,
+      this._position.y / AU,
+      this._position.z / AU
+    );
+
+    this.geometry.setAttribute(
+      "position",
+      new THREE.BufferAttribute(new Float32Array(this._positionArr), 3)
+    );
+  }
+}
+
+type PlanetInfo = {
+  name: string;
+  /** "3.301 x 10^23 kg"  */
+  mass: string;
+  /**  km */
+  speed: number;
+  /** km  */
+  diameter: number;
+  /** au */
+  distance_from_sun: number;
+  /** color */
+  color: string;
+  moons: any[];
+};
+
+const MOMENT = 400; // s
+
+const reduceSpatialChangeDurMoment = (planet: Planet) => {
+  const { _position, _speed: speed } = planet;
+
+  const farSq = _position.lengthSq();
+  const acc = GxSUNMASS / farSq;
+  const accV = _sv_.copy(_position).negate().setLength(acc);
+  const dP = speed.multiplyScalar(MOMENT);
+  const dS = accV.multiplyScalar(MOMENT);
+
+  speed.add(dS);
+
+  dP.add(dS.multiplyScalar(0.5 * MOMENT));
+  _position.add(dP);
+};
+
+const reduceSpatialChangeAfter = (planet: Planet, after: number) => {
+  let steps = Math.ceil(after / MOMENT);
+  if (steps < 1) return;
+  while (steps--) reduceSpatialChangeDurMoment(planet);
+};
+
+const _sv_ = new THREE.Vector3();
+
+const SPEEDUNIT = Math.pow(10, 3); // m/s
+const AU = 1.496 * Math.pow(10, 11); // m
+const SUNMASS = 1.989 * Math.pow(10, 30); // kg
+const G = 6.673 * Math.pow(10, -11);
+const GxSUNMASS = 1.989 * 6.673 * Math.pow(10, 19);
+
+// G = 6.67430×10−11
+// M = 1.989×10+30
+// 1.521 AU

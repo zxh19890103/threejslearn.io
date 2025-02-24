@@ -16,18 +16,13 @@ This is a website dedicated to learning <a href="https://threejs.org/"><em>Three
 Let's go to：<a href="/cases"><em>Cases</em></a></p>
 
 <p>
-<h4>My Skills</h4>
+<h4># My Skills</h4>
 Have a look: <a href="/skills"><em>Skills</em></a>
 </p>
 
 <p>
-<h4>Cases Index</h4>
-{% include menu.html %}
-</p>
 
-<p>
-
-<h4>About the Author</h4>
+<h4># About the Author</h4>
 Hi, I’m Singhi, a Web3D developer from China.
 <br/>
 <br/>
@@ -45,7 +40,7 @@ If your company need this dev role, connect to me please.
 <br>
 Here is my CV: <a href="https://www.zhangxinghai.cn/cv" target="_blank">CV</a>.
 
-<h4>Contacts</h4>
+<h4># Contacts</h4>
 <ul style="text-transform: none">
 <li>
 Email: zhangxinghai79@gmail.com

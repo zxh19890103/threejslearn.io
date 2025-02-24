@@ -2,79 +2,93 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
 import "./controls.js";
+import "./dialog.js";
 
-const element = document.querySelector("#PgApp")!;
+let scene: THREE.Scene;
+let camera: THREE.PerspectiveCamera;
+let renderer: THREE.WebGLRenderer;
 
-// Create the scene
-const scene = new THREE.Scene();
+const setup = () => {
+  const element = document.querySelector("#PgApp")!;
 
-// Create a camera (Field of view, aspect ratio, near and far clipping plane)
-const camera = new THREE.PerspectiveCamera(
-  75,
-  1 / 1,
-  0.1,
-  Number.MAX_SAFE_INTEGER
-);
+  // Create the scene
+  scene = new THREE.Scene();
 
-// Create a WebGLRenderer and attach it to the DOM
-const renderer = new THREE.WebGLRenderer({ alpha: false, antialias: true });
+  // Create a camera (Field of view, aspect ratio, near and far clipping plane)
+  camera = new THREE.PerspectiveCamera(
+    __config__.camFv,
+    1 / 1,
+    0.1,
+    __config__.camFar
+  );
 
-element.appendChild(renderer.domElement);
+  // Create a WebGLRenderer and attach it to the DOM
+  renderer = new THREE.WebGLRenderer({ alpha: false, antialias: true });
 
-const onResize = () => {
-  const vW = element.clientWidth;
-  const vH = element.clientHeight;
+  element.appendChild(renderer.domElement);
 
-  camera.aspect = vW / vH;
-  camera.updateProjectionMatrix();
+  const onResize = () => {
+    const vW = element.clientWidth;
+    const vH = element.clientHeight;
 
-  renderer.setSize(vW, vH);
-};
+    camera.aspect = vW / vH;
+    camera.updateProjectionMatrix();
 
-onResize();
+    renderer.setSize(vW, vH);
+  };
 
-// Position the camera so it's not inside the cube
-camera.position.z = 10;
-renderer.setClearColor(0x000000);
-
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.update();
-
-const clock = new THREE.Clock();
-
-// Animation function
-function animate() {
-  requestAnimationFrame(animate);
-
-  renderer.clearColor();
-  controls.update(clock.getDelta());
-
-  for (const fn of nextFrameFns) fn(scene, camera, renderer, clock.getDelta());
-  // Render the scene from the perspective of the camera
-  renderer.render(scene, camera);
-}
-
-new ResizeObserver((ents) => {
   onResize();
-}).observe(element, { box: "border-box" });
 
-const nextFrameFns: NextFrameFn[] = [];
+  // Position the camera so it's not inside the cube
+  camera.position.set(...__config__.camPos);
+  renderer.setClearColor(0x000000);
 
-__add_nextframe_fn__ = (fn: NextFrameFn) => {
-  nextFrameFns.push(fn);
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.update();
+
+  const clock = new THREE.Clock();
+
+  // Animation function
+  const animate = () => {
+    requestAnimationFrame(animate);
+
+    renderer.clearColor();
+
+    const delta = clock.getDelta();
+
+    controls.update(delta);
+
+    for (const fn of nextFrameFns) fn(scene, camera, renderer, delta);
+    // Render the scene from the perspective of the camera
+    renderer.render(scene, camera);
+  };
+
+  new ResizeObserver(onResize).observe(element, { box: "border-box" });
+
+  const nextFrameFns: NextFrameFn[] = [];
+
+  __add_nextframe_fn__ = (fn: NextFrameFn) => {
+    nextFrameFns.push(fn);
+  };
+
+  // Start the animation loop
+  animate();
 };
 
-setTimeout(() => {
+const bootstrap = () => {
+  setup();
+
   __main__?.(scene, camera, renderer);
   __updateTHREEJs__?.(null, null);
   __updateControlsDOM__?.();
-}, 0);
+};
 
-// Start the animation loop
-animate();
+setTimeout(bootstrap);
 
 {
   type Vec3 = [number, number, number];
+
+  const deaultLightDir = new THREE.Vector3(0, 0, 1);
 
   const Utils = {
     ambLight: (
@@ -86,9 +100,12 @@ animate();
     },
     dirLight: (
       c: THREE.ColorRepresentation = 0xffffff,
-      intensity: number = 0.6
+      intensity: number = 0.6,
+      direction: THREE.Vector3 = deaultLightDir
     ) => {
       const light = new THREE.DirectionalLight(c, intensity);
+      light.position.copy(direction);
+
       scene.add(light);
       return {
         helper: (size: number, color: THREE.ColorRepresentation) => {
@@ -146,13 +163,19 @@ animate();
         }
       }
     },
-    line: (...ps: Vec3[]): THREE.Line => {
+    line: (...ps: Vec3[]) => {
       const points = ps.map((p) => new THREE.Vector3(...p));
       const geometry = new THREE.BufferGeometry().setFromPoints(points);
       const material = new THREE.LineBasicMaterial({ color: 0xffffff });
       const line = new THREE.Line(geometry, material);
       scene.add(line);
-      return line;
+
+      return {
+        update: (...pts: Vec3[]) => {},
+        update2: (...vs: THREE.Vector3[]) => {
+          geometry.setFromPoints(vs);
+        },
+      };
     },
 
     ball: (
@@ -185,7 +208,32 @@ animate();
       scene.add(box);
       return box;
     },
+    track: (p: Vec3, color: THREE.ColorRepresentation) => {
+      const pts = [p];
 
+      const geometry = new THREE.BufferGeometry();
+
+      const points = new THREE.Points(
+        geometry,
+        new THREE.PointsMaterial({ color })
+      );
+
+      const build = () => {
+        const array = new Float32Array(pts.flat());
+        geometry.setAttribute("position", new THREE.BufferAttribute(array, 3));
+      };
+
+      scene.add(points);
+
+      return {
+        position: new THREE.Vector3(...p),
+        userData: {},
+        append: (_pts: Vec3[]) => {
+          pts.push(..._pts);
+          build();
+        },
+      };
+    },
     plane: (c: Vec3, l: number, w: number): THREE.Mesh => {
       const geometry = new THREE.PlaneGeometry(l, w);
       const material = new THREE.MeshBasicMaterial({

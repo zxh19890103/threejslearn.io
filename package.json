@@ -21,6 +21,7 @@
     "typescript": "^5.7.3"
   },
   "dependencies": {
+    "@types/big.js": "^6.2.2",
     "@types/three": "^0.173.0"
   }
 }

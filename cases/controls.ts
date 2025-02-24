@@ -101,6 +101,23 @@ const $cDOM = (c: Control): HTMLDivElement => {
   div.className = "Control";
   div.style.position = "relative";
 
+  if (c.help) {
+    const helptrigger = document.createElement("div");
+    helptrigger.style.cssText = `width: 16px;
+      height: 16px;
+      background-color: white;
+      color: rgb(0, 0, 0);
+      border-radius: 50%;
+      font-size: 14px;
+      text-align: center; cursor: pointer;`;
+
+    helptrigger.innerText = "?";
+    div.appendChild(helptrigger);
+    helptrigger.onclick = () => {
+      alert(c.help);
+    };
+  }
+
   const label = document.createElement("label");
   label.innerText = c.label;
 

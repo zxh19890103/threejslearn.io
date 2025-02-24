@@ -93,7 +93,7 @@ __main__ = (s: THREE.Scene, c: THREE.Camera, r: THREE.WebGLRenderer) => {
     if (on) {
       return new Promise((done, fail) => {
         loader.load(
-          "/assets/images/2k_earth_nightmap.jpg",
+          "/assets/images/2k_earth_daymap.jpg",
           (texture) => {
             mat.map = texture;
             mat.needsUpdate = true;

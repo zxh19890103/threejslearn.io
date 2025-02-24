@@ -15,3 +15,8 @@ var __updateTHREEJs__ = null;
 var __updateTHREEJs__only__ = {};
 var __updateTHREEJs__after__ = null;
 var __updateTHREEJs__invoke__ = {};
+var __config__ = {
+  camFv: 75,
+  camFar: Number.MAX_SAFE_INTEGER,
+  camPos: [0, 0, 10],
+};
