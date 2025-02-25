@@ -41,7 +41,7 @@ const $onchange = (event: Event) => {
     }
     case "range": {
       const scale = ($meta4ctrl.max - $meta4ctrl.min) / 100;
-      $value = scale * input.valueAsNumber;
+      $value = $meta4ctrl.min + scale * input.valueAsNumber;
       if ($meta4ctrl.valueType === "int") {
         $value = Math.floor($value);
       }
@@ -199,14 +199,14 @@ const $cDOM = (c: Control): HTMLDivElement => {
       div.appendChild(span);
       input.oninput = () => {
         const scale = (c.max - c.min) / 100;
-        const val = scale * input.valueAsNumber;
+        const val = c.min + scale * input.valueAsNumber;
         span.innerText = (
           c.valueType === "int" ? Math.floor(val) : val
         ).toFixed(2);
       };
 
       const scale = 100 / (c.max - c.min);
-      input.value = "" + scale * c.value;
+      input.value = c.min + "" + scale * c.value;
 
       input.$meta4ctrl = c;
       input.onchange = $onchange;
@@ -251,7 +251,7 @@ const $uDOM = (c: Control) => {
     case "range": {
       const input = c.$el.querySelector("input");
       const scale = 100 / (c.max - c.min);
-      input.value = "" + scale * c.value;
+      input.value = c.min + "" + scale * c.value;
       break;
     }
     default: {

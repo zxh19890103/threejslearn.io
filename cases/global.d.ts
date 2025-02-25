@@ -112,7 +112,7 @@ type ThreeObjects = {
   grid3d: (size: number, divisions: number) => void;
   axes: (on?: boolean) => THREE.AxesHelper;
   /** local coordinated system for an object */
-  crs: (obj3d: THREE.Object3D) => void;
+  crs: (obj3d: THREE.Object3D, size?: number) => void;
   l: (color: THREE.ColorRepresentation, ...ps: Vec3[]) => THREE.Line;
   line: (...ps: Vec3[]) => {
     update: (...pts: Vec3[]) => void;
