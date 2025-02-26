@@ -3,12 +3,15 @@
  */
 
 import * as THREE from "three";
+import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
+import { MTLLoader } from "three/addons/loaders/MTLLoader.js";
+import { Grid, GridCell } from "./grid.js";
 
 let enableGrid = false;
 let enableAxes = false;
 
 //#region reactive
-// __dev__();
+__dev__();
 __defineControl__("enableGrid", "bit", enableGrid);
 __defineControl__("enableAxes", "bit", enableAxes);
 
@@ -25,7 +28,9 @@ __onControlsDOMChanged__iter__ = (exp) => eval(exp);
 __config__.camPos = [0, 0, 10];
 
 __main__ = (s: THREE.Scene, c: THREE.Camera, r: THREE.WebGLRenderer) => {
-  let $merio: THREE.Mesh;
+  const marioScale = 0.2;
+
+  let $mario: THREE.Group;
 
   const buildings = new THREE.Object3D();
 
@@ -45,15 +50,22 @@ __main__ = (s: THREE.Scene, c: THREE.Camera, r: THREE.WebGLRenderer) => {
     return building;
   };
 
-  const createSuperMerio = () => {
-    const geo = new THREE.SphereGeometry(2, 16, 16);
-    const material = new THREE.MeshStandardMaterial({ color: 0x33ff91 });
-    const merio = new THREE.Mesh(geo, material);
-    merio.up.set(0, 0, 1);
-    s.add(merio);
-    $merio = merio;
-    merio.position.set(0, 0, 2);
-    return merio;
+  const textureLoader = new THREE.TextureLoader(new THREE.LoadingManager());
+  const objLoader = new OBJLoader(new THREE.LoadingManager());
+  const mtlLoader = new MTLLoader(new THREE.LoadingManager());
+
+  const createSuperMario = () => {
+    mtlLoader.load("/cases/Fun-SuperMerio/Mario/mario.mtl", (mat) => {
+      mat.preload();
+      objLoader.setMaterials(mat);
+      objLoader.load("/cases/Fun-SuperMerio/Mario/mario.obj", (obj) => {
+        obj.scale.set(marioScale, marioScale, marioScale);
+        obj.rotateX(Math.PI / 2);
+        obj.up = new THREE.Vector3(0, 0, 1);
+        s.add(obj);
+        $mario = obj;
+      });
+    });
   };
 
   const createRandomWorld = () => {
@@ -61,6 +73,7 @@ __main__ = (s: THREE.Scene, c: THREE.Camera, r: THREE.WebGLRenderer) => {
     const material = new THREE.MeshStandardMaterial({
       color: 0xe91009,
       side: THREE.DoubleSide,
+      visible: false,
     });
     const plane = new THREE.Mesh(geo, material);
     s.add(plane);
@@ -71,24 +84,24 @@ __main__ = (s: THREE.Scene, c: THREE.Camera, r: THREE.WebGLRenderer) => {
     const nX = Math.ceil(100 / 12);
     const nY = Math.ceil(100 / 8);
 
-    new THREE.TextureLoader(new THREE.LoadingManager()).load(
-      "/assets/images/wall.png",
-      (texture) => {
-        for (let x = 0; x < nX; x++) {
-          for (let y = 0; y < nY; y++) {
-            const left = -50 + x * 2 * wlimited;
-            const top = -50 + y * 2 * llimited;
-            const h = 3 + 6 * Math.random();
-            const coord = [
-              left + wlimited * Math.random(),
-              top + llimited * Math.random(),
-              h / 2,
-            ] as Vec3;
-            createBuilding(coord, wlimited, llimited, h, 0xffffff, texture);
-          }
+    textureLoader.load("/assets/images/wall.png", (texture) => {
+      for (let x = 0; x < nX; x++) {
+        for (let y = 0; y < nY; y++) {
+          const left = -50 + x * 2 * wlimited;
+          const top = -50 + y * 2 * llimited;
+          const h = 3 + 6 * Math.random();
+          const coord = [
+            left + wlimited * Math.random(),
+            top + llimited * Math.random(),
+            h / 2,
+          ] as Vec3;
+
+          grid.put(
+            createBuilding(coord, wlimited, llimited, h, 0xffffff, texture)
+          );
         }
       }
-    );
+    });
 
     s.add(buildings);
   };
@@ -97,92 +110,110 @@ __main__ = (s: THREE.Scene, c: THREE.Camera, r: THREE.WebGLRenderer) => {
   __3__.dirLight(0xffffff, 0.8);
 
   const speed = new THREE.Vector3(0, 0, 0);
-  const step = 0.1;
 
-  const ray = new THREE.Raycaster();
-  ray.near = 0;
-  ray.far = 2 + step;
+  const face = new THREE.Vector3();
 
-  let _intersects: any[] = [];
+  const step = 3;
+  const gravityAcc = new THREE.Vector3(0, 0, -100);
+  const jumpAcc = new THREE.Vector3(0, 0, 300);
+  const jumpAccCopy = new THREE.Vector3(0, 0, 0);
+  let jumpAccTime = 0; // ms;
 
-  const rayVis = __3__.line([0, 0, 0], [1, 1, 1]);
-  const rayVis2 = __3__.line([0, 0, 0], [1, 1, 1]);
+  let t = performance.now();
+  let dt = 0;
 
   __add_nextframe_fn__(() => {
+    const now = performance.now();
+    dt = (now - t) / 1000;
+    t = now;
+
+    jumpAccTime -= dt;
+
+    if (!$mario) return;
+
     if (isKeyDown["ArrowUp"]) {
-      speed.set(0, step, 0);
+      speed.y = step;
+      speed.x = 0;
+      face.set(0, step, 0).add($mario.position);
     } else if (isKeyDown["ArrowDown"]) {
-      speed.set(0, -step, 0);
+      speed.y = -step;
+      speed.x = 0;
+      face.set(0, -step, 0).add($mario.position);
     } else if (isKeyDown["ArrowLeft"]) {
-      speed.set(-step, 0, 0);
+      speed.x = -step;
+      speed.y = 0;
+      face.set(-step, 0, 0).add($mario.position);
     } else if (isKeyDown["ArrowRight"]) {
-      speed.set(step, 0, 0);
+      speed.x = step;
+      speed.y = 0;
+      face.set(step, 0, 0).add($mario.position);
+    } else if (isKeyDown["j"]) {
+      //
     } else {
-      speed.set(0, 0, 0);
+      speed.x = 0;
+      speed.y = 0;
+      face.setLength(0);
     }
 
-    const leftBoundPosition = new THREE.Vector3()
-      .crossVectors($merio.up, speed)
-      .setLength(2)
-      .add($merio.position);
+    jumpAccCopy.copy(gravityAcc);
 
-    ray.set(leftBoundPosition, speed);
+    if (jumpAccTime > 0) {
+      jumpAccCopy.add(jumpAcc);
+    }
 
-    rayVis2.update2(
-      leftBoundPosition,
-      new THREE.Vector3()
-        .copy(speed)
-        .setLength(ray.far * 100)
-        .add($merio.position)
-    );
+    jumpAccCopy.multiplyScalar(dt);
+    speed.add(jumpAccCopy);
 
-    const intersects: any[] = [];
+    if (face.length() > 0) {
+      $mario.lookAt(face);
+    }
 
-    intersects.push(...ray.intersectObject(buildings, true));
+    const objects = grid.getObjectsAround(
+      $mario.position.x,
+      $mario.position.y
+    ) as THREE.Mesh<THREE.BoxGeometry, THREE.MeshBasicMaterial>[];
 
-    const rightBoundPosition = new THREE.Vector3()
-      .crossVectors(speed, $merio.up)
-      .setLength(2)
-      .add($merio.position);
+    mariobox.setFromObject($mario);
 
-    ray.set(rightBoundPosition, speed);
+    if (_intersectObjs) {
+      _intersectObjs.forEach((obj) => {
+        obj.material.color.set(0xffffff);
+      });
+    }
 
-    rayVis.update2(
-      rightBoundPosition,
-      new THREE.Vector3()
-        .copy(speed)
-        .setLength(ray.far * 100)
-        .add($merio.position)
-    );
-
-    intersects.push(...ray.intersectObject(buildings, true));
-
-    _intersects.forEach((intersect) => {
-      (
-        intersect.object as THREE.Mesh<
-          THREE.BoxGeometry,
-          THREE.MeshStandardMaterial
-        >
-      ).material.color.set(0xffffff);
+    intersectObjs = objects.filter((obj) => {
+      const intersected = mariobox.intersectsBox(objbox.setFromObject(obj));
+      if (!intersected) return false;
+      if (isFront.subVectors(obj.position, $mario.position).dot(speed) > 0) {
+        return true;
+      }
+      return false;
     });
 
-    intersects.forEach((intersect) => {
-      (
-        intersect.object as THREE.Mesh<
-          THREE.BoxGeometry,
-          THREE.MeshStandardMaterial
-        >
-      ).material.color.set(0xef9100);
+    intersectObjs.forEach((obj) => {
+      obj.material.color.set(0xed1211);
     });
 
-    _intersects = intersects;
-
-    if (intersects.length === 0) {
-      if (speed.length() >= 0) {
-        $merio.position.add(speed);
+    if (intersectObjs.length === 0) {
+      speed.multiplyScalar(dt);
+      $mario.position.add(speed);
+      if ($mario.position.z < 0) {
+        $mario.position.z = 0;
+        speed.z = 0;
       }
     }
+
+    _intersectObjs = intersectObjs;
   });
+
+  let intersectObjs: THREE.Mesh<THREE.BoxGeometry, THREE.MeshBasicMaterial>[] =
+    [];
+
+  let _intersectObjs: THREE.Mesh<THREE.BoxGeometry, THREE.MeshBasicMaterial>[] =
+    null;
+  const mariobox: THREE.Box3 = new THREE.Box3();
+  const objbox: THREE.Box3 = new THREE.Box3();
+  const isFront: THREE.Vector3 = new THREE.Vector3();
 
   const isKeyDown: Record<string, boolean> = {
     ArrowUp: false,
@@ -196,6 +227,9 @@ __main__ = (s: THREE.Scene, c: THREE.Camera, r: THREE.WebGLRenderer) => {
       "hidden";
 
     window.addEventListener("keydown", (event) => {
+      if (event.key === "j") {
+        jumpAccTime = 3;
+      }
       isKeyDown[event.key] = true;
     });
 
@@ -213,7 +247,11 @@ __main__ = (s: THREE.Scene, c: THREE.Camera, r: THREE.WebGLRenderer) => {
     // variables changed, run your code!
   };
 
-  createSuperMerio();
-  createRandomWorld();
+  const grid = new Grid(30, 40, 12, 8);
+  grid.center();
+  s.add(grid);
+
+  createSuperMario();
+  // createRandomWorld();
   interctive();
 };

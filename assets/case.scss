@@ -5,6 +5,16 @@
   padding: 0;
   background-color: aliceblue;
   width: 100%;
+
+  &.dev {
+    .Explain {
+      display: none;
+    }
+    .MenuButtons {
+      top: 3px;
+      left: 3px;
+    }
+  }
 }
 
 .Section {
@@ -69,9 +79,10 @@
     padding: 0.5rem 1rem;
     top: 3px;
     right: 3px;
+    z-index: 100;
     min-width: 100px;
     width: fit-content;
-    max-width: 300px;
+    max-width: 450px;
     min-height: 100px;
     height: fit-content;
     background-color: #57575787;
@@ -136,7 +147,7 @@
 
 .Menu {
   position: fixed;
-  z-index: 10;
+  z-index: 300;
   padding: 1rem 2rem;
   top: -100%;
   right: 0;
@@ -179,10 +190,6 @@
     color: white;
     border-radius: 50%;
     border: 1px solid #ddd;
-    box-shadow: 0px 2px 2px 1px #fff;
-    &:hover {
-      box-shadow: 0px 2px 2px 2px #fefefe;
-    }
   }
 }
 

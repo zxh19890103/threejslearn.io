@@ -4,9 +4,14 @@
 
 import * as THREE from "three";
 import {
+  CSS2DObject,
+  CSS2DRenderer,
+} from "three/addons/renderers/CSS2DRenderer.js";
+import {
   BODY_BOOTSTRAP_STATE,
   BOOTSTRAP_STATE,
   toThreeJSCSMat,
+  toThreeJSCSMatWithoutScale,
 } from "./jpl.js";
 import { Bodies13, BodyInfo } from "./planets.js";
 import {
@@ -18,16 +23,20 @@ import {
   G,
   MOMENT,
   RAD_PER_DEGREE,
+  ROTATION_SCALE,
   SECONDS_IN_A_DAY,
   setConst,
   ZERO_ACC,
 } from "./constants.js";
+import { tformat } from "./utils.js";
+
+type RegressedState = 1 | 2 | 3 | 4;
 
 let enableGrid = false;
 let enableAxes = false;
 
 //#region reactive
-// __dev__();
+__dev__();
 __defineControl__("enableGrid", "bit", enableGrid);
 __defineControl__("enableAxes", "bit", enableAxes);
 
@@ -35,6 +44,12 @@ __updateControlsDOM__ = () => {
   __renderControls__({
     enableAxes,
     enableGrid,
+    moment,
+    bufferSize,
+    tracingX,
+    tracingAlt,
+    tracingLat,
+    tracingLng,
   });
 };
 
@@ -45,22 +60,45 @@ __config__.camFv = 120;
 __config__.camPos = [0, CAMERA_POSITION_Y, 0];
 
 __main__ = async (
-  s: THREE.Scene,
-  c: THREE.PerspectiveCamera,
-  r: THREE.WebGLRenderer
+  world: THREE.Scene,
+  camera: THREE.PerspectiveCamera,
+  renderer: THREE.WebGLRenderer
 ) => {
+  renderer.setPixelRatio(window.devicePixelRatio);
+
+  const PgAppDiv = renderer.domElement.parentElement as HTMLDivElement;
+
+  const css2drenderer = new CSS2DRenderer({});
+
+  const css2drendererResize = () => {
+    css2drenderer.setSize(PgAppDiv.clientWidth, PgAppDiv.clientHeight);
+  };
+  /**@todo responsive */
+  css2drendererResize();
+
+  css2drenderer.domElement.style.position = "absolute";
+  css2drenderer.domElement.style.top = "0px";
+  css2drenderer.domElement.style.pointerEvents = "none";
+  PgAppDiv.appendChild(css2drenderer.domElement);
+
   const dispalyCanvas = document.createElement("div");
-  dispalyCanvas.style.cssText = `padding: 1em; border-radius: 6px 8px; font-size: 12px; position: absolute; left: 0; bottom: 0; width: fit-content; height: fit-content; min-height: 60px; background: rgba(255,255,255, 0.78); color: #000`;
+  dispalyCanvas.style.cssText = `z-index: 100;padding: 1em; border: 1px solid #fff; border-radius: 6px 8px; font-size: 12px; position: absolute; left: 0; bottom: 0; width: fit-content; height: fit-content; min-height: 60px; background: rgba(0,0,0, 0.78); color: #fff`;
   document.querySelector("#SectionPgAppWrap").appendChild(dispalyCanvas);
 
   const dispalyCanvasLegend = document.createElement("div");
   const _color_ = new THREE.Color();
   dispalyCanvasLegend.innerHTML = `
   <ul style="list-style: none">
-  ${Object.entries(Bodies13).map(([name, inf]) => {
-    _color_.set(inf.color[0], inf.color[1], inf.color[2]);
-    return `<li style="padding-left: 2px; border-left: 5px solid ${_color_.getStyle()}; margin: 0">${name}</li>`;
-  }).join('')}
+  ${Object.entries(Bodies13)
+    .map(([name, inf]) => {
+      if (name === "Sun") return null;
+      _color_.set(inf.color[0], inf.color[1], inf.color[2]);
+      return `<li style="padding-left: 2px; border-left: 5px solid ${_color_.getStyle()}; margin: 0; font-size: ${
+        inf.ref === Bodies13.Sun ? "1em" : "0.7em"
+      }">${name}</li>`;
+    })
+    .filter(Boolean)
+    .join("")}
   </ul>
   `;
   dispalyCanvas.appendChild(dispalyCanvasLegend);
@@ -74,14 +112,17 @@ __main__ = async (
   let T = new Date("2021-06-30").getTime();
   let t = performance.now();
 
+  const Inf2Planet = new Map<BodyInfo, Planet>();
+
   const planets = Object.entries(Bodies13)
     .map(([name, inf]) => {
-      if (!BOOTSTRAP_STATE[name]) return null;
+      const planet = new Planet(inf, BOOTSTRAP_STATE[name] ?? null, Inf2Planet);
+      world.add(planet);
 
-      const planet = new Planet(inf, BOOTSTRAP_STATE[name]);
-      s.add(planet);
+      planet.name = name;
 
       objectsKvs[name] = planet;
+      Inf2Planet.set(inf, planet);
 
       if (name === "Sun") {
         Sun = planet;
@@ -92,8 +133,16 @@ __main__ = async (
     })
     .filter(Boolean);
 
-  planets.forEach((planet) => {
-    planet.gravityCaringObjects.push(Sun);
+  // build connections.
+  planets.forEach((body) => {
+    body.gravityCaringObjects.push(Sun);
+    if (body.inf.ref && body.inf.ref !== Bodies13.Sun) {
+      const moon = body;
+      const planet = Inf2Planet.get(body.inf.ref);
+
+      planet.gravityCaringObjects.push(moon);
+      moon.gravityCaringObjects.push(planet);
+    }
   });
 
   let trottle = 0;
@@ -105,13 +154,13 @@ __main__ = async (
     const deltaT = now - t;
 
     for (const planet of planets) {
-      const distToCam = c.position.distanceTo(planet.P.position);
+      const distToCam = camera.position.distanceTo(planet.Pt.position);
 
-      if (distToCam < planet.inf.radius * 10) {
-        planet.P.visible = false;
+      if (distToCam < planet.inf.radius * 100) {
+        planet.Pt.visible = false;
         planet.Ball.visible = true;
       } else {
-        planet.P.visible = true;
+        planet.Pt.visible = true;
         planet.Ball.visible = false;
       }
 
@@ -121,16 +170,21 @@ __main__ = async (
 
     if (tracingX && tracingX !== "Sun") {
       const planet = objectsKvs[tracingX];
-      c.position.copy(
-        planet.transformLatLngToWorldPosition(0, 0, planet.inf.radius * 2.6)
+
+      camera.position.copy(
+        planet.transformLatLngToWorldPosition(
+          tracingLat,
+          tracingLng,
+          tracingAlt
+        )
       );
-      c.lookAt(planet.P.position);
+      camera.lookAt(planet.Pt.position);
 
       controlByUser = false;
     } else {
       if (!controlByUser) {
-        c.position.set(...__config__.camPos);
-        c.lookAt(Sun.P.position);
+        camera.position.set(...__config__.camPos);
+        camera.lookAt(Sun.Pt.position);
         controlByUser = true;
       }
     }
@@ -138,24 +192,29 @@ __main__ = async (
     t = now;
     T += BUFFER_MOMENT * 1000;
 
-    trottle++;
+    trottle += deltaT;
 
-    if (trottle === 100) {
+    // per sec
+    if (trottle > 1000) {
       trottle = 0;
       _t_.setTime(T);
 
       dispalyCanvasDataDiv.innerHTML = `
-        1s = ${((BUFFER_MOMENT * 1000) / deltaT).toFixed(0)}s;
+        camera far from sun: ${(camera.position.length() / AU).toFixed(2)} au;
+        <br />
+        reality/screen: 1s = ${tformat((BUFFER_MOMENT * 1000) / deltaT)};
         <br/>
-        ${_t_.toLocaleDateString()}
+        screen date: ${_t_.toLocaleDateString()}
       `;
     }
+
+    css2drenderer.render(world, camera);
   });
 
   const _t_ = new Date();
 
-  __3__.ambLight(0xffffff, 0.4);
-  __3__.ptLight(0xffffff, 1, AU * 100, 0.001);
+  __3__.ambLight(0xffffff, 0.1);
+  __3__.ptLight(0xffffff, 1, AU * 100, 0.000001);
 
   __updateTHREEJs__only__.enableGrid = (val) => __3__.grid(val);
   __updateTHREEJs__only__.enableAxes = (val) => __3__.axes(val);
@@ -169,52 +228,104 @@ __main__ = async (
 
   __updateTHREEJs__ = (k: string, val: any) => {
     // variables changed, run your code!
+    console.log(k, val);
   };
 };
 
 const textureLoader = new THREE.TextureLoader(new THREE.LoadingManager());
 
-class Planet extends THREE.Line {
+class Planet extends THREE.Object3D {
   public readonly _speed: THREE.Vector3 = new THREE.Vector3();
   public readonly _position: THREE.Vector3 = new THREE.Vector3();
 
+  readonly planetsQuery: Map<BodyInfo, Planet>;
   readonly gravityCaringObjects: Planet[] = [];
   readonly _coordinates: THREE.Vector3Tuple;
   readonly _velocity: THREE.Vector3Tuple;
 
-  private _positionArr: number[] = [];
+  private _positionHistory: number[] = [];
 
-  readonly P: THREE.Points;
+  readonly isSun: boolean;
+  readonly isMoon: boolean;
+  readonly Line: THREE.Line;
+  readonly Pt: THREE.Points;
   readonly Ball: THREE.Mesh<THREE.SphereGeometry, THREE.MeshPhongMaterial>;
+  private readonly initialCoordinates: THREE.Vector2 = new THREE.Vector2();
+  private readonly currentCoordinates: THREE.Vector2 = new THREE.Vector2();
 
-  readonly regressedRad: number;
+  readonly toPeriapsis: THREE.Matrix4;
 
-  constructor(readonly inf: BodyInfo, private iniState: BODY_BOOTSTRAP_STATE) {
+  constructor(
+    readonly inf: BodyInfo,
+    private iniState: BODY_BOOTSTRAP_STATE,
+    query: Map<BodyInfo, Planet>
+  ) {
     const color = new THREE.Color(inf.color[0], inf.color[1], inf.color[2]);
 
-    const geo = new THREE.BufferGeometry();
-    const mat = new THREE.LineDashedMaterial({
-      color,
-      dashSize: 3,
-      gapSize: 9,
-    });
+    super();
 
-    super(geo, mat);
+    this.planetsQuery = query;
+    this.isSun = inf.name === "Sun";
+    this.isMoon = Boolean(inf.ref) && inf.ref !== Bodies13.Sun;
 
-    const position = new THREE.Vector3(...iniState.position).applyMatrix4(
-      toThreeJSCSMat
-    );
-    const velocity = new THREE.Vector3(
-      ...iniState.velocity.map((x) => x / SECONDS_IN_A_DAY)
-    ).applyMatrix4(toThreeJSCSMat);
+    let position: THREE.Vector3;
+    let velocity: THREE.Vector3;
+
+    if (iniState) {
+      position = new THREE.Vector3(...iniState.position).applyMatrix4(
+        toThreeJSCSMat
+      );
+      velocity = new THREE.Vector3(
+        ...iniState.velocity.map((x) => x / SECONDS_IN_A_DAY)
+      ).applyMatrix4(toThreeJSCSMat);
+    } else {
+      const speed = Math.sqrt((G * inf.ref.mass) / inf.aphelion);
+
+      position = new THREE.Vector3(inf.aphelion, 0, 0);
+      velocity = new THREE.Vector3(0, speed, 0);
+
+      const matrix = new THREE.Matrix4().makeRotationX(
+        0.5 * Math.PI + inf.inclination
+      );
+
+      velocity.applyMatrix4(matrix);
+      position.applyMatrix4(matrix);
+
+      if (this.isMoon) {
+        const planet = this.planetsQuery.get(this.inf.ref);
+
+        velocity.applyEuler(planet.Ball.rotation);
+        position.add(planet.Ball.position);
+
+        velocity.add(new THREE.Vector3(...planet._velocity));
+      }
+    }
 
     this._coordinates = position.toArray();
     this._velocity = velocity.toArray();
 
+    this.initialCoordinates.set(this._coordinates[0], this._coordinates[1]);
+    this.currentCoordinates.copy(this.initialCoordinates);
+
     this.position.set(0, 0, 0);
 
+    // tracing
     {
-      this.P = new THREE.Points(
+      const geo = new THREE.BufferGeometry();
+      const mat = new THREE.LineBasicMaterial({
+        color,
+        fog: true,
+      });
+      const line = new THREE.Line(geo, mat);
+      line.visible = true;
+      this.add(line);
+
+      this.Line = line;
+    }
+
+    // as point
+    {
+      this.Pt = new THREE.Points(
         new THREE.BufferGeometry().setFromPoints([new THREE.Vector3()]),
         new THREE.PointsMaterial({
           sizeAttenuation: false,
@@ -223,23 +334,25 @@ class Planet extends THREE.Line {
         })
       );
 
-      this.P.position.set(...this._coordinates);
+      this.Pt.position.set(...this._coordinates);
 
-      this.add(this.P);
-      this.P.visible = true;
+      this.add(this.Pt);
+      this.Pt.visible = true;
     }
 
+    // as ball
     {
       const geometry = new THREE.SphereGeometry(inf.radius, 60, 60);
-
-      geometry.rotateY(this.inf.axialTilt);
 
       const material = new THREE.MeshPhongMaterial({
         color,
         wireframe: false,
       });
+
       const mesh = new THREE.Mesh(geometry, material);
-      mesh.rotateX(inf.axialTilt + inf.inclination);
+      if (this.inf.axialTilt) {
+        mesh.rotateX(this.inf.axialTilt);
+      }
 
       this.Ball = mesh;
 
@@ -261,8 +374,26 @@ class Planet extends THREE.Line {
       }
     }
 
-    this.regressedRad = Math.atan2(this._coordinates[1], this._coordinates[0]);
+    // text
+    {
+      const textElement = document.createElement("div");
+      textElement.className = `label body ${this.isMoon ? "moon" : "planet"}`;
+      textElement.style.position = "absolute";
+      textElement.style.top = this.isMoon ? "14px" : "-14px";
+      textElement.style.color = color.getStyle();
+      textElement.style.fontSize = this.isMoon ? "11px" : "12px";
+      textElement.innerText = this.isMoon
+        ? `${this.inf.name}(${this.inf.ref.name}'s moon)`
+        : this.inf.name;
+
+      const textObject = new CSS2DObject(textElement);
+      textObject.position.set(...this._coordinates);
+      this.add(textObject);
+      this.Label = textObject;
+    }
   }
+
+  readonly Label: CSS2DObject;
 
   transformLatLngToWorldPosition(lat: number, lng: number, alt: number) {
     const { radius } = this.inf;
@@ -276,60 +407,67 @@ class Planet extends THREE.Line {
     const y = R_s * Math.cos(latRad) * Math.sin(lngRad);
     const z = R_s * Math.sin(latRad);
 
+    const coord = new THREE.Vector3(x, z, y).applyEuler(this.Ball.rotation);
+
     const [x0, y0, z0] = this._coordinates;
 
-    return { x: x0 + x, y: y0 + y, z: z0 + z };
+    return { x: x0 + coord.x, y: y0 + coord.y, z: z0 + coord.z };
   }
 
   rotate() {
     if (!this.Ball.visible) return;
     const r = BUFFER_MOMENT / (this.inf.rotationPeriod * SECONDS_IN_A_DAY);
-    this.Ball.rotation.y += CIRCLE_RAD * r;
+    this.Ball.rotation.y += CIRCLE_RAD * r * ROTATION_SCALE;
   }
-
-  private regressingState = 1;
 
   move() {
     this.buffer(BUFFER_SIZE);
 
-    this._positionArr.push(...this._coordinates);
-
-    this.P.position.set(...this._coordinates);
+    this.Pt.position.set(...this._coordinates);
     this.Ball.position.set(...this._coordinates);
+    this.Label.position.set(...this._coordinates);
 
-    switch (this.regressingState) {
+    this._positionHistory.push(...this._coordinates);
+    this.currentCoordinates.x = this._coordinates[0];
+    this.currentCoordinates.y = this._coordinates[1];
+
+    if (this.regressedState === 4) {
+      this._positionHistory.shift();
+      this._positionHistory.shift();
+      this._positionHistory.shift();
+    } else {
+      this.checkRegressedAngle();
+    }
+
+    this.Line.geometry.setAttribute(
+      "position",
+      new THREE.BufferAttribute(new Float32Array(this._positionHistory), 3)
+    );
+  }
+
+  private regressedState: RegressedState = 1;
+
+  private checkRegressedAngle() {
+    const angle = this.initialCoordinates.angleTo(this.currentCoordinates);
+
+    switch (this.regressedState) {
       case 1: {
-        const diffRad = Math.abs(
-          Math.atan2(this._coordinates[1], this._coordinates[0]) -
-            this.regressedRad
-        );
-        if (diffRad > Math.PI) {
-          this.regressingState = 2;
+        if (angle > Math.PI * 0.5) {
+          this.regressedState = 2;
         }
         break;
       }
       case 2: {
-        const diffRad = Math.abs(
-          Math.atan2(this._coordinates[1], this._coordinates[0]) -
-            this.regressedRad
-        );
-        if (diffRad < 0.01) {
-          this.regressingState = 3;
+        if (angle < Math.PI * 0.01) {
+          this.regressedState = 3;
         }
         break;
       }
       case 3: {
-        this._positionArr.shift();
-        this._positionArr.shift();
-        this._positionArr.shift();
+        this.regressedState = 4;
         break;
       }
     }
-
-    this.geometry.setAttribute(
-      "position",
-      new THREE.BufferAttribute(new Float32Array(this._positionArr), 3)
-    );
   }
 
   private buffer(N = 1) {
@@ -401,18 +539,46 @@ function computeAccOfCelestialBody(self: Planet) {
 }
 
 let tracingX: string = null;
+let tracingLat: number = 0;
+let tracingLng: number = 0;
+let tracingAlt: number = 3;
 let moment: number = MOMENT;
 let bufferSize: number = BUFFER_SIZE;
 
 __defineControl__("tracingX", "enum", tracingX, {
   valueType: "string",
-  options: Object.keys(Bodies13).map((n) => ({ value: n, label: n })),
+  options: Object.entries(Bodies13)
+    .filter((x) => {
+      return x[1].ref == Bodies13.Sun || x[0] === "Sun";
+    })
+    .map((n) => ({ value: n[0], label: n[0] })),
 });
+
+__defineControl__(
+  "tracingAlt",
+  "range",
+  tracingAlt,
+  __defineControl__.rfloat(3, 500)
+);
+
+__defineControl__(
+  "tracingLat",
+  "range",
+  tracingLat,
+  __defineControl__.rfloat(-90, 90)
+);
+
+__defineControl__(
+  "tracingLng",
+  "range",
+  tracingLng,
+  __defineControl__.rfloat(0, 180)
+);
 
 __defineControl__("moment", "range", moment, __defineControl__.rint(10, 1000));
 __defineControl__(
   "bufferSize",
   "range",
   bufferSize,
-  __defineControl__.rint(1, 1000)
+  __defineControl__.rint(1, 4000)
 );

@@ -2,9 +2,9 @@
   // "editor.fontFamily": "'Wawati SC' ,'Operator Mono Lig', 'Cascadia Code', Consolas, Menlo, Monaco, 'Courier New', monospace",
   // "editor.fontFamily": "'Operator Mono Lig', 'Cascadia Code', Consolas, Menlo, Monaco, 'Courier New', monospace",
   // "editor.fontFamily": "'Cascadia Code', Consolas, Menlo, Monaco, 'Courier New', monospace",
-  // "editor.fontFamily": "'Chalkboard SE', Consolas, Menlo, Monaco, 'Courier New', monospace",
-  "editor.fontFamily": "'Annai MN', Consolas, Menlo, Monaco, 'Courier New', monospace",
-  "editor.fontSize": 14,
+  "editor.fontFamily": "'Chalkboard SE', Consolas, Menlo, Monaco, 'Courier New', monospace",
+  // "editor.fontFamily": "'Annai MN', Consolas, Menlo, Monaco, 'Courier New', monospace",
+  "editor.fontSize": 16,
   // "editor.codeLensFontSize": 12,
   // "scm.inputFontSize": 12,
   // "editor.suggestFontSize": 12,
@@ -19,7 +19,7 @@
   "editor.fontLigatures": true,
   "terminal.integrated.fontFamily": "monospace",
   "workbench.iconTheme": "vscode-icons",
-  "workbench.colorTheme": "Visual Studio 2017 Light - C++",
+  "workbench.colorTheme": "Visual Studio 2017 Dark - C++",
   "editor.tabSize": 2,
   "typescript.tsdk": "node_modules/typescript/lib"
 }

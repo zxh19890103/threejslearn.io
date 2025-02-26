@@ -2,7 +2,7 @@
 var __main__ = null;
 var __dev__ = () => {
   if (JekyllEnv === "production") return;
-  document.querySelector(".Explain")?.classList.add("hidden");
+  document.querySelector(".Content")?.classList.add("dev");
 };
 var __add_nextframe_fn__ = null;
 var __updateControlsDOM__ = null;

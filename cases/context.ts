@@ -3,6 +3,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
 import "./controls.js";
 import "./dialog.js";
+import { CSS2DRenderer } from "three/addons/renderers/CSS2DRenderer.js";
 
 let scene: THREE.Scene;
 let camera: THREE.PerspectiveCamera;
@@ -27,7 +28,7 @@ const setup = () => {
 
   element.appendChild(renderer.domElement);
 
-  const onResize = () => {
+  const whenClientViewResized = () => {
     const vW = element.clientWidth;
     const vH = element.clientHeight;
 
@@ -37,7 +38,7 @@ const setup = () => {
     renderer.setSize(vW, vH);
   };
 
-  onResize();
+  whenClientViewResized();
 
   // Position the camera so it's not inside the cube
   camera.position.set(...__config__.camPos);
@@ -63,7 +64,7 @@ const setup = () => {
     renderer.render(scene, camera);
   };
 
-  new ResizeObserver(onResize).observe(element, { box: "border-box" });
+  new ResizeObserver(whenClientViewResized).observe(element, { box: "border-box" });
 
   const nextFrameFns: NextFrameFn[] = [];
 

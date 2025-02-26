@@ -42,3 +42,38 @@ export const randColor = (basis?: vec4): vec4 => {
   color[3] = 1;
   return color;
 };
+
+/**
+ *
+ * @param t unit: s
+ */
+export const tformat = (t: number) => {
+  let seconds = t;
+
+  const years = Math.floor(seconds / (365.25 * 24 * 3600));
+  seconds %= 365.25 * 24 * 3600; // 剩余秒数
+
+  const months = Math.floor(seconds / (30.44 * 24 * 3600));
+  seconds %= 30.44 * 24 * 3600; // 剩余秒数
+
+  const days = Math.floor(seconds / (24 * 3600));
+  seconds %= 24 * 3600; // 剩余秒数
+
+  const hours = Math.floor(seconds / 3600);
+  seconds %= 3600; // 剩余秒数
+
+  const minutes = Math.floor(seconds / 60);
+  seconds %= 60; // 剩余秒数
+
+  let result = "";
+  if (years > 0) result += years + " yrs ";
+  if (months > 0) result += months + " months ";
+  if (days > 0) result += days + " days ";
+  if (hours > 0) result += hours + " hrs ";
+  if (minutes > 0) result += minutes + " mins ";
+  if (seconds >= 1) result += Math.floor(seconds) + " secs";
+
+  return result.trim();
+};
+
+console.log(tformat(24 * 3600 + 0.5));

@@ -40,11 +40,7 @@ const $onchange = (event: Event) => {
       break;
     }
     case "range": {
-      const scale = ($meta4ctrl.max - $meta4ctrl.min) / 100;
-      $value = $meta4ctrl.min + scale * input.valueAsNumber;
-      if ($meta4ctrl.valueType === "int") {
-        $value = Math.floor($value);
-      }
+      $value = rangeCtrlValueGet($meta4ctrl);
       break;
     }
     case "btn": {
@@ -59,6 +55,7 @@ const $onchange = (event: Event) => {
 
   let lastValue = $meta4ctrl.value;
 
+  // syncronized !
   $meta4ctrl.value = $value;
 
   __onControlsDOMChanged__?.({ [$key]: $value });
@@ -188,29 +185,31 @@ const $cDOM = (c: Control): HTMLDivElement => {
       input.min = "0";
       input.max = "100";
 
-      const span = document.createElement("span");
-      span.style.position = "absolute";
-      span.style.right = "0px";
-      span.style.top = "50%";
-      span.style.transform = `translate(100%, -50%)`;
+      const span = document.createElement("div");
       span.style.fontSize = "0.6rem";
+      span.style.width = "24px";
+      span.style.textAlign = "right";
       span.style.pointerEvents = "none";
 
-      div.appendChild(span);
-      input.oninput = () => {
-        const scale = (c.max - c.min) / 100;
-        const val = c.min + scale * input.valueAsNumber;
-        span.innerText = (
-          c.valueType === "int" ? Math.floor(val) : val
-        ).toFixed(2);
+      const writeValue = (event: Event) => {
+        let value = event ? rangeInputValueGet(input, c) : c.value;
+        if (c.valueType === "int") {
+          span.innerText = value + "";
+        } else {
+          span.innerText = value.toFixed(2);
+        }
       };
 
-      const scale = 100 / (c.max - c.min);
-      input.value = c.min + "" + scale * c.value;
+      input.oninput = writeValue;
+
+      rangeInputValueSet(input, c, c.value);
 
       input.$meta4ctrl = c;
       input.onchange = $onchange;
       div.appendChild(input);
+      div.appendChild(span);
+
+      writeValue(null);
       break;
     }
     case "btn": {
@@ -250,8 +249,7 @@ const $uDOM = (c: Control) => {
     }
     case "range": {
       const input = c.$el.querySelector("input");
-      const scale = 100 / (c.max - c.min);
-      input.value = c.min + "" + scale * c.value;
+      rangeInputValueSet(input, c, c.value);
       break;
     }
     default: {
@@ -338,5 +336,38 @@ const __onControlsDOMChanged__ = (data: Record<string, any>) => {
     }
   }
 };
+
+//#region utils
+const rangeCtrlValueGet = (meta: Control) => {
+  const input = meta.$el.querySelector("input");
+  return rangeInputValueGet(input, meta);
+};
+
+const rangeInputValueGet = (input: HTMLInputElement, meta: Control) => {
+  const value = input.valueAsNumber; // 0 - 100
+  const scale = (meta.max - meta.min) / 100;
+  const actualValue = scale * value + meta.min;
+  if (meta.valueType === "int") {
+    return Math.floor(actualValue);
+  } else {
+    return actualValue;
+  }
+};
+
+const rangeCtrlValueSet = (meta: Control, val: number) => {
+  const input = meta.$el.querySelector("input");
+  rangeInputValueSet(input, meta, val);
+};
+
+const rangeInputValueSet = (
+  input: HTMLInputElement,
+  meta: Control,
+  val: number
+) => {
+  const scale = 100 / (meta.max - meta.min);
+  const viewValue = scale * Math.max(0, val - meta.min);
+  input.value = viewValue.toString();
+};
+//#endregion
 
 export {};
