@@ -67,8 +67,7 @@ __main__ = async (
   renderer: THREE.WebGLRenderer
 ) => {
   __info__(
-    markdown.toHTML(
-      `
+    `
 ### Solar System 3D Simulation
 
 I created this [project](https://solar.zhangxinghai.cn) many years ago, inspired by my passion for data, computing, and physics. My goal was to see if Newton’s theories were truly accurate in predicting the motion of celestial bodies.
@@ -81,7 +80,6 @@ For this project, I’ve included all the planets (including Pluto), many comets
 
 If the observed data wasn’t available, I placed the bodies at their aphelion and calculated their velocities using **Kepler’s Third Law** and **Newton’s Law of Universal Gravitation**.
 `
-    )
   );
 
   renderer.setPixelRatio(window.devicePixelRatio);
@@ -162,8 +160,51 @@ If the observed data wasn’t available, I placed the bodies at their aphelion a
     }
   });
 
+  let PointsMove: VoidFunction = null;
+
+  {
+    Planet.Points = new THREE.Points(
+      new THREE.BufferGeometry(),
+      new THREE.PointsMaterial({
+        color: 0xffffff,
+        vertexColors: true,
+        sizeAttenuation: false,
+        size: 4,
+      })
+    );
+
+    PointsMove = () => {
+      Planet.Points.geometry.setAttribute(
+        "position",
+        new THREE.BufferAttribute(
+          new Float32Array(planets.flatMap((x) => x._coordinates)),
+          3
+        )
+      );
+    };
+
+    Planet.Points.geometry.setAttribute(
+      "color",
+      new THREE.BufferAttribute(
+        new Float32Array(planets.flatMap((x) => x._color)),
+        3
+      )
+    );
+
+    world.add(Planet.Points);
+  }
+
   let trottle = 0;
   let controlByUser = true;
+
+  const isVisibleOnScreen = (planet: Planet) => {
+    const ball = planet.Ball;
+    const dist = ball.position.distanceTo(camera.position);
+    const dimeter = planet.inf.radius * 2;
+    const fa = (dimeter / dist) * __3__.rad2deg;
+    const r = fa / camViewField;
+    return r > 0.1;
+  };
 
   __add_nextframe_fn__(() => {
     const now = performance.now();
@@ -179,39 +220,33 @@ If the observed data wasn’t available, I placed the bodies at their aphelion a
 
     for (const planet of planets) {
       planet.move();
-
-      const distToCam = camera.position.distanceTo(planet.Pt.position);
-
-      if (distToCam < planet.inf.radius * 100) {
-        planet.Pt.visible = false;
-        planet.Ball.visible = true;
-      } else {
-        planet.Pt.visible = true;
-        planet.Ball.visible = false;
-      }
-
+      PointsMove();
       planet.rotate();
     }
 
     if (tracingX && tracingX !== "Sun") {
       const planet = objectsKvs[tracingX];
 
-      camera.position.copy(
-        planet.transformLatLngToWorldPosition(
-          tracingLat,
-          tracingLng,
-          tracingAlt
-        )
+      const coords = planet.transformLatLngToWorldPosition(
+        tracingLat,
+        tracingLng,
+        tracingAlt
       );
-      camera.lookAt(planet.Pt.position);
+
+      camera.position.copy(coords);
+      camera.lookAt(planet.Ball.position);
 
       controlByUser = false;
     } else {
       if (!controlByUser) {
         camera.position.set(...__config__.camPos);
-        camera.lookAt(Sun.Pt.position);
+        camera.lookAt(Sun.Ball.position);
         controlByUser = true;
       }
+    }
+
+    for (const planet of planets) {
+      planet.Ball.visible = isVisibleOnScreen(planet);
     }
 
     t = now;
@@ -268,11 +303,9 @@ If the observed data wasn’t available, I placed the bodies at their aphelion a
 const textureLoader = new THREE.TextureLoader(new THREE.LoadingManager());
 
 class Planet extends THREE.Object3D {
-  public readonly _speed: THREE.Vector3 = new THREE.Vector3();
-  public readonly _position: THREE.Vector3 = new THREE.Vector3();
-
   readonly planetsQuery: Map<BodyInfo, Planet>;
   readonly gravityCaringObjects: Planet[] = [];
+  readonly _color: THREE.Vector3Tuple;
   readonly _coordinates: THREE.Vector3Tuple;
   readonly _velocity: THREE.Vector3Tuple;
 
@@ -281,7 +314,6 @@ class Planet extends THREE.Object3D {
   readonly isSun: boolean;
   readonly isMoon: boolean;
   readonly Line: THREE.Line;
-  readonly Pt: THREE.Points;
   readonly Ball: THREE.Mesh<THREE.SphereGeometry, THREE.MeshPhongMaterial>;
 
   private readonly initialCoordinates: THREE.Vector2 = new THREE.Vector2();
@@ -289,18 +321,27 @@ class Planet extends THREE.Object3D {
   readonly nextCoordinates: THREE.Vector3Tuple = [0, 0, 0];
   readonly nextVelocity: THREE.Vector3Tuple = [0, 0, 0];
 
+  static Points: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>;
+
   constructor(
     readonly inf: BodyInfo,
-    private iniState: BODY_BOOTSTRAP_STATE,
+    readonly iniState: BODY_BOOTSTRAP_STATE,
     query: Map<BodyInfo, Planet>
   ) {
     const color = new THREE.Color(inf.color[0], inf.color[1], inf.color[2]);
 
     super();
 
+    this._color = [color.r, color.g, color.b];
     this.planetsQuery = query;
     this.isSun = inf.name === "Sun";
     this.isMoon = Boolean(inf.ref) && inf.ref !== Bodies13.Sun;
+
+    inf.rotationPeriod = this.calculateOrbitalPeriod();
+
+    this.rotationDelta =
+      BUFFER_MOMENT / (inf.rotationPeriod * SECONDS_IN_A_DAY);
+    this.rotationDelta *= CIRCLE_RAD * ROTATION_SCALE;
 
     let position: THREE.Vector3;
     let velocity: THREE.Vector3;
@@ -358,23 +399,6 @@ class Planet extends THREE.Object3D {
       this.Line = line;
     }
 
-    // as point
-    {
-      this.Pt = new THREE.Points(
-        new THREE.BufferGeometry().setFromPoints([new THREE.Vector3()]),
-        new THREE.PointsMaterial({
-          sizeAttenuation: false,
-          size: 4,
-          color,
-        })
-      );
-
-      this.Pt.position.set(...this._coordinates);
-
-      this.add(this.Pt);
-      this.Pt.visible = true;
-    }
-
     // as ball
     {
       const geometry = new THREE.SphereGeometry(inf.radius, 60, 60);
@@ -430,6 +454,16 @@ class Planet extends THREE.Object3D {
 
   readonly Label: CSS2DObject;
 
+  private calculateOrbitalPeriod() {
+    const periodInSeconds =
+      2 *
+      Math.PI *
+      Math.sqrt(Math.pow(this.inf.semiMajorAxis, 3) / (G * Bodies13.Sun.mass));
+    const periodInYears = periodInSeconds / (60 * 60 * 24 * 365.25);
+
+    return periodInYears;
+  }
+
   transformLatLngToWorldPosition(lat: number, lng: number, alt: number) {
     const { radius } = this.inf;
 
@@ -442,17 +476,24 @@ class Planet extends THREE.Object3D {
     const y = R_s * Math.cos(latRad) * Math.sin(lngRad);
     const z = R_s * Math.sin(latRad);
 
-    const coord = new THREE.Vector3(x, z, y).applyEuler(this.Ball.rotation);
+    const localCoords = new THREE.Vector3(x, z, y);
+    localCoords.applyEuler(this.Ball.rotation);
 
     const [x0, y0, z0] = this._coordinates;
 
-    return { x: x0 + coord.x, y: y0 + coord.y, z: z0 + coord.z };
+    return {
+      x: x0 + localCoords.x,
+      y: y0 + localCoords.y,
+      z: z0 + localCoords.z,
+    };
   }
+
+  private readonly rotationDelta: number = 0;
 
   rotate() {
     if (!this.Ball.visible) return;
-    const r = BUFFER_MOMENT / (this.inf.rotationPeriod * SECONDS_IN_A_DAY);
-    this.Ball.rotation.y += CIRCLE_RAD * r * ROTATION_SCALE;
+    console.log(this.rotationDelta);
+    this.Ball.rotation.y += this.rotationDelta;
   }
 
   move() {
@@ -464,7 +505,6 @@ class Planet extends THREE.Object3D {
     this._velocity[1] = this.nextVelocity[1];
     this._velocity[2] = this.nextVelocity[2];
 
-    this.Pt.position.set(...this._coordinates);
     this.Ball.position.set(...this._coordinates);
     this.Label.position.set(...this._coordinates);
 

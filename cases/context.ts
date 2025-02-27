@@ -95,7 +95,6 @@ const setup = () => {
 };
 
 __info__ = (md: string) => {
-  console.log(md);
   const button = document.createElement("a");
   button.innerText = "📜";
   button.className = "MenuButton";
@@ -103,7 +102,7 @@ __info__ = (md: string) => {
     createDialog({
       width: 860,
       title: "Info",
-      content: md,
+      content: markdown.toHTML(md),
     });
   };
 
