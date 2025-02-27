@@ -1,13 +1,13 @@
 ---
 layout: case
-title: Materials-X-Blend
+title: Math-Quaternion
 ---
 
 {% include_relative _explain.md %}
 
 <h3>📃 Source Code</h3>
 <div>
-<a href="https://github.com/zxh19890103/threejslearn.io/tree/main/cases/Materials-X-Blend" target="_blank">Go!</a>
+<a href="https://github.com/zxh19890103/threejslearn.io/tree/main/cases/Math-Quaternion" target="_blank">Go!</a>
 </div>
 
 <h3>📝 Git logs</h3>

@@ -15,6 +15,7 @@ title: Cases
 - [Materials-X-Blend](/cases/Materials-X-Blend)
 - [Materials-X-Map](/cases/Materials-X-Map)
 - [Math-Matrix](/cases/Math-Matrix)
+- [Math-Quaternion](/cases/Math-Quaternion)
 - [Math-Vector3](/cases/Math-Vector3)
 - [Setup](/cases/Setup)
 - [UV](/cases/UV)

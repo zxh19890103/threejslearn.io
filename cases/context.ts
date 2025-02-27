@@ -70,10 +70,10 @@ const setup = () => {
     renderer.clearColor();
 
     const delta = clock.getDelta();
-
     controls.update(delta);
 
     for (const fn of nextFrameFns) fn(scene, camera, renderer, delta);
+
     // Render the scene from the perspective of the camera
     renderer.render(scene, camera);
 
@@ -96,7 +96,7 @@ const setup = () => {
 
 __info__ = (md: string) => {
   const button = document.createElement("a");
-  button.innerText = "📜";
+  button.innerText = "Info";
   button.className = "MenuButton";
   button.onclick = () => {
     createDialog({

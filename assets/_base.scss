@@ -65,6 +65,10 @@ dialog {
     overflow: auto;
     flex: 1;
     height: 0;
+    ul,
+    ol {
+      padding-left: 1em;
+    }
   }
 
   &-header {

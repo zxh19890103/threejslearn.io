@@ -13,8 +13,6 @@ const createDialog = (config: CreateDialogConfig) => {
   const init = () => {
     const dialog = document.createElement("dialog");
 
-    dialog.title = "Hello, Dialog!";
-
     dialog.style.cssText = `width: ${config.width}px;`;
 
     document.body.appendChild(dialog);

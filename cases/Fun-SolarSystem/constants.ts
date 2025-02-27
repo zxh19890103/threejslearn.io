@@ -5,7 +5,7 @@ export const SECONDS_IN_A_DAY = 24 * 60 * 60;
 
 export const CAMERA_POSITION_Y = 2 * AU;
 export const G = 6.67 * 0.00001; // be sure the velocity's unit is km/s
-export const ROTATION_SCALE = 3;
+export const ROTATION_SCALE = 0.03;
 
 export let BUFFER_SIZE = 10;
 /**

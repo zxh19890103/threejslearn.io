@@ -16,8 +16,16 @@
     <div class="Menu" id="Menu" onclick="if(event.target.dataset.toggle) {this.classList.toggle('inview')}">
       {% include menu.html %}
       <div class="MenuButtons">
-        <a href="/" class="MenuButton">🏡</a>
-        <a href="javascript:void(0);" data-toggle="1" class="MenuButton Toggle">📚</a>
+        <a href="javascript:void(0);" onclick="__dev__()" class="MenuButton Callapse">
+          Close
+        </a>
+        <a href="javascript:void(0);" onclick="__dev__()" class="MenuButton Expand">
+          Open
+        </a>
+        <a href="/" class="MenuButton">Home</a>
+        <a href="javascript:void(0);" data-toggle="1" class="MenuButton Toggle">
+          Cases
+        </a>
       </div>
     </div>
     <div id="SectionPgAppWrap" class="PgAppWrap Section">

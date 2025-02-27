@@ -28,6 +28,7 @@ import {
   ZERO_ACC,
 } from "./constants.js";
 import { tformat } from "./utils.js";
+import { createDialog } from "../dialog.js";
 
 type RegressedState = 1 | 2 | 3 | 4;
 
@@ -48,6 +49,7 @@ __updateControlsDOM__ = () => {
     hideMoonLabels,
     hidePlanetLabels,
     camViewField,
+    startTracingX,
     tracingX,
     tracingAlt,
     tracingLat,
@@ -79,6 +81,16 @@ However, there’s a catch. While the formula works well, it's simply a mathemat
 For this project, I’ve included all the planets (including Pluto), many comets, and the moons of each planet. The initial state (position and velocity) of each planet was obtained from JPL Horizons on June 28, 2021.
 
 If the observed data wasn’t available, I placed the bodies at their aphelion and calculated their velocities using **Kepler’s Third Law** and **Newton’s Law of Universal Gravitation**.
+
+### Core APIs used
+
+- \`CSS2Renderer\` for labels
+- \`THREE.Points\` for bodies too far to see
+- \`THREE.Line\` for bodies' moving track
+- \`THREE.Mesh<THREE.SphereGeometry>\` for bodies close enough to see
+- \`THREE.Vector3\` for velocity, coordinates, force
+- \`THREE.Matrix4\` for transform JPL data to ThreeJs system
+- \`THREE.Texture\` for bodies surfaces
 `
   );
 
@@ -101,6 +113,44 @@ If the observed data wasn’t available, I placed the bodies at their aphelion a
   document.querySelector("#SectionPgAppWrap").appendChild(dispalyCanvas);
 
   const dispalyCanvasLegend = document.createElement("div");
+
+  dispalyCanvasLegend.onclick = (event) => {
+    const a = event.target as HTMLAnchorElement;
+    if (a.tagName !== "A") return;
+    const name = a.innerText;
+    const body = Bodies13[name];
+    createDialog({
+      title: name,
+      content:
+        `
+        <pre>
+Units: 
+- space: 1,000 km
+- mass: 10^24 kg
+- angle: rad
+- period: 1 earth's year
+        </pre>
+        <div style="width: 520px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center;">` +
+        Object.entries(body)
+          .map(([key, value]) => {
+            if (["ref", "map", "rings"].includes(key)) return null;
+            let str = `<div style="width: 30%;padding: .1em">${key}:</div>`;
+            if (key === "color") {
+              _color_.set(value[0], value[1], value[2]);
+              str += ` <div style="width: 70%; padding: .1em"><span style="border-radius: 2px 3px; border: 1px solid #666; padding: 0 .5em; background:${_color_.getStyle()}">#</span></div>`;
+            } else if (key === "avatar") {
+              str += `<div style="width: 70%; padding: .1em"><img style="border-radius: 2px 3px; border: 1px solid #666;  width: 45px; vertical-align:  middle" src="https://solar.zhangxinghai.cn${value}" /></div>`;
+            } else {
+              str += `<div style="width: 70%; padding: .1em">${value}</div>`;
+            }
+            return str;
+          })
+          .filter(Boolean)
+          .join("") +
+        "</div>",
+    });
+  };
+
   const _color_ = new THREE.Color();
   dispalyCanvasLegend.innerHTML = `
   <ul style="list-style: none">
@@ -110,7 +160,9 @@ If the observed data wasn’t available, I placed the bodies at their aphelion a
       _color_.set(inf.color[0], inf.color[1], inf.color[2]);
       return `<li style="padding-left: 2px; border-left: 5px solid ${_color_.getStyle()}; margin: 0; font-size: ${
         inf.ref === Bodies13.Sun ? "1em" : "0.7em"
-      }">${name}</li>`;
+      }">
+        <a style="color: #fff" href="javascript:void(0);">${name}</a>
+      </li>`;
     })
     .filter(Boolean)
     .join("")}
@@ -225,18 +277,26 @@ If the observed data wasn’t available, I placed the bodies at their aphelion a
     }
 
     if (tracingX && tracingX !== "Sun") {
-      const planet = objectsKvs[tracingX];
+      if (startTracingX) {
+        const planet = objectsKvs[tracingX];
 
-      const coords = planet.transformLatLngToWorldPosition(
-        tracingLat,
-        tracingLng,
-        tracingAlt
-      );
+        const coords = planet.transformLatLngToWorldPosition(
+          tracingLat,
+          tracingLng,
+          tracingAlt
+        );
 
-      camera.position.copy(coords);
-      camera.lookAt(planet.Ball.position);
+        camera.position.copy(coords);
+        camera.lookAt(planet.Ball.position);
 
-      controlByUser = false;
+        controlByUser = false;
+      } else {
+        if (!controlByUser) {
+          camera.position.copy(camPosBeforeTracing);
+          camera.quaternion.copy(camLookatBeforeTracing);
+          controlByUser = true;
+        }
+      }
     } else {
       if (!controlByUser) {
         camera.position.set(...__config__.camPos);
@@ -295,6 +355,15 @@ If the observed data wasn’t available, I placed the bodies at their aphelion a
   __updateTHREEJs__only__.camViewField = () => {
     camera.fov = camViewField;
     camera.updateProjectionMatrix();
+  };
+
+  const camPosBeforeTracing: THREE.Vector3 = new THREE.Vector3();
+  const camLookatBeforeTracing: THREE.Quaternion = new THREE.Quaternion();
+  __updateTHREEJs__only__.startTracingX = () => {
+    if (startTracingX) {
+      camPosBeforeTracing.copy(camera.position);
+      camLookatBeforeTracing.copy(camera.quaternion);
+    }
   };
 
   __updateTHREEJs__ = (k: string, val: any) => {};
@@ -641,6 +710,7 @@ function computeAccOfCelestialBody(self: Planet) {
 }
 
 let tracingX: string = null;
+let startTracingX: boolean = false;
 let tracingLat: number = 0;
 let tracingLng: number = 0;
 let tracingAlt: number = 3;
@@ -667,6 +737,7 @@ __defineControl__("tracingX", "enum", tracingX, {
     })
     .map((n) => ({ value: n[0], label: n[0] })),
 });
+__defineControl__("startTracingX", "bit", startTracingX);
 
 __defineControl__(
   "tracingAlt",

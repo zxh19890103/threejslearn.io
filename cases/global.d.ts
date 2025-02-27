@@ -119,7 +119,7 @@ type ThreeObjects = {
    *  local coordinated system for an object
    *
    * x - red: #e10191
-   * y - grren: #02fe01
+   * y - green: #02fe01
    * z - blue: #3491fe
    *
    */

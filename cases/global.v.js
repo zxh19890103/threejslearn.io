@@ -1,8 +1,7 @@
 // @ts-nocheck
 var __main__ = null;
 var __dev__ = () => {
-  if (JekyllEnv === "production") return;
-  document.querySelector(".Content")?.classList.add("dev");
+  document.querySelector(".Content")?.classList.toggle("dev");
 };
 var __info__ = null;
 var __renderers__ = [];
