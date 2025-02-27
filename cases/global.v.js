@@ -4,6 +4,8 @@ var __dev__ = () => {
   if (JekyllEnv === "production") return;
   document.querySelector(".Content")?.classList.add("dev");
 };
+var __info__ = null;
+var __renderers__ = [];
 var __add_nextframe_fn__ = null;
 var __updateControlsDOM__ = null;
 var __defineControl__ = null;

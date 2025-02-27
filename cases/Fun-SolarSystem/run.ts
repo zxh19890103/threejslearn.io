@@ -11,7 +11,6 @@ import {
   BODY_BOOTSTRAP_STATE,
   BOOTSTRAP_STATE,
   toThreeJSCSMat,
-  toThreeJSCSMatWithoutScale,
 } from "./jpl.js";
 import { Bodies13, BodyInfo } from "./planets.js";
 import {
@@ -46,6 +45,9 @@ __updateControlsDOM__ = () => {
     enableGrid,
     moment,
     bufferSize,
+    hideMoonLabels,
+    hidePlanetLabels,
+    camViewField,
     tracingX,
     tracingAlt,
     tracingLat,
@@ -64,17 +66,32 @@ __main__ = async (
   camera: THREE.PerspectiveCamera,
   renderer: THREE.WebGLRenderer
 ) => {
+  __info__(
+    markdown.toHTML(
+      `
+### Solar System 3D Simulation
+
+I created this [project](https://solar.zhangxinghai.cn) many years ago, inspired by my passion for data, computing, and physics. My goal was to see if Newton’s theories were truly accurate in predicting the motion of celestial bodies.
+
+To do this, I used real data from [NASA’s JPL Horizons](https://ssd.jpl.nasa.gov/horizons/) and computed the positions and velocities of planets based on Newton’s law of gravity. The results were nearly accurate.
+
+However, there’s a catch. While the formula works well, it's simply a mathematical result derived from years of data collection. It doesn't explain why things happen this way. In fact, we may never fully know.
+
+For this project, I’ve included all the planets (including Pluto), many comets, and the moons of each planet. The initial state (position and velocity) of each planet was obtained from JPL Horizons on June 28, 2021.
+
+If the observed data wasn’t available, I placed the bodies at their aphelion and calculated their velocities using **Kepler’s Third Law** and **Newton’s Law of Universal Gravitation**.
+`
+    )
+  );
+
   renderer.setPixelRatio(window.devicePixelRatio);
 
   const PgAppDiv = renderer.domElement.parentElement as HTMLDivElement;
 
   const css2drenderer = new CSS2DRenderer({});
+  css2drenderer.setSize(PgAppDiv.clientWidth, PgAppDiv.clientHeight);
 
-  const css2drendererResize = () => {
-    css2drenderer.setSize(PgAppDiv.clientWidth, PgAppDiv.clientHeight);
-  };
-  /**@todo responsive */
-  css2drendererResize();
+  __renderers__.push(css2drenderer);
 
   css2drenderer.domElement.style.position = "absolute";
   css2drenderer.domElement.style.top = "0px";
@@ -153,7 +170,16 @@ __main__ = async (
 
     const deltaT = now - t;
 
+    for (const planet of planets) planet.beforeComputeMove();
+
+    let n = bufferSize;
+    while (n-- && n > 0) {
+      for (const planet of planets) planet.computeMove(1);
+    }
+
     for (const planet of planets) {
+      planet.move();
+
       const distToCam = camera.position.distanceTo(planet.Pt.position);
 
       if (distToCam < planet.inf.radius * 100) {
@@ -165,7 +191,6 @@ __main__ = async (
       }
 
       planet.rotate();
-      planet.move();
     }
 
     if (tracingX && tracingX !== "Sun") {
@@ -225,11 +250,19 @@ __main__ = async (
   __updateTHREEJs__only__.bufferSize = () => {
     setConst("BUFFER_SIZE", bufferSize);
   };
-
-  __updateTHREEJs__ = (k: string, val: any) => {
-    // variables changed, run your code!
-    console.log(k, val);
+  __updateTHREEJs__only__.hideMoonLabels = () => {
+    css2drenderer.domElement.classList.toggle("hideMoonLabels");
   };
+  __updateTHREEJs__only__.hidePlanetLabels = () => {
+    css2drenderer.domElement.classList.toggle("hidePlanetLabels");
+  };
+
+  __updateTHREEJs__only__.camViewField = () => {
+    camera.fov = camViewField;
+    camera.updateProjectionMatrix();
+  };
+
+  __updateTHREEJs__ = (k: string, val: any) => {};
 };
 
 const textureLoader = new THREE.TextureLoader(new THREE.LoadingManager());
@@ -250,10 +283,11 @@ class Planet extends THREE.Object3D {
   readonly Line: THREE.Line;
   readonly Pt: THREE.Points;
   readonly Ball: THREE.Mesh<THREE.SphereGeometry, THREE.MeshPhongMaterial>;
+
   private readonly initialCoordinates: THREE.Vector2 = new THREE.Vector2();
   private readonly currentCoordinates: THREE.Vector2 = new THREE.Vector2();
-
-  readonly toPeriapsis: THREE.Matrix4;
+  readonly nextCoordinates: THREE.Vector3Tuple = [0, 0, 0];
+  readonly nextVelocity: THREE.Vector3Tuple = [0, 0, 0];
 
   constructor(
     readonly inf: BodyInfo,
@@ -318,6 +352,7 @@ class Planet extends THREE.Object3D {
       });
       const line = new THREE.Line(geo, mat);
       line.visible = true;
+      line.frustumCulled = false;
       this.add(line);
 
       this.Line = line;
@@ -421,7 +456,13 @@ class Planet extends THREE.Object3D {
   }
 
   move() {
-    this.buffer(BUFFER_SIZE);
+    this._coordinates[0] = this.nextCoordinates[0];
+    this._coordinates[1] = this.nextCoordinates[1];
+    this._coordinates[2] = this.nextCoordinates[2];
+
+    this._velocity[0] = this.nextVelocity[0];
+    this._velocity[1] = this.nextVelocity[1];
+    this._velocity[2] = this.nextVelocity[2];
 
     this.Pt.position.set(...this._coordinates);
     this.Ball.position.set(...this._coordinates);
@@ -445,6 +486,20 @@ class Planet extends THREE.Object3D {
     );
   }
 
+  beforeComputeMove() {
+    this.nextCoordinates[0] = this._coordinates[0];
+    this.nextCoordinates[1] = this._coordinates[1];
+    this.nextCoordinates[2] = this._coordinates[2];
+
+    this.nextVelocity[0] = this._velocity[0];
+    this.nextVelocity[1] = this._velocity[1];
+    this.nextVelocity[2] = this._velocity[2];
+  }
+
+  computeMove(n: number) {
+    this.buffer(n, this.nextCoordinates, this.nextVelocity);
+  }
+
   private regressedState: RegressedState = 1;
 
   private checkRegressedAngle() {
@@ -458,7 +513,7 @@ class Planet extends THREE.Object3D {
         break;
       }
       case 2: {
-        if (angle < Math.PI * 0.01) {
+        if (angle < Math.PI * 0.5) {
           this.regressedState = 3;
         }
         break;
@@ -470,21 +525,23 @@ class Planet extends THREE.Object3D {
     }
   }
 
-  private buffer(N = 1) {
+  private buffer(
+    N: number,
+    coordinates$: THREE.Vector3Tuple,
+    velocity$: THREE.Vector3Tuple
+  ) {
     let n = N;
-    const posiArr = this._coordinates;
-    const veloArr = this._velocity;
 
     while (n--) {
       const a = computeAccOfCelestialBody(this);
       if (a === null) {
-        veloArr[0] = 0;
-        veloArr[1] = 0;
-        veloArr[2] = 0;
+        velocity$[0] = 0;
+        velocity$[1] = 0;
+        velocity$[2] = 0;
         break;
       }
       const dv = [a[0] * MOMENT, a[1] * MOMENT, a[2] * MOMENT];
-      const [vx, vy, vz] = veloArr;
+      const [vx, vy, vz] = velocity$;
       const [dvx, dvy, dvz] = dv;
       const ds = [
         vx * MOMENT + 0.5 * dvx * MOMENT,
@@ -492,13 +549,13 @@ class Planet extends THREE.Object3D {
         vz * MOMENT + 0.5 * dvz * MOMENT,
       ];
 
-      veloArr[0] += dv[0];
-      veloArr[1] += dv[1];
-      veloArr[2] += dv[2];
+      velocity$[0] += dv[0];
+      velocity$[1] += dv[1];
+      velocity$[2] += dv[2];
 
-      posiArr[0] += ds[0];
-      posiArr[1] += ds[1];
-      posiArr[2] += ds[2];
+      coordinates$[0] += ds[0];
+      coordinates$[1] += ds[1];
+      coordinates$[2] += ds[2];
     }
   }
 }
@@ -528,9 +585,14 @@ export function computeAccBy(
 
 function computeAccOfCelestialBody(self: Planet) {
   const sum: THREE.Vector3Tuple = [0, 0, 0];
-  const pos = self._coordinates;
+  const pos = self.nextCoordinates;
   for (const obj of self.gravityCaringObjects) {
-    const a = computeAccBy(pos, obj._coordinates, obj.inf.mass, obj.inf.radius);
+    const a = computeAccBy(
+      pos,
+      obj.nextCoordinates,
+      obj.inf.mass,
+      obj.inf.radius
+    );
     sum[0] += a[0];
     sum[1] += a[1];
     sum[2] += a[2];
@@ -544,6 +606,18 @@ let tracingLng: number = 0;
 let tracingAlt: number = 3;
 let moment: number = MOMENT;
 let bufferSize: number = BUFFER_SIZE;
+let hideMoonLabels: boolean = false;
+let hidePlanetLabels: boolean = false;
+let camViewField: number = __config__.camFv;
+
+__defineControl__(
+  "camViewField",
+  "range",
+  camViewField,
+  __defineControl__.rint(45, 160)
+);
+__defineControl__("hideMoonLabels", "bit", hideMoonLabels);
+__defineControl__("hidePlanetLabels", "bit", hidePlanetLabels);
 
 __defineControl__("tracingX", "enum", tracingX, {
   valueType: "string",
@@ -558,7 +632,7 @@ __defineControl__(
   "tracingAlt",
   "range",
   tracingAlt,
-  __defineControl__.rfloat(3, 500)
+  __defineControl__.rfloat(3, 1000)
 );
 
 __defineControl__(

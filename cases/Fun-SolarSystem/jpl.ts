@@ -4,10 +4,7 @@ import { AU } from "./constants.js";
 const toJ2000CSMat = new THREE.Matrix4().makeRotationX(-0.5 * Math.PI);
 toJ2000CSMat.multiply(new THREE.Matrix4().makeScale(1 / AU, 1 / AU, 1 / AU));
 
-export const toThreeJSCSMatWithoutScale = new THREE.Matrix4().makeRotationX(
-  0.5 * Math.PI
-);
-const toThreeJSCSMat = toThreeJSCSMatWithoutScale.clone();
+const toThreeJSCSMat = new THREE.Matrix4().makeRotationX(0.5 * Math.PI);
 toThreeJSCSMat.multiply(new THREE.Matrix4().makeScale(AU, AU, AU));
 
 // data on 2021-06-30

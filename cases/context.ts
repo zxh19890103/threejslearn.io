@@ -4,6 +4,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import "./controls.js";
 import "./dialog.js";
 import { CSS2DRenderer } from "three/addons/renderers/CSS2DRenderer.js";
+import { createDialog } from "./dialog.js";
 
 let scene: THREE.Scene;
 let camera: THREE.PerspectiveCamera;
@@ -26,6 +27,8 @@ const setup = () => {
   // Create a WebGLRenderer and attach it to the DOM
   renderer = new THREE.WebGLRenderer({ alpha: false, antialias: true });
 
+  __renderers__.push(renderer);
+
   element.appendChild(renderer.domElement);
 
   const whenClientViewResized = () => {
@@ -35,7 +38,7 @@ const setup = () => {
     camera.aspect = vW / vH;
     camera.updateProjectionMatrix();
 
-    renderer.setSize(vW, vH);
+    for (const r of __renderers__) r.setSize(vW, vH);
   };
 
   whenClientViewResized();
@@ -49,9 +52,20 @@ const setup = () => {
 
   const clock = new THREE.Clock();
 
+  const stats = new Stats();
+
+  stats.showPanel(0); // 0: fps, 1: ms, 2: mb, 3+: custom
+  stats.dom.style.display = "block";
+  stats.dom.style.position = "static";
+  stats.dom.style.borderBottom = "1px dashed #ddd";
+  stats.dom.style.paddingBottom = "4px";
+  document.querySelector("#PgAppControls").appendChild(stats.dom);
+
   // Animation function
   const animate = () => {
     requestAnimationFrame(animate);
+
+    stats.begin();
 
     renderer.clearColor();
 
@@ -62,9 +76,13 @@ const setup = () => {
     for (const fn of nextFrameFns) fn(scene, camera, renderer, delta);
     // Render the scene from the perspective of the camera
     renderer.render(scene, camera);
+
+    stats.end();
   };
 
-  new ResizeObserver(whenClientViewResized).observe(element, { box: "border-box" });
+  new ResizeObserver(whenClientViewResized).observe(element, {
+    box: "border-box",
+  });
 
   const nextFrameFns: NextFrameFn[] = [];
 
@@ -74,6 +92,22 @@ const setup = () => {
 
   // Start the animation loop
   animate();
+};
+
+__info__ = (md: string) => {
+  console.log(md);
+  const button = document.createElement("a");
+  button.innerText = "📜";
+  button.className = "MenuButton";
+  button.onclick = () => {
+    createDialog({
+      width: 860,
+      title: "Info",
+      content: md,
+    });
+  };
+
+  document.querySelector("#Menu .MenuButtons").appendChild(button);
 };
 
 const bootstrap = () => {

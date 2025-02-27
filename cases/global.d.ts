@@ -52,7 +52,9 @@ type Config = {
 };
 
 let __add_nextframe_fn__: (fn: NextFrameFn) => void;
+
 const JekyllEnv: "development" | "production";
+const __renderers__: THREE.Renderer[];
 
 let __config__: Config;
 let __main__: MainFunc;
@@ -79,6 +81,8 @@ type DefineControl = {
 let __defineControl__: DefineControl;
 
 let __renderControls__: (data: Record<string, any>) => void;
+
+let __info__: (md: string) => void;
 
 type UpdateTHREEJs = {
   (k: string, val: any): void;
@@ -156,4 +160,18 @@ const __3__: ThreeObjects;
 
 interface HTMLElement {
   $meta4ctrl: Control;
+}
+
+declare class Stats {
+  readonly dom: HTMLDivElement;
+  showPanel(mode: 0 | 1 | 2 | 3 | 4): void;
+  begin(): void;
+  end(): void;
+}
+
+namespace markdown {
+  class Markdown {}
+  const parse: (a: string, b?) => string;
+  const renderJsonML: (a, b) => string;
+  const toHTML: (a: string, c?, d?) => string;
 }

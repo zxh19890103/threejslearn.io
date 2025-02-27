@@ -12,7 +12,6 @@ type JQueryOne = (selector: string) => HTMLDivElement;
 const createDialog = (config: CreateDialogConfig) => {
   const init = () => {
     const dialog = document.createElement("dialog");
-    dialog.className = "dialog";
 
     dialog.style.cssText = `width: ${config.width}px;`;
 
@@ -26,14 +25,14 @@ const createDialog = (config: CreateDialogConfig) => {
       }
     };
 
-    dialog.innerHTML = `
+    dialog.innerHTML = `<div class="dialog">
 <div class="dialog-header">
   <h3>${config.title}</h3>
   <a href="javascript:void(0);" class="close" item-type="close">x</a>
 </div>
-<div class="dialog-content" style="height: ${config.height}px;">
+<div class="dialog-content">
   ${config.content}
-</div>
+</div></div>
     `;
 
     dialog.showModal();
