@@ -51,6 +51,23 @@ type Config = {
   camPos: Vec3;
 };
 
+type UsePanelConfig = {
+  placement:
+    | "left"
+    | "left-top"
+    | "top"
+    | "right-top"
+    | "right"
+    | "right-bottom"
+    | "bottom"
+    | "left-bottom";
+  width: number;
+  lines: number;
+};
+
+let __usePanel__: (cfg: UsePanelConfig) => void;
+let __usePanel_write__: (lineno: number, str: string) => void;
+
 let __add_nextframe_fn__: (fn: NextFrameFn) => void;
 
 const JekyllEnv: "development" | "production";
@@ -58,7 +75,7 @@ const __renderers__: THREE.Renderer[];
 
 let __config__: Config;
 let __main__: MainFunc;
-let __dev__: () => void;
+let __dev__: (clsN?: string) => void;
 let __onControlsDOMChanged__iter__: (
   evalExp: string,
   k: string,

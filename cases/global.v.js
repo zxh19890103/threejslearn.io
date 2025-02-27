@@ -1,7 +1,7 @@
 // @ts-nocheck
 var __main__ = null;
-var __dev__ = () => {
-  document.querySelector(".Content")?.classList.toggle("dev");
+var __dev__ = (clsN) => {
+  document.querySelector(".Content")?.classList.toggle(clsN ?? "dev");
 };
 var __info__ = null;
 var __renderers__ = [];
@@ -21,3 +21,6 @@ var __config__ = {
   camFar: Number.MAX_SAFE_INTEGER,
   camPos: [0, 0, 10],
 };
+
+var __usePanel__ = null;
+var __usePanel_write__ = null;

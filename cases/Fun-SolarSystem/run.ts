@@ -68,6 +68,12 @@ __main__ = async (
   camera: THREE.PerspectiveCamera,
   renderer: THREE.WebGLRenderer
 ) => {
+  __usePanel__({
+    placement: "top",
+    width: 450,
+    lines: 3,
+  });
+
   __info__(
     `
 ### Solar System 3D Simulation
@@ -108,11 +114,10 @@ If the observed data wasn’t available, I placed the bodies at their aphelion a
   css2drenderer.domElement.style.pointerEvents = "none";
   PgAppDiv.appendChild(css2drenderer.domElement);
 
-  const dispalyCanvas = document.createElement("div");
-  dispalyCanvas.style.cssText = `z-index: 100;padding: 1em; border: 1px solid #fff; border-radius: 6px 8px; font-size: 12px; position: absolute; left: 0; bottom: 0; width: fit-content; height: fit-content; min-height: 60px; background: rgba(0,0,0, 0.78); color: #fff`;
-  document.querySelector("#SectionPgAppWrap").appendChild(dispalyCanvas);
-
   const dispalyCanvasLegend = document.createElement("div");
+  dispalyCanvasLegend.className = "panel";
+  dispalyCanvasLegend.style.cssText = `z-index: 100;padding: 1em; border: 1px solid #fff; border-radius: 6px 8px; font-size: 12px; position: absolute; left: 0; bottom: 0; width: fit-content; height: fit-content; min-height: 60px; background: rgba(0,0,0, 0.78); color: #fff`;
+  document.querySelector("#SectionPgAppWrap").appendChild(dispalyCanvasLegend);
 
   dispalyCanvasLegend.onclick = (event) => {
     const a = event.target as HTMLAnchorElement;
@@ -168,10 +173,6 @@ Units:
     .join("")}
   </ul>
   `;
-  dispalyCanvas.appendChild(dispalyCanvasLegend);
-
-  const dispalyCanvasDataDiv = document.createElement("div");
-  dispalyCanvas.appendChild(dispalyCanvasDataDiv);
 
   const objectsKvs: Record<string, Planet> = {};
   let Sun: Planet;
@@ -319,13 +320,15 @@ Units:
       trottle = 0;
       _t_.setTime(T);
 
-      dispalyCanvasDataDiv.innerHTML = `
-        camera far from sun: ${(camera.position.length() / AU).toFixed(2)} au;
-        <br />
-        reality/screen: 1s = ${tformat((BUFFER_MOMENT * 1000) / deltaT)};
-        <br/>
-        screen date: ${_t_.toLocaleDateString()}
-      `;
+      __usePanel_write__(
+        0,
+        `camera far from sun: ${(camera.position.length() / AU).toFixed(2)} au;`
+      );
+      __usePanel_write__(
+        1,
+        `reality/screen: 1s = ${tformat((BUFFER_MOMENT * 1000) / deltaT)};`
+      );
+      __usePanel_write__(2, `screen date: ${_t_.toLocaleDateString()}`);
     }
 
     css2drenderer.render(world, camera);

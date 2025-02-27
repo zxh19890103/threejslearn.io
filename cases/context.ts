@@ -2,8 +2,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
 import "./controls.js";
-import "./dialog.js";
-import { CSS2DRenderer } from "three/addons/renderers/CSS2DRenderer.js";
+import "./panel.js";
 import { createDialog } from "./dialog.js";
 
 let scene: THREE.Scene;
