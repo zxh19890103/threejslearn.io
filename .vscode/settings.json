@@ -15,7 +15,7 @@
   "notebook.markup.fontSize": 12,
   "window.zoomLevel": 1,
   "editor.letterSpacing": 0,
-  "editor.fontWeight": "500",
+  "editor.fontWeight": "200",
   "editor.fontLigatures": true,
   "terminal.integrated.fontFamily": "monospace",
   "workbench.iconTheme": "vscode-icons",

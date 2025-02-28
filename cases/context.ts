@@ -44,7 +44,7 @@ const setup = () => {
 
   // Position the camera so it's not inside the cube
   camera.position.set(...__config__.camPos);
-  renderer.setClearColor(0x000000);
+  renderer.setClearColor(0x0d0f0e);
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.update();

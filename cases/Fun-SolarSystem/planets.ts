@@ -39,7 +39,11 @@ export interface BodyInfo {
    * image url relative to path ./planets-inf
    */
   avatar: string;
+  /**
+   * for texture!
+   */
   map: string;
+  maps?: Record<string, string>;
   /**
    * to the Sun's equator;
    * In the future it will be to J2000 ecliptic
@@ -51,6 +55,7 @@ export interface BodyInfo {
    */
   ref?: BodyInfo;
   rings?: [string, number][];
+  isComet?: boolean;
   /**
    * self-rotation period: unit of earth day.
    */
@@ -118,6 +123,8 @@ export const Sun: BodyInfo = {
   rotationPeriod: 0,
 };
 
+//#region  planets
+
 export const Mercury: BodyInfo = {
   name: "Mercury",
   displayName: "Mercury",
@@ -164,6 +171,11 @@ export const Earth: BodyInfo = {
   semiMajorAxis: 149598.023,
   avatar: "/nineplanets-org/earth.png",
   map: "/maps/earth-1600x800.jpg",
+  maps: {
+    "4960x2048": "/maps/earth-4096x2048.jpg",
+    nasa3d:
+      "https://raw.githubusercontent.com/zxh19890103/solar-system/refs/heads/master/planets-inf/nasa3d/ear0xuu2.jpg",
+  },
   color: composeColors(COLORS.blue, COLORS.green),
   mass: 5.97237,
   radius: 6.371,
@@ -183,6 +195,10 @@ export const Mars: BodyInfo = {
   semiMajorAxis: 227939.2,
   avatar: "/nineplanets-org/mars.png",
   map: "/maps/mars-1024x512.jpg",
+  maps: {
+    nasa3d:
+      "https://raw.githubusercontent.com/zxh19890103/solar-system/refs/heads/master/planets-inf/nasa3d/mar0kuu2.jpg",
+  },
   color: composeColors(COLORS.red, COLORS.brown, COLORS.tan),
   mass: 0.64171,
   radius: 3.3895,
@@ -300,6 +316,10 @@ export const Neptune: BodyInfo = {
   ref: Sun,
 };
 
+//#endregion
+
+//#region small planets
+
 export const Pluto: BodyInfo = {
   name: "Pluto",
   displayName: "Pluto",
@@ -351,6 +371,8 @@ export const Eris: BodyInfo = {
   ref: Sun,
 };
 
+//#endregion
+
 //#region comets
 
 export const Halley: BodyInfo = {
@@ -370,6 +392,7 @@ export const Halley: BodyInfo = {
   axialTilt: 0,
   rotationPeriod: 0,
   ref: Sun,
+  isComet: true,
 };
 
 export const Tempel1: BodyInfo = {
@@ -385,6 +408,7 @@ export const Tempel1: BodyInfo = {
   radius: 5 * 0.001,
   inclination: 10.474 * RAD_PER_DEGREE,
   ref: Sun,
+  isComet: true,
 };
 
 export const Holmes: BodyInfo = {
@@ -400,6 +424,7 @@ export const Holmes: BodyInfo = {
   radius: 5 * 0.001,
   inclination: 19.1126 * RAD_PER_DEGREE,
   ref: Sun,
+  isComet: true,
 };
 
 export const HaleBopp: BodyInfo = {
@@ -415,6 +440,7 @@ export const HaleBopp: BodyInfo = {
   radius: approximates(60, 20) * 0.001,
   inclination: 89.4 * RAD_PER_DEGREE,
   ref: Sun,
+  isComet: true,
 };
 
 //#endregion
@@ -782,3 +808,12 @@ export const Bodies13 = {
   Pluto,
   Charon,
 };
+
+for (const k in Bodies13) {
+  if (Bodies13[k].maps && Bodies13[k].map) {
+    Bodies13[k].maps = {
+      default: Bodies13[k].map,
+      ...Bodies13[k].maps,
+    };
+  }
+}

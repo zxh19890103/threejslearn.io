@@ -3,15 +3,10 @@ __usePanel__ = (cfg: UsePanelConfig) => {
 
   const container = document.querySelector("#SectionPgAppWrap");
   const canvas = document.createElement("canvas");
-  canvas.className = "panel";
+  canvas.className = `panel panel-${cfg.placement}`;
 
   canvas.style.cssText = `
-  position: absolute;
-  z-index: 200;
-  ${Placement2CSS[cfg.placement]}
-  border: 1px solid #fff;
-  background: rgba(0, 0, 0, 0.8);
-  border-radius: 3px 4px;
+  padding: 0;
   width: ${cfg.width}px;
   height: ${cfg.lines * lineHeight}px;
   `;
@@ -38,15 +33,4 @@ __usePanel__ = (cfg: UsePanelConfig) => {
     context.clearRect(0, actLh * ln, cW, actLh * (ln + 1));
     context.fillText(str, 24, actLh / 2 + actLh * ln);
   };
-};
-
-const Placement2CSS: Record<UsePanelConfig["placement"], string> = {
-  left: `left: 0; top:  50%; transform: translate(0, -50%);`,
-  "left-top": `left:0; top:  0;`,
-  top: `left: 50%; top:  0; transform: translate(-50%, 0);`,
-  "right-top": `right: 0; top:  0; `,
-  right: `right: 0; top:  50%; transform: translate(0, -50%);`,
-  "right-bottom": `right: 0; bottom:  0;`,
-  bottom: `left: 50%; bottom:  0; transform: translate(-50%, 0);`,
-  "left-bottom": `left: 0; bottom:  0;`,
 };

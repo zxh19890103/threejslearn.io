@@ -1,0 +1,73 @@
+.hideMoonLabels {
+  .moon {
+    display: none;
+  }
+}
+
+.hidePlanetLabels {
+  .planet {
+    display: none;
+  }
+}
+
+.textures {
+  &[data-selected="0"] {
+    button.index-0 {
+      @extend .btn-disabled;
+    }
+    button.index-0::after {
+      content: " ✔︎";
+      color: greenyellow;
+    }
+  }
+  &[data-selected="1"] {
+    button.index-1 {
+      @extend .btn-disabled;
+    }
+    button.index-1::after {
+      content: " ✔︎";
+      color: greenyellow;
+    }
+  }
+  &[data-selected="2"] {
+    button.index-2 {
+      @extend .btn-disabled;
+    }
+    button.index-2::after {
+      content: " ✔︎";
+      color: greenyellow;
+    }
+  }
+  &[data-selected="3"] {
+    button.index-3 {
+      @extend .btn-disabled;
+    }
+    button.index-3::after {
+      content: " ✔︎";
+      color: greenyellow;
+    }
+  }
+}
+
+.btn-disabled {
+  background: #777;
+  color: #ddd;
+  pointer-events: none;
+}
+
+button.texture {
+  font-size: 11px;
+  border: 1px double #fff;
+  border-radius: 8px;
+  background: #333;
+  color: #fff;
+  margin: 0 2px;
+
+  &:disabled {
+    @extend .btn-disabled;
+  }
+
+  &:hover {
+    background: #222;
+  }
+}

@@ -4,6 +4,10 @@
 
 import * as THREE from "three";
 import {
+  mergeAttributes,
+  mergeGeometries,
+} from "three/addons/utils/BufferGeometryUtils.js";
+import {
   CSS2DObject,
   CSS2DRenderer,
 } from "three/addons/renderers/CSS2DRenderer.js";
@@ -30,30 +34,25 @@ import {
 import { tformat } from "./utils.js";
 import { createDialog } from "../dialog.js";
 
-type RegressedState = 1 | 2 | 3 | 4;
-
-let enableGrid = false;
-let enableAxes = false;
-
 //#region reactive
 __dev__();
-__defineControl__("enableGrid", "bit", enableGrid);
-__defineControl__("enableAxes", "bit", enableAxes);
 
 __updateControlsDOM__ = () => {
   __renderControls__({
-    enableAxes,
-    enableGrid,
     moment,
     bufferSize,
     hideMoonLabels,
     hidePlanetLabels,
-    camViewField,
+    camFov,
+    camFov2,
+    camFov3,
     startTracingX,
     tracingX,
     tracingAlt,
     tracingLat,
     tracingLng,
+    tracingLookat,
+    camDist2sampleRadFactor,
   });
 };
 
@@ -71,7 +70,7 @@ __main__ = async (
   __usePanel__({
     placement: "top",
     width: 450,
-    lines: 3,
+    lines: 4,
   });
 
   __info__(
@@ -115,19 +114,19 @@ If the observed data wasn’t available, I placed the bodies at their aphelion a
   PgAppDiv.appendChild(css2drenderer.domElement);
 
   const dispalyCanvasLegend = document.createElement("div");
-  dispalyCanvasLegend.className = "panel";
-  dispalyCanvasLegend.style.cssText = `z-index: 100;padding: 1em; border: 1px solid #fff; border-radius: 6px 8px; font-size: 12px; position: absolute; left: 0; bottom: 0; width: fit-content; height: fit-content; min-height: 60px; background: rgba(0,0,0, 0.78); color: #fff`;
+  dispalyCanvasLegend.className = "panel panel-left-bottom";
+  dispalyCanvasLegend.style.cssText = `font-size: 12px; width: fit-content; height: fit-content; min-height: 60px;`;
   document.querySelector("#SectionPgAppWrap").appendChild(dispalyCanvasLegend);
 
   dispalyCanvasLegend.onclick = (event) => {
-    const a = event.target as HTMLAnchorElement;
-    if (a.tagName !== "A") return;
-    const name = a.innerText;
-    const body = Bodies13[name];
-    createDialog({
-      title: name,
-      content:
-        `
+    const a = event.target as HTMLElement;
+    if (a.tagName === "A") {
+      const name = a.innerText;
+      const body = Bodies13[name];
+      createDialog({
+        title: name,
+        content:
+          `
         <pre>
 Units: 
 - space: 1,000 km
@@ -136,24 +135,43 @@ Units:
 - period: 1 earth's year
         </pre>
         <div style="width: 520px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center;">` +
-        Object.entries(body)
-          .map(([key, value]) => {
-            if (["ref", "map", "rings"].includes(key)) return null;
-            let str = `<div style="width: 30%;padding: .1em">${key}:</div>`;
-            if (key === "color") {
-              _color_.set(value[0], value[1], value[2]);
-              str += ` <div style="width: 70%; padding: .1em"><span style="border-radius: 2px 3px; border: 1px solid #666; padding: 0 .5em; background:${_color_.getStyle()}">#</span></div>`;
-            } else if (key === "avatar") {
-              str += `<div style="width: 70%; padding: .1em"><img style="border-radius: 2px 3px; border: 1px solid #666;  width: 45px; vertical-align:  middle" src="https://solar.zhangxinghai.cn${value}" /></div>`;
-            } else {
-              str += `<div style="width: 70%; padding: .1em">${value}</div>`;
-            }
-            return str;
-          })
-          .filter(Boolean)
-          .join("") +
-        "</div>",
-    });
+          Object.entries(body)
+            .map(([key, value]) => {
+              if (["ref", "map", "rings"].includes(key)) return null;
+              let str = `<div style="width: 30%;padding: .1em">${key}:</div>`;
+              if (key === "color") {
+                _color_.set(value[0], value[1], value[2]);
+                str += ` <div style="width: 70%; padding: .1em"><span style="border-radius: 2px 3px; border: 1px solid #666; padding: 0 .5em; background:${_color_.getStyle()}">#</span></div>`;
+              } else if (key === "avatar") {
+                str += `<div style="width: 70%; padding: .1em"><img style="border-radius: 2px 3px; border: 1px solid #666;  width: 45px; vertical-align:  middle" src="https://solar.zhangxinghai.cn${value}" /></div>`;
+              } else {
+                str += `<div style="width: 70%; padding: .1em">${value}</div>`;
+              }
+              return str;
+            })
+            .filter(Boolean)
+            .join("") +
+          "</div>",
+      });
+    } else if (a.tagName === "BUTTON") {
+      const name = a.dataset.name;
+      const mapSrc = a.dataset.src;
+      const mapIndex = a.dataset.index;
+
+      const bo = objectsKvs[name];
+
+      (a as HTMLButtonElement).disabled = true;
+
+      bo.loadTexture(mapSrc).then(
+        () => {
+          a.parentElement.setAttribute("data-selected", mapIndex);
+          (a as HTMLButtonElement).disabled = false;
+        },
+        () => {
+          (a as HTMLButtonElement).disabled = false;
+        }
+      );
+    }
   };
 
   const _color_ = new THREE.Color();
@@ -167,6 +185,17 @@ Units:
         inf.ref === Bodies13.Sun ? "1em" : "0.7em"
       }">
         <a style="color: #fff" href="javascript:void(0);">${name}</a>
+        <span class="textures" data-selected="0">
+        ${
+          inf.maps
+            ? Object.entries(inf.maps)
+                .map((ent, i) => {
+                  return `<button class="texture index-${i}" data-index="${i}" data-name="${name}" data-src="${ent[1]}">${ent[0]}</button>`;
+                })
+                .join("")
+            : ""
+        }
+            </span>
       </li>`;
     })
     .filter(Boolean)
@@ -213,7 +242,8 @@ Units:
     }
   });
 
-  let PointsMove: VoidFunction = null;
+  //#region points
+  let PointsCloudMove: VoidFunction = null;
 
   {
     Planet.Points = new THREE.Points(
@@ -226,7 +256,7 @@ Units:
       })
     );
 
-    PointsMove = () => {
+    PointsCloudMove = () => {
       Planet.Points.geometry.setAttribute(
         "position",
         new THREE.BufferAttribute(
@@ -247,16 +277,61 @@ Units:
     world.add(Planet.Points);
   }
 
-  let trottle = 0;
-  let controlByUser = true;
+  //#endregion
 
-  const isVisibleOnScreen = (planet: Planet) => {
+  //#region lines
+
+  let LinesMove: VoidFunction = null;
+
+  {
+    Planet.Lines = new THREE.Line(
+      new THREE.BufferGeometry(),
+      new THREE.LineBasicMaterial({
+        linewidth: 4,
+        vertexColors: true,
+        transparent: true,
+        linecap: "round",
+        linejoin: "round",
+      })
+    );
+    Planet.Lines.frustumCulled = false;
+    world.add(Planet.Lines);
+
+    LinesMove = () => {
+      // not ness
+      // Planet.Lines.geometry.dispose();
+
+      Planet.Lines.geometry.setAttribute(
+        "position",
+        mergeAttributes(planets.map((p) => p.attribute_positions))
+      );
+
+      __usePanel_write__(
+        3,
+        `trajectories sampling count: ${Planet.Lines.geometry.attributes.position.count}`
+      );
+
+      Planet.Lines.geometry.setAttribute(
+        "color",
+        mergeAttributes(planets.map((p) => p.attribute_colors))
+      );
+    };
+  }
+
+  //#endregion
+
+  let throttle = 0;
+  let isCamControlledByUser = true;
+
+  const _sV3_ = new THREE.Vector3();
+
+  const isBallVisibleOnScreen = (planet: Planet, camWp: THREE.Vector3) => {
     const ball = planet.Ball;
-    const dist = ball.position.distanceTo(camera.position);
+    const dist = ball.position.distanceTo(camWp);
     const dimeter = planet.inf.radius * 2;
     const fa = (dimeter / dist) * __3__.rad2deg;
-    const r = fa / camViewField;
-    return r > 0.1;
+    const r = fa / camFov;
+    return r > 0.001;
   };
 
   __add_nextframe_fn__(() => {
@@ -271,58 +346,74 @@ Units:
       for (const planet of planets) planet.computeMove(1);
     }
 
+    camera.getWorldPosition(_sV3_);
+
     for (const planet of planets) {
+      planet.calculateRadPerSample(_sV3_);
       planet.move();
-      PointsMove();
       planet.rotate();
     }
 
-    if (tracingX && tracingX !== "Sun") {
+    LinesMove();
+    PointsCloudMove();
+
+    if (tracingX) {
       if (startTracingX) {
         const planet = objectsKvs[tracingX];
 
-        const coords = planet.transformLatLngToWorldPosition(
+        planet.Ball.add(camera);
+
+        const localCoords = planet.transformLatLngToLocalPosition(
           tracingLat,
           tracingLng,
           tracingAlt
         );
+        camera.position.copy(localCoords);
 
-        camera.position.copy(coords);
-        camera.lookAt(planet.Ball.position);
+        if (tracingLookat) {
+          const lookat = objectsKvs[tracingLookat];
+          camera.lookAt(lookat.Ball.position);
+        } else {
+          camera.lookAt(planet.Ball.position);
+        }
 
-        controlByUser = false;
+        isCamControlledByUser = false;
       } else {
-        if (!controlByUser) {
+        if (!isCamControlledByUser) {
+          camera.removeFromParent();
           camera.position.copy(camPosBeforeTracing);
           camera.quaternion.copy(camLookatBeforeTracing);
-          controlByUser = true;
+          isCamControlledByUser = true;
         }
       }
     } else {
-      if (!controlByUser) {
+      if (!isCamControlledByUser) {
+        camera.removeFromParent();
         camera.position.set(...__config__.camPos);
         camera.lookAt(Sun.Ball.position);
-        controlByUser = true;
+        isCamControlledByUser = true;
       }
     }
 
     for (const planet of planets) {
-      planet.Ball.visible = isVisibleOnScreen(planet);
+      planet.Ball.visible = isBallVisibleOnScreen(planet, _sV3_);
     }
 
     t = now;
     T += BUFFER_MOMENT * 1000;
 
-    trottle += deltaT;
+    throttle += deltaT;
 
     // per sec
-    if (trottle > 1000) {
-      trottle = 0;
+    if (throttle > 1000) {
+      throttle = 0;
       _t_.setTime(T);
 
       __usePanel_write__(
         0,
-        `camera far from sun: ${(camera.position.length() / AU).toFixed(2)} au;`
+        `camera far from sun: ${(
+          camera.getWorldPosition(_sV3_).length() / AU
+        ).toFixed(2)} au;`
       );
       __usePanel_write__(
         1,
@@ -339,15 +430,21 @@ Units:
   __3__.ambLight(0xffffff, 0.1);
   __3__.ptLight(0xffffff, 1, AU * 100, 0.000001);
 
-  __updateTHREEJs__only__.enableGrid = (val) => __3__.grid(val);
-  __updateTHREEJs__only__.enableAxes = (val) => __3__.axes(val);
+  const calculateNptsToCircle = () => {
+    for (const planet of planets) {
+      planet.calculateNPtsToCircle(bufferSize, moment);
+    }
+  };
 
   __updateTHREEJs__only__.moment = () => {
     setConst("MOMENT", moment);
+    calculateNptsToCircle();
   };
   __updateTHREEJs__only__.bufferSize = () => {
     setConst("BUFFER_SIZE", bufferSize);
+    calculateNptsToCircle();
   };
+
   __updateTHREEJs__only__.hideMoonLabels = () => {
     css2drenderer.domElement.classList.toggle("hideMoonLabels");
   };
@@ -355,13 +452,25 @@ Units:
     css2drenderer.domElement.classList.toggle("hidePlanetLabels");
   };
 
-  __updateTHREEJs__only__.camViewField = () => {
-    camera.fov = camViewField;
+  __updateTHREEJs__only__.camFov = () => {
+    camera.fov = camFov;
+    camera.updateProjectionMatrix();
+  };
+
+  __updateTHREEJs__only__.camFov2 = () => {
+    camera.fov = camFov2;
+    camera.updateProjectionMatrix();
+  };
+
+  __updateTHREEJs__only__.camFov3 = () => {
+    camera.fov = camFov3;
+    console.log(camFov3);
     camera.updateProjectionMatrix();
   };
 
   const camPosBeforeTracing: THREE.Vector3 = new THREE.Vector3();
   const camLookatBeforeTracing: THREE.Quaternion = new THREE.Quaternion();
+
   __updateTHREEJs__only__.startTracingX = () => {
     if (startTracingX) {
       camPosBeforeTracing.copy(camera.position);
@@ -385,29 +494,35 @@ class Planet extends THREE.Object3D {
 
   readonly isSun: boolean;
   readonly isMoon: boolean;
-  readonly Line: THREE.Line;
+  readonly isComet: boolean;
+
+  readonly LoadingIndicator: CSS2DObject;
+  readonly Label: CSS2DObject;
+  readonly Avatar: CSS2DObject;
+  readonly Line: THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial>;
   readonly Ball: THREE.Mesh<THREE.SphereGeometry, THREE.MeshPhongMaterial>;
 
-  private readonly initialCoordinates: THREE.Vector2 = new THREE.Vector2();
-  private readonly currentCoordinates: THREE.Vector2 = new THREE.Vector2();
   readonly nextCoordinates: THREE.Vector3Tuple = [0, 0, 0];
   readonly nextVelocity: THREE.Vector3Tuple = [0, 0, 0];
+  readonly bodyColor: THREE.Color;
 
   static Points: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>;
+  static Lines: THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial>;
 
   constructor(
     readonly inf: BodyInfo,
     readonly iniState: BODY_BOOTSTRAP_STATE,
     query: Map<BodyInfo, Planet>
   ) {
-    const color = new THREE.Color(inf.color[0], inf.color[1], inf.color[2]);
-
     super();
 
+    const color = new THREE.Color(inf.color[0], inf.color[1], inf.color[2]);
+    this.bodyColor = color;
     this._color = [color.r, color.g, color.b];
     this.planetsQuery = query;
     this.isSun = inf.name === "Sun";
     this.isMoon = Boolean(inf.ref) && inf.ref !== Bodies13.Sun;
+    this.isComet = inf.isComet === true;
 
     inf.rotationPeriod = this.calculateOrbitalPeriod();
 
@@ -451,25 +566,9 @@ class Planet extends THREE.Object3D {
     this._coordinates = position.toArray();
     this._velocity = velocity.toArray();
 
-    this.initialCoordinates.set(this._coordinates[0], this._coordinates[1]);
-    this.currentCoordinates.copy(this.initialCoordinates);
-
     this.position.set(0, 0, 0);
 
-    // tracing
-    {
-      const geo = new THREE.BufferGeometry();
-      const mat = new THREE.LineBasicMaterial({
-        color,
-        fog: true,
-      });
-      const line = new THREE.Line(geo, mat);
-      line.visible = true;
-      line.frustumCulled = false;
-      this.add(line);
-
-      this.Line = line;
-    }
+    this.LoadingIndicator = this.createLoadingIndicator();
 
     // as ball
     {
@@ -494,37 +593,100 @@ class Planet extends THREE.Object3D {
       __3__.crs(this.Ball, this.inf.radius * 1.2);
 
       if (this.inf.map) {
-        textureLoader.load(
-          `https://solar.zhangxinghai.cn${this.inf.map}`,
-          (texture) => {
-            this.Ball.material.color.set(0xffffff);
-            this.Ball.material.map = texture;
-            this.Ball.material.needsUpdate = true;
-          }
-        );
+        this.loadTexture(this.inf.map);
       }
     }
 
     // text
-    {
-      const textElement = document.createElement("div");
-      textElement.className = `label body ${this.isMoon ? "moon" : "planet"}`;
-      textElement.style.position = "absolute";
-      textElement.style.top = this.isMoon ? "14px" : "-14px";
-      textElement.style.color = color.getStyle();
-      textElement.style.fontSize = this.isMoon ? "11px" : "12px";
-      textElement.innerText = this.isMoon
-        ? `${this.inf.name}(${this.inf.ref.name}'s moon)`
-        : this.inf.name;
+    this.Label = this.createLabel();
+    this.add(this.Label);
 
-      const textObject = new CSS2DObject(textElement);
-      textObject.position.set(...this._coordinates);
-      this.add(textObject);
-      this.Label = textObject;
-    }
+    // avatar
+    // if (this.isComet) {
+    //   this.Avatar = this.createAvatar();
+    //   this.add(this.Avatar);
+    // }
+
+    this.calculateNPtsToCircle(bufferSize, moment);
   }
 
-  readonly Label: CSS2DObject;
+  private createLabel() {
+    const textElement = document.createElement("div");
+    textElement.className = `label body ${this.isMoon ? "moon" : "planet"}`;
+    textElement.style.position = "absolute";
+    textElement.style.top = this.isMoon ? "14px" : "-14px";
+    textElement.style.color = this.bodyColor.getStyle();
+    textElement.style.fontSize = this.isMoon ? "11px" : "12px";
+    textElement.innerText = this.isMoon
+      ? `${this.inf.name}(${this.inf.ref.name}'s moon)`
+      : this.inf.name;
+
+    const textObject = new CSS2DObject(textElement);
+    textObject.position.set(...this._coordinates);
+    return textObject;
+  }
+
+  private createLoadingIndicator() {
+    const textElement = document.createElement("div");
+    textElement.className = `label`;
+    textElement.style.position = "absolute";
+    textElement.style.top = "0";
+    textElement.style.opacity = "0.78";
+    textElement.style.color = this.bodyColor.getStyle();
+    textElement.style.fontSize = "13px";
+    textElement.innerText = "loading texture...";
+
+    const textObject = new CSS2DObject(textElement);
+    textObject.position.set(...this._coordinates);
+
+    return textObject;
+  }
+
+  private createAvatar() {
+    const textElement = document.createElement("div");
+    textElement.className = `label`;
+    textElement.style.position = "absolute";
+    textElement.style.top = "0";
+    textElement.style.left = "0";
+    textElement.style.opacity = "0.9";
+    textElement.innerHTML = `<img width="24" height="24" src="/cases/Fun-SolarSystem/Hubble's_Last_Look_at_Comet_ISON_Before_Perihelion.jpg" />`;
+
+    const textObject = new CSS2DObject(textElement);
+    textObject.position.set(...this._coordinates);
+
+    return textObject;
+  }
+
+  loadTexture(mapSrc: string) {
+    return new Promise((done, fail) => {
+      this.add(this.LoadingIndicator);
+
+      textureLoader.load(
+        mapSrc.startsWith("https://")
+          ? mapSrc
+          : `https://solar.zhangxinghai.cn${mapSrc}`,
+        (texture) => {
+          this.Ball.material.color.set(0xffffff);
+          this.Ball.material.map = texture;
+          this.Ball.material.needsUpdate = true;
+
+          this.remove(this.LoadingIndicator);
+
+          done(1);
+        },
+        (event) => {
+          if (!event.lengthComputable) return;
+          this.LoadingIndicator.element.innerText = `${event.loaded}/${event.total}`;
+        },
+        () => {
+          this.LoadingIndicator.element.innerText = "Err.";
+          this.remove(this.LoadingIndicator);
+
+          fail(2);
+        }
+      );
+    });
+  }
 
   private calculateOrbitalPeriod() {
     const periodInSeconds =
@@ -536,7 +698,13 @@ class Planet extends THREE.Object3D {
     return periodInYears;
   }
 
-  transformLatLngToWorldPosition(lat: number, lng: number, alt: number) {
+  putCamAt(cam: THREE.Camera, lat: number, lng: number, alt: number) {
+    const coords = this.transformLatLngToLocalPosition(lat, lng, alt);
+    cam.position.copy(coords);
+    this.Ball.add(cam);
+  }
+
+  transformLatLngToLocalPosition(lat: number, lng: number, alt: number) {
     const { radius } = this.inf;
 
     const latRad = RAD_PER_DEGREE * lat;
@@ -548,27 +716,64 @@ class Planet extends THREE.Object3D {
     const y = R_s * Math.cos(latRad) * Math.sin(lngRad);
     const z = R_s * Math.sin(latRad);
 
-    const localCoords = new THREE.Vector3(x, z, y);
-    localCoords.applyEuler(this.Ball.rotation);
+    return new THREE.Vector3(x, z, y);
+  }
+
+  transformLatLngToWorldPosition(lat: number, lng: number, alt: number) {
+    const localCoords = this.transformLatLngToLocalPosition(lat, lng, alt);
+    localCoords.applyQuaternion(this.Ball.quaternion);
 
     const [x0, y0, z0] = this._coordinates;
 
-    return {
-      x: x0 + localCoords.x,
-      y: y0 + localCoords.y,
-      z: z0 + localCoords.z,
-    };
+    localCoords.x += x0;
+    localCoords.y += y0;
+    localCoords.z += z0;
+
+    return localCoords;
   }
 
   private readonly rotationDelta: number = 0;
 
   rotate() {
     if (!this.Ball.visible) return;
-    console.log(this.rotationDelta);
     this.Ball.rotation.y += this.rotationDelta;
   }
 
+  nPtsToCircle: number = 1;
+  nPts: number = 0;
+  radPerSample: number = Math.PI / 180;
+
+  calculateNPtsToCircle(buffersize: number, unit: number) {
+    const [x, y, z] = this._coordinates;
+    const [vx, vy, vz] = this._velocity;
+
+    const coords = [x, y, z] as THREE.Vector3Tuple;
+    const velocity = [vx, vy, vz] as THREE.Vector3Tuple;
+
+    this.buffer(1, coords, velocity);
+
+    const dx = coords[0] - x;
+    const dy = coords[1] - y;
+    const dz = coords[2] - z;
+
+    const R = Math.sqrt(x * x + y * y + z * z);
+    const L = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    const rad = bufferSize * (L / R);
+
+    this.nPtsToCircle = Math.ceil((Math.PI * 0.5) / rad);
+  }
+
+  calculateRadPerSample(cameraWorldPosition: THREE.Vector3) {
+    const R = cameraWorldPosition.distanceTo(this.Ball.position);
+    const rad = Math.pow(10, -camDist2sampleRadFactor) * R;
+    this.radPerSample = rad;
+  }
+
   move() {
+    const dx = this.nextCoordinates[0] - this._coordinates[0];
+    const dy = this.nextCoordinates[1] - this._coordinates[1];
+    const dz = this.nextCoordinates[2] - this._coordinates[2];
+
     this._coordinates[0] = this.nextCoordinates[0];
     this._coordinates[1] = this.nextCoordinates[1];
     this._coordinates[2] = this.nextCoordinates[2];
@@ -579,22 +784,83 @@ class Planet extends THREE.Object3D {
 
     this.Ball.position.set(...this._coordinates);
     this.Label.position.set(...this._coordinates);
+    this.LoadingIndicator.position.set(...this._coordinates);
 
-    this._positionHistory.push(...this._coordinates);
-    this.currentCoordinates.x = this._coordinates[0];
-    this.currentCoordinates.y = this._coordinates[1];
-
-    if (this.regressedState === 4) {
+    if (this.nPts === this.nPtsToCircle) {
       this._positionHistory.shift();
       this._positionHistory.shift();
       this._positionHistory.shift();
+      this._positionHistory.shift();
+      this.nPts--;
+    } else if (this.nPts < this.nPtsToCircle) {
+      const rad =
+        Math.sqrt(dx * dx + dy * dy + dz * dz) / this.Ball.position.length();
+      this._positionHistory.push(...this._coordinates, rad);
+      this.nPts++;
     } else {
-      this.checkRegressedAngle();
+      this._positionHistory = [];
+      this.nPts = 0;
     }
 
-    this.Line.geometry.setAttribute(
-      "position",
-      new THREE.BufferAttribute(new Float32Array(this._positionHistory), 3)
+    this.setLineAttributes();
+  }
+
+  private readPt(i: number) {
+    const x = this._positionHistory[i * 4];
+    const y = this._positionHistory[i * 4 + 1];
+    const z = this._positionHistory[i * 4 + 2];
+    const r = this._positionHistory[i * 4 + 3];
+
+    return [x, y, z, r];
+  }
+
+  attribute_positions: THREE.BufferAttribute;
+  attribute_colors: THREE.BufferAttribute;
+
+  private setLineAttributes() {
+    const one = this.radPerSample;
+    const n = this._positionHistory.length / 4;
+    const n1 = n - 1;
+    const pts: number[] = [];
+    const colors: number[] = [];
+
+    if (n > 0) {
+      let sum = 0;
+      let i = 0;
+
+      const pt0 = this.readPt(0);
+      pts.push(pt0[0], pt0[1], pt0[2]);
+      colors.push(0, 0, 0, 0);
+
+      for (i = 0; i < n1; i++) {
+        const [x, y, z, r] = this.readPt(i);
+        if (sum > one) {
+          pts.push(x, y, z);
+          colors.push(...this._color, Math.pow(i / n, 0.7));
+          sum = 0;
+        }
+
+        sum += r;
+      }
+
+      // the last
+      const pt1 = this.readPt(n - 1);
+      pts.push(pt1[0], pt1[1], pt1[2]);
+      colors.push(...this._color, Math.pow(i / n, 0.7));
+
+      const pt2 = this.readPt(n - 1);
+      pts.push(pt2[0], pt2[1], pt2[2]);
+      colors.push(0, 0, 0, 0);
+    }
+
+    this.attribute_positions = new THREE.BufferAttribute(
+      new Float32Array(pts),
+      3
+    );
+
+    this.attribute_colors = new THREE.BufferAttribute(
+      new Float32Array(colors),
+      4
     );
   }
 
@@ -610,31 +876,6 @@ class Planet extends THREE.Object3D {
 
   computeMove(n: number) {
     this.buffer(n, this.nextCoordinates, this.nextVelocity);
-  }
-
-  private regressedState: RegressedState = 1;
-
-  private checkRegressedAngle() {
-    const angle = this.initialCoordinates.angleTo(this.currentCoordinates);
-
-    switch (this.regressedState) {
-      case 1: {
-        if (angle > Math.PI * 0.5) {
-          this.regressedState = 2;
-        }
-        break;
-      }
-      case 2: {
-        if (angle < Math.PI * 0.5) {
-          this.regressedState = 3;
-        }
-        break;
-      }
-      case 3: {
-        this.regressedState = 4;
-        break;
-      }
-    }
   }
 
   private buffer(
@@ -717,56 +958,93 @@ let startTracingX: boolean = false;
 let tracingLat: number = 0;
 let tracingLng: number = 0;
 let tracingAlt: number = 3;
+let tracingLookat: string = null;
 let moment: number = MOMENT;
 let bufferSize: number = BUFFER_SIZE;
 let hideMoonLabels: boolean = false;
 let hidePlanetLabels: boolean = false;
-let camViewField: number = __config__.camFv;
+let camFov: number = __config__.camFv;
+let camFov2: number = 1;
+let camFov3: number = 0.1;
+let camDist2sampleRadFactor: number = 8;
 
-__defineControl__(
-  "camViewField",
-  "range",
-  camViewField,
-  __defineControl__.rint(45, 160)
-);
-__defineControl__("hideMoonLabels", "bit", hideMoonLabels);
-__defineControl__("hidePlanetLabels", "bit", hidePlanetLabels);
+__defineControl__("camFov", "range", camFov, {
+  ...__defineControl__.rint(1, 160),
+  label: "fov",
+});
+
+__defineControl__("camFov2", "range", camFov2, {
+  ...__defineControl__.rfloat(0.1, 1),
+  label: "fov (for huge distance)",
+});
+
+__defineControl__("camFov3", "range", camFov3, {
+  ...__defineControl__.rfloat(0.01, 0.1),
+  label: "fov (for extremely huge distance)",
+});
+
+__defineControl__("hideMoonLabels", "bit", hideMoonLabels, {
+  label: "hide moon's labels",
+});
+__defineControl__("hidePlanetLabels", "bit", hidePlanetLabels, {
+  label: "hide planet's labels",
+});
 
 __defineControl__("tracingX", "enum", tracingX, {
   valueType: "string",
+  label: "following [x]",
+  help: `Select a celestial body, and the camera will prepare to follow it. Please check for the 'following' button.`,
   options: Object.entries(Bodies13)
     .filter((x) => {
       return x[1].ref == Bodies13.Sun || x[0] === "Sun";
     })
     .map((n) => ({ value: n[0], label: n[0] })),
 });
-__defineControl__("startTracingX", "bit", startTracingX);
 
-__defineControl__(
-  "tracingAlt",
-  "range",
-  tracingAlt,
-  __defineControl__.rfloat(3, 1000)
-);
+__defineControl__("startTracingX", "bit", startTracingX, {
+  label: "following",
+});
 
-__defineControl__(
-  "tracingLat",
-  "range",
-  tracingLat,
-  __defineControl__.rfloat(-90, 90)
-);
+__defineControl__("tracingAlt", "range", tracingAlt, {
+  ...__defineControl__.rfloat(3, 1000),
+  label: "following position (alt)",
+});
 
-__defineControl__(
-  "tracingLng",
-  "range",
-  tracingLng,
-  __defineControl__.rfloat(0, 180)
-);
+__defineControl__("tracingLat", "range", tracingLat, {
+  ...__defineControl__.rfloat(-90, 90),
+  label: "following position (lat)",
+});
 
-__defineControl__("moment", "range", moment, __defineControl__.rint(10, 1000));
-__defineControl__(
-  "bufferSize",
-  "range",
-  bufferSize,
-  __defineControl__.rint(1, 4000)
-);
+__defineControl__("tracingLng", "range", tracingLng, {
+  ...__defineControl__.rfloat(0, 180),
+  label: "following position (lon)",
+});
+
+__defineControl__("tracingLookat", "enum", tracingLookat, {
+  valueType: "string",
+  label: "following look at",
+  options: Object.entries(Bodies13).map((n) => ({ value: n[0], label: n[0] })),
+});
+
+__defineControl__("moment", "range", moment, {
+  ...__defineControl__.rint(10, 1000),
+  label: "unit(s)",
+  help: `
+  It is the smallest time interval (in seconds) used to calculate the next position and velocity of celestial bodies.
+  The larger the value, the less accurate the calculations will be.
+  `,
+});
+__defineControl__("bufferSize", "range", bufferSize, {
+  ...__defineControl__.rint(1, 500),
+  label: "calculation times",
+  help: `
+    Number of calculations per frame
+    `,
+});
+__defineControl__("camDist2sampleRadFactor", "range", camDist2sampleRadFactor, {
+  ...__defineControl__.rint(6, 16),
+  label: "sampling factor",
+  help: `
+  How the program samples the celestial body trajectories based on camera distance. The larger the value, the denser the sampling, which also consumes more system resources and may cause the page to lag.
+  `,
+});

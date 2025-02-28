@@ -1,3 +1,5 @@
+import { createDialog } from "./dialog.js";
+
 const $onchange = (event: Event) => {
   const input = event.target as HTMLInputElement;
   const { $meta4ctrl } = input;
@@ -16,17 +18,22 @@ const $onchange = (event: Event) => {
     }
     case "enum": {
       const select = input as unknown as HTMLSelectElement;
-      switch ($meta4ctrl.valueType) {
-        case "string":
-          $value = select.value;
-          break;
-        case "number":
-        case "int":
-          $value = Number(select.value);
-          break;
-        case "bit":
-          $value = select.value === "0" ? false : true;
-          break;
+
+      if (select.value === "[#nullish]") {
+        $value = null;
+      } else {
+        switch ($meta4ctrl.valueType) {
+          case "string":
+            $value = select.value;
+            break;
+          case "number":
+          case "int":
+            $value = Number(select.value);
+            break;
+          case "bit":
+            $value = select.value === "0" ? false : true;
+            break;
+        }
       }
       break;
     }
@@ -106,12 +113,13 @@ const $cDOM = (c: Control): HTMLDivElement => {
       color: rgb(0, 0, 0);
       border-radius: 50%;
       font-size: 14px;
-      text-align: center; cursor: pointer;`;
+      text-align: center;
+      cursor: pointer;`;
 
     helptrigger.innerText = "?";
     div.appendChild(helptrigger);
     helptrigger.onclick = () => {
-      alert(c.help);
+      createDialog({ width: 256, title: "Help", content: c.help });
     };
   }
 
@@ -145,13 +153,13 @@ const $cDOM = (c: Control): HTMLDivElement => {
       input.name = c.name;
       input.$meta4ctrl = c;
 
-      c.options.forEach((opt) => {
+      for (const opt of c.options) {
         const optionEl = document.createElement("option");
-        optionEl.value = opt.value;
+        optionEl.value = opt.value === null ? "[#nullish]" : opt.value;
         optionEl.label = opt.label;
         optionEl.selected = opt.value === c.value;
         input.options.add(optionEl);
-      });
+      }
 
       input.onchange = $onchange;
       div.appendChild(input);
@@ -188,7 +196,7 @@ const $cDOM = (c: Control): HTMLDivElement => {
       const span = document.createElement("div");
       span.style.fontSize = "0.6rem";
       span.style.width = "24px";
-      span.style.textAlign = "right";
+      span.style.textAlign = "left";
       span.style.pointerEvents = "none";
 
       const writeValue = (event: Event) => {
@@ -216,7 +224,7 @@ const $cDOM = (c: Control): HTMLDivElement => {
       const input = document.createElement("input");
       input.name = c.name;
       input.type = "button";
-      input.value = "val:" + c.value;
+      input.value = "sig:" + c.value;
       input.$meta4ctrl = c;
       input.onclick = $onchange;
       div.appendChild(input);
@@ -233,6 +241,11 @@ const $cDOM = (c: Control): HTMLDivElement => {
   return div;
 };
 
+/**
+ * @todo
+ * @param c
+ * @returns
+ */
 const $uDOM = (c: Control) => {
   if (!c.$el) return;
 
@@ -273,6 +286,13 @@ __defineControl__ = (<T>(
     ...extras,
     value: iniVal ?? null,
   };
+
+  if (extras && extras.options) {
+    extras.options.unshift({
+      label: "<null />",
+      value: null,
+    });
+  }
 }) as DefineControl;
 
 __defineControl__.rint = (min: number, max: number) => ({
@@ -321,10 +341,11 @@ const __onControlsDOMChanged__ = (data: Record<string, any>) => {
     const $v = data[k];
     const $t = typeof $v;
     if (
-      $t === "object" ||
-      $t === "undefined" ||
-      $t === "symbol" ||
-      $t === "function"
+      $v !== null &&
+      ($t === "object" ||
+        $t === "undefined" ||
+        $t === "symbol" ||
+        $t === "function")
     ) {
       continue;
     } else {
