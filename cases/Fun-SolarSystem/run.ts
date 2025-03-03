@@ -3,10 +3,7 @@
  */
 
 import * as THREE from "three";
-import {
-  mergeAttributes,
-  mergeGeometries,
-} from "three/addons/utils/BufferGeometryUtils.js";
+import { mergeAttributes } from "three/addons/utils/BufferGeometryUtils.js";
 import {
   CSS2DObject,
   CSS2DRenderer,
@@ -33,6 +30,12 @@ import {
 } from "./constants.js";
 import { tformat } from "./utils.js";
 import { createDialog } from "../dialog.js";
+import {
+  checkRegress,
+  resetRegress,
+  shouldSaveTrajectoryPosition,
+  type MovingBody,
+} from "../Fun-EarthSatellites/gravity.js";
 
 //#region reactive
 __dev__();
@@ -52,7 +55,6 @@ __updateControlsDOM__ = () => {
     tracingLat,
     tracingLng,
     tracingLookat,
-    camDist2sampleRadFactor,
   });
 };
 
@@ -98,8 +100,6 @@ If the observed data wasn’t available, I placed the bodies at their aphelion a
 - \`THREE.Texture\` for bodies surfaces
 `
   );
-
-  renderer.setPixelRatio(window.devicePixelRatio);
 
   const PgAppDiv = renderer.domElement.parentElement as HTMLDivElement;
 
@@ -298,9 +298,6 @@ Units:
     world.add(Planet.Lines);
 
     LinesMove = () => {
-      // not ness
-      // Planet.Lines.geometry.dispose();
-
       Planet.Lines.geometry.setAttribute(
         "position",
         mergeAttributes(planets.map((p) => p.attribute_positions))
@@ -325,6 +322,9 @@ Units:
 
   const _sV3_ = new THREE.Vector3();
 
+  /**
+   * @todo
+   */
   const isBallVisibleOnScreen = (planet: Planet, camWp: THREE.Vector3) => {
     const ball = planet.Ball;
     const dist = ball.position.distanceTo(camWp);
@@ -339,17 +339,21 @@ Units:
 
     const deltaT = now - t;
 
-    for (const planet of planets) planet.beforeComputeMove();
+    for (const planet of planets) {
+      planet.beforeComputeMove();
+    }
 
     let n = bufferSize;
     while (n-- && n > 0) {
-      for (const planet of planets) planet.computeMove(1);
+      for (const planet of planets) {
+        buffer(planet, 1, planet.nextCoordinates, planet.nextVelocity);
+      }
     }
 
     camera.getWorldPosition(_sV3_);
 
     for (const planet of planets) {
-      planet.calculateRadPerSample(_sV3_);
+      planet._cameraReadonlyWorldPosition = _sV3_;
       planet.move();
       planet.rotate();
     }
@@ -430,19 +434,13 @@ Units:
   __3__.ambLight(0xffffff, 0.1);
   __3__.ptLight(0xffffff, 1, AU * 100, 0.000001);
 
-  const calculateNptsToCircle = () => {
-    for (const planet of planets) {
-      planet.calculateNPtsToCircle(bufferSize, moment);
-    }
-  };
+  __updateTHREEJs__many__.moment_bufferSize = (k) => {
+    if (k === "moment") setConst("MOMENT", moment);
+    else if (k === "bufferSize") setConst("BUFFER_SIZE", bufferSize);
 
-  __updateTHREEJs__only__.moment = () => {
-    setConst("MOMENT", moment);
-    calculateNptsToCircle();
-  };
-  __updateTHREEJs__only__.bufferSize = () => {
-    setConst("BUFFER_SIZE", bufferSize);
-    calculateNptsToCircle();
+    for (const planet of planets) {
+      resetRegress(planet);
+    }
   };
 
   __updateTHREEJs__only__.hideMoonLabels = () => {
@@ -464,7 +462,6 @@ Units:
 
   __updateTHREEJs__only__.camFov3 = () => {
     camera.fov = camFov3;
-    console.log(camFov3);
     camera.updateProjectionMatrix();
   };
 
@@ -483,14 +480,17 @@ Units:
 
 const textureLoader = new THREE.TextureLoader(new THREE.LoadingManager());
 
-class Planet extends THREE.Object3D {
+class Planet extends THREE.Object3D implements MovingBody {
+  _angleScanned: number = 0;
+  _regressed: boolean = false;
+  trajectory: number[] = [];
+
   readonly planetsQuery: Map<BodyInfo, Planet>;
   readonly gravityCaringObjects: Planet[] = [];
+
   readonly _color: THREE.Vector3Tuple;
   readonly _coordinates: THREE.Vector3Tuple;
   readonly _velocity: THREE.Vector3Tuple;
-
-  private _positionHistory: number[] = [];
 
   readonly isSun: boolean;
   readonly isMoon: boolean;
@@ -499,7 +499,6 @@ class Planet extends THREE.Object3D {
   readonly LoadingIndicator: CSS2DObject;
   readonly Label: CSS2DObject;
   readonly Avatar: CSS2DObject;
-  readonly Line: THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial>;
   readonly Ball: THREE.Mesh<THREE.SphereGeometry, THREE.MeshPhongMaterial>;
 
   readonly nextCoordinates: THREE.Vector3Tuple = [0, 0, 0];
@@ -541,7 +540,9 @@ class Planet extends THREE.Object3D {
         ...iniState.velocity.map((x) => x / SECONDS_IN_A_DAY)
       ).applyMatrix4(toThreeJSCSMat);
     } else {
-      const speed = Math.sqrt((G * inf.ref.mass) / inf.aphelion);
+      const speed = Math.sqrt(
+        G * inf.ref.mass * (2 / inf.aphelion - 1 / inf.semiMajorAxis)
+      );
 
       position = new THREE.Vector3(inf.aphelion, 0, 0);
       velocity = new THREE.Vector3(0, speed, 0);
@@ -600,14 +601,6 @@ class Planet extends THREE.Object3D {
     // text
     this.Label = this.createLabel();
     this.add(this.Label);
-
-    // avatar
-    // if (this.isComet) {
-    //   this.Avatar = this.createAvatar();
-    //   this.add(this.Avatar);
-    // }
-
-    this.calculateNPtsToCircle(bufferSize, moment);
   }
 
   private createLabel() {
@@ -642,22 +635,7 @@ class Planet extends THREE.Object3D {
     return textObject;
   }
 
-  private createAvatar() {
-    const textElement = document.createElement("div");
-    textElement.className = `label`;
-    textElement.style.position = "absolute";
-    textElement.style.top = "0";
-    textElement.style.left = "0";
-    textElement.style.opacity = "0.9";
-    textElement.innerHTML = `<img width="24" height="24" src="/cases/Fun-SolarSystem/Hubble's_Last_Look_at_Comet_ISON_Before_Perihelion.jpg" />`;
-
-    const textObject = new CSS2DObject(textElement);
-    textObject.position.set(...this._coordinates);
-
-    return textObject;
-  }
-
-  loadTexture(mapSrc: string) {
+  public loadTexture(mapSrc: string) {
     return new Promise((done, fail) => {
       this.add(this.LoadingIndicator);
 
@@ -698,12 +676,6 @@ class Planet extends THREE.Object3D {
     return periodInYears;
   }
 
-  putCamAt(cam: THREE.Camera, lat: number, lng: number, alt: number) {
-    const coords = this.transformLatLngToLocalPosition(lat, lng, alt);
-    cam.position.copy(coords);
-    this.Ball.add(cam);
-  }
-
   transformLatLngToLocalPosition(lat: number, lng: number, alt: number) {
     const { radius } = this.inf;
 
@@ -739,40 +711,16 @@ class Planet extends THREE.Object3D {
     this.Ball.rotation.y += this.rotationDelta;
   }
 
-  nPtsToCircle: number = 1;
-  nPts: number = 0;
-  radPerSample: number = Math.PI / 180;
-
-  calculateNPtsToCircle(buffersize: number, unit: number) {
-    const [x, y, z] = this._coordinates;
-    const [vx, vy, vz] = this._velocity;
-
-    const coords = [x, y, z] as THREE.Vector3Tuple;
-    const velocity = [vx, vy, vz] as THREE.Vector3Tuple;
-
-    this.buffer(1, coords, velocity);
-
-    const dx = coords[0] - x;
-    const dy = coords[1] - y;
-    const dz = coords[2] - z;
-
-    const R = Math.sqrt(x * x + y * y + z * z);
-    const L = Math.sqrt(dx * dx + dy * dy + dz * dz);
-    const rad = bufferSize * (L / R);
-
-    this.nPtsToCircle = Math.ceil((Math.PI * 0.5) / rad);
-  }
-
-  calculateRadPerSample(cameraWorldPosition: THREE.Vector3) {
-    const R = cameraWorldPosition.distanceTo(this.Ball.position);
-    const rad = Math.pow(10, -camDist2sampleRadFactor) * R;
-    this.radPerSample = rad;
-  }
+  private _lastSavedCoordinates: Vec3 = null;
+  /**
+   * don't modify it!
+   */
+  public _cameraReadonlyWorldPosition: THREE.Vector3 = null;
 
   move() {
-    const dx = this.nextCoordinates[0] - this._coordinates[0];
-    const dy = this.nextCoordinates[1] - this._coordinates[1];
-    const dz = this.nextCoordinates[2] - this._coordinates[2];
+    if (!this._regressed) {
+      checkRegress(this);
+    }
 
     this._coordinates[0] = this.nextCoordinates[0];
     this._coordinates[1] = this.nextCoordinates[1];
@@ -786,72 +734,48 @@ class Planet extends THREE.Object3D {
     this.Label.position.set(...this._coordinates);
     this.LoadingIndicator.position.set(...this._coordinates);
 
-    if (this.nPts === this.nPtsToCircle) {
-      this._positionHistory.shift();
-      this._positionHistory.shift();
-      this._positionHistory.shift();
-      this._positionHistory.shift();
-      this.nPts--;
-    } else if (this.nPts < this.nPtsToCircle) {
-      const rad =
-        Math.sqrt(dx * dx + dy * dy + dz * dz) / this.Ball.position.length();
-      this._positionHistory.push(...this._coordinates, rad);
-      this.nPts++;
-    } else {
-      this._positionHistory = [];
-      this.nPts = 0;
+    if (
+      shouldSaveTrajectoryPosition(
+        this._coordinates,
+        this._lastSavedCoordinates,
+        this._cameraReadonlyWorldPosition
+      )
+    ) {
+      if (this._regressed) {
+        this.trajectory.shift();
+        this.trajectory.shift();
+        this.trajectory.shift();
+      }
+
+      this.trajectory.push(...this._coordinates);
+      this._lastSavedCoordinates = [...this._coordinates];
     }
 
-    this.setLineAttributes();
-  }
-
-  private readPt(i: number) {
-    const x = this._positionHistory[i * 4];
-    const y = this._positionHistory[i * 4 + 1];
-    const z = this._positionHistory[i * 4 + 2];
-    const r = this._positionHistory[i * 4 + 3];
-
-    return [x, y, z, r];
+    this.setTrajectoryAttributes();
   }
 
   attribute_positions: THREE.BufferAttribute;
   attribute_colors: THREE.BufferAttribute;
 
-  private setLineAttributes() {
-    const one = this.radPerSample;
-    const n = this._positionHistory.length / 4;
+  private setTrajectoryAttributes() {
+    const trajectory = this.trajectory;
+    const n = trajectory.length;
     const n1 = n - 1;
-    const pts: number[] = [];
+    const size = n / 3;
+
+    let pts: number[] = [];
     const colors: number[] = [];
 
-    if (n > 0) {
-      let sum = 0;
-      let i = 0;
+    pts.push(trajectory[0], trajectory[1], trajectory[2]);
+    colors.push(0, 0, 0, 0);
 
-      const pt0 = this.readPt(0);
-      pts.push(pt0[0], pt0[1], pt0[2]);
-      colors.push(0, 0, 0, 0);
-
-      for (i = 0; i < n1; i++) {
-        const [x, y, z, r] = this.readPt(i);
-        if (sum > one) {
-          pts.push(x, y, z);
-          colors.push(...this._color, Math.pow(i / n, 0.7));
-          sum = 0;
-        }
-
-        sum += r;
-      }
-
-      // the last
-      const pt1 = this.readPt(n - 1);
-      pts.push(pt1[0], pt1[1], pt1[2]);
+    pts = pts.concat(trajectory);
+    for (let i = 0; i < size; i++) {
       colors.push(...this._color, Math.pow(i / n, 0.7));
-
-      const pt2 = this.readPt(n - 1);
-      pts.push(pt2[0], pt2[1], pt2[2]);
-      colors.push(0, 0, 0, 0);
     }
+
+    pts.push(trajectory[n1 - 2], trajectory[n1 - 1], trajectory[n1]);
+    colors.push(0, 0, 0, 0);
 
     this.attribute_positions = new THREE.BufferAttribute(
       new Float32Array(pts),
@@ -873,47 +797,44 @@ class Planet extends THREE.Object3D {
     this.nextVelocity[1] = this._velocity[1];
     this.nextVelocity[2] = this._velocity[2];
   }
+}
 
-  computeMove(n: number) {
-    this.buffer(n, this.nextCoordinates, this.nextVelocity);
-  }
+function buffer(
+  body: Planet,
+  N: number,
+  coordinates$: THREE.Vector3Tuple,
+  velocity$: THREE.Vector3Tuple
+) {
+  let n = N;
 
-  private buffer(
-    N: number,
-    coordinates$: THREE.Vector3Tuple,
-    velocity$: THREE.Vector3Tuple
-  ) {
-    let n = N;
-
-    while (n--) {
-      const a = computeAccOfCelestialBody(this);
-      if (a === null) {
-        velocity$[0] = 0;
-        velocity$[1] = 0;
-        velocity$[2] = 0;
-        break;
-      }
-      const dv = [a[0] * MOMENT, a[1] * MOMENT, a[2] * MOMENT];
-      const [vx, vy, vz] = velocity$;
-      const [dvx, dvy, dvz] = dv;
-      const ds = [
-        vx * MOMENT + 0.5 * dvx * MOMENT,
-        vy * MOMENT + 0.5 * dvy * MOMENT,
-        vz * MOMENT + 0.5 * dvz * MOMENT,
-      ];
-
-      velocity$[0] += dv[0];
-      velocity$[1] += dv[1];
-      velocity$[2] += dv[2];
-
-      coordinates$[0] += ds[0];
-      coordinates$[1] += ds[1];
-      coordinates$[2] += ds[2];
+  while (n--) {
+    const a = computeAccOfCelestialBody(body);
+    if (a === null) {
+      velocity$[0] = 0;
+      velocity$[1] = 0;
+      velocity$[2] = 0;
+      break;
     }
+    const dv = [a[0] * MOMENT, a[1] * MOMENT, a[2] * MOMENT];
+    const [vx, vy, vz] = velocity$;
+    const [dvx, dvy, dvz] = dv;
+    const ds = [
+      vx * MOMENT + 0.5 * dvx * MOMENT,
+      vy * MOMENT + 0.5 * dvy * MOMENT,
+      vz * MOMENT + 0.5 * dvz * MOMENT,
+    ];
+
+    velocity$[0] += dv[0];
+    velocity$[1] += dv[1];
+    velocity$[2] += dv[2];
+
+    coordinates$[0] += ds[0];
+    coordinates$[1] += ds[1];
+    coordinates$[2] += ds[2];
   }
 }
 
-export function computeAccBy(
+function computeAccBy(
   position0: THREE.Vector3Tuple,
   position: THREE.Vector3Tuple,
   mass: number,
@@ -966,7 +887,6 @@ let hidePlanetLabels: boolean = false;
 let camFov: number = __config__.camFv;
 let camFov2: number = 1;
 let camFov3: number = 0.1;
-let camDist2sampleRadFactor: number = 8;
 
 __defineControl__("camFov", "range", camFov, {
   ...__defineControl__.rint(1, 160),
@@ -994,6 +914,7 @@ __defineControl__("tracingX", "enum", tracingX, {
   valueType: "string",
   label: "following [x]",
   help: `Select a celestial body, and the camera will prepare to follow it. Please check for the 'following' button.`,
+  helpWidth: 120,
   options: Object.entries(Bodies13)
     .filter((x) => {
       return x[1].ref == Bodies13.Sun || x[0] === "Sun";
@@ -1027,12 +948,13 @@ __defineControl__("tracingLookat", "enum", tracingLookat, {
 });
 
 __defineControl__("moment", "range", moment, {
-  ...__defineControl__.rint(10, 1000),
+  ...__defineControl__.rint(1, 1000),
   label: "unit(s)",
   help: `
   It is the smallest time interval (in seconds) used to calculate the next position and velocity of celestial bodies.
   The larger the value, the less accurate the calculations will be.
   `,
+  helpWidth: 360,
 });
 __defineControl__("bufferSize", "range", bufferSize, {
   ...__defineControl__.rint(1, 500),
@@ -1040,11 +962,4 @@ __defineControl__("bufferSize", "range", bufferSize, {
   help: `
     Number of calculations per frame
     `,
-});
-__defineControl__("camDist2sampleRadFactor", "range", camDist2sampleRadFactor, {
-  ...__defineControl__.rint(6, 16),
-  label: "sampling factor",
-  help: `
-  How the program samples the celestial body trajectories based on camera distance. The larger the value, the denser the sampling, which also consumes more system resources and may cause the page to lag.
-  `,
 });

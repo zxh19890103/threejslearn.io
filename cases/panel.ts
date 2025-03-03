@@ -30,7 +30,7 @@ __usePanel__ = (cfg: UsePanelConfig) => {
   context.fillStyle = "#fff";
 
   __usePanel_write__ = (ln: number, str: string) => {
-    context.clearRect(0, actLh * ln, cW, actLh * (ln + 1));
+    context.clearRect(0, actLh * ln, cW, actLh);
     context.fillText(str, 24, actLh / 2 + actLh * ln);
   };
 };

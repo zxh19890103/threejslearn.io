@@ -1,5 +1,7 @@
 import { createDialog } from "./dialog.js";
 
+const selectCtrlNullishValueStr = "[#nullish]";
+
 const $onchange = (event: Event) => {
   const input = event.target as HTMLInputElement;
   const { $meta4ctrl } = input;
@@ -19,7 +21,7 @@ const $onchange = (event: Event) => {
     case "enum": {
       const select = input as unknown as HTMLSelectElement;
 
-      if (select.value === "[#nullish]") {
+      if (select.value === selectCtrlNullishValueStr) {
         $value = null;
       } else {
         switch ($meta4ctrl.valueType) {
@@ -35,6 +37,10 @@ const $onchange = (event: Event) => {
             break;
         }
       }
+      break;
+    }
+    case "date": {
+      $value = input.valueAsNumber;
       break;
     }
     case "bit": {
@@ -65,7 +71,15 @@ const $onchange = (event: Event) => {
   // syncronized !
   $meta4ctrl.value = $value;
 
-  __onControlsDOMChanged__?.({ [$key]: $value });
+  if ($meta4ctrl.eval) {
+    __onControlsDOMChanged__?.({ [$key]: $value });
+  }
+
+  for (const k in __updateTHREEJs__many__) {
+    if (k.split("_").includes($key)) {
+      __updateTHREEJs__many__[k]($key, $value);
+    }
+  }
 
   if (Object.hasOwn(__updateTHREEJs__only__, $key)) {
     const res = __updateTHREEJs__only__[$key]($value);
@@ -100,6 +114,15 @@ const hexToColor = (hex: string) => {
   return parseInt("0x" + hex.slice(1));
 };
 
+const _sd_ = new Date();
+const timestamp2string = (ts: number) => {
+  _sd_.setTime(ts);
+  const yrs = _sd_.getFullYear() + "";
+  const mon = _sd_.getMonth() + 1 + "";
+  const date = _sd_.getDate() + "";
+  return `${yrs}-${mon.padStart(2, "0")}-${date.padStart(2, "0")}`;
+};
+
 const $cDOM = (c: Control): HTMLDivElement => {
   const div = document.createElement("div");
   div.className = "Control";
@@ -119,7 +142,7 @@ const $cDOM = (c: Control): HTMLDivElement => {
     helptrigger.innerText = "?";
     div.appendChild(helptrigger);
     helptrigger.onclick = () => {
-      createDialog({ width: 256, title: "Help", content: c.help });
+      createDialog({ width: c.helpWidth, title: "Help", content: c.help });
     };
   }
 
@@ -129,11 +152,23 @@ const $cDOM = (c: Control): HTMLDivElement => {
   div.appendChild(label);
 
   switch (c.type) {
+    case "date": {
+      const input = document.createElement("input");
+      input.name = c.name;
+      input.type = "date";
+      input.value = timestamp2string(c.value);
+      console.log(timestamp2string(c.value));
+      input.$meta4ctrl = c;
+      input.onchange = $onchange;
+      div.appendChild(input);
+      break;
+    }
     case "bit": {
       const input = document.createElement("input");
       input.name = c.name;
       input.type = "checkbox";
       input.$meta4ctrl = c;
+      input.checked = c.value;
       input.onchange = $onchange;
       div.appendChild(input);
       break;
@@ -155,7 +190,8 @@ const $cDOM = (c: Control): HTMLDivElement => {
 
       for (const opt of c.options) {
         const optionEl = document.createElement("option");
-        optionEl.value = opt.value === null ? "[#nullish]" : opt.value;
+        optionEl.value =
+          opt.value === null ? selectCtrlNullishValueStr : opt.value;
         optionEl.label = opt.label;
         optionEl.selected = opt.value === c.value;
         input.options.add(optionEl);
@@ -163,6 +199,15 @@ const $cDOM = (c: Control): HTMLDivElement => {
 
       input.onchange = $onchange;
       div.appendChild(input);
+
+      const clearBtn = document.createElement("button");
+      clearBtn.innerText = "x";
+      clearBtn.className = "Control-select-clear-btn";
+      clearBtn.onclick = () => {
+        input.value = selectCtrlNullishValueStr;
+        input.dispatchEvent(new Event("change"));
+      };
+      div.appendChild(clearBtn);
       break;
     }
     case "number": {
@@ -283,6 +328,7 @@ __defineControl__ = (<T>(
     label: name,
     name,
     type,
+    eval: true,
     ...extras,
     value: iniVal ?? null,
   };
@@ -320,7 +366,6 @@ __renderControls__ = (data: Record<string, any>) => {
   const container = document.querySelector("#PgAppControls") as HTMLDivElement;
 
   if (isUpdate) {
-    console.log("here!", data);
     // update!
     for (const k in controls) {
       $uDOM(controls[k]);

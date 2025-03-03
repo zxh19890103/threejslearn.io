@@ -58,6 +58,7 @@ const setup = () => {
   stats.dom.style.position = "static";
   stats.dom.style.borderBottom = "1px dashed #ddd";
   stats.dom.style.paddingBottom = "4px";
+  stats.dom.style.marginBottom = "4px";
   document.querySelector("#PgAppControls").appendChild(stats.dom);
 
   // Animation function
@@ -71,7 +72,19 @@ const setup = () => {
     const delta = clock.getDelta();
     controls.update(delta);
 
-    for (const fn of nextFrameFns) fn(scene, camera, renderer, delta);
+    for (const item of frameFnsAdded) {
+      if (item.per) {
+        item.skip++;
+        item.delta += delta;
+        if (item.delta >= item.per) {
+          item.fn(scene, camera, renderer, item.delta, item.skip);
+          item.delta = 0;
+          item.skip = 0;
+        }
+      } else {
+        item.fn(scene, camera, renderer, delta, 1);
+      }
+    }
 
     // Render the scene from the perspective of the camera
     renderer.render(scene, camera);
@@ -83,29 +96,23 @@ const setup = () => {
     box: "border-box",
   });
 
-  const nextFrameFns: NextFrameFn[] = [];
+  let nextframefnId = 0;
+  const frameFnsAdded: AddNextFrameFnItem[] = [];
 
-  __add_nextframe_fn__ = (fn: NextFrameFn) => {
-    nextFrameFns.push(fn);
+  __add_nextframe_fn__ = (fn: NextFrameFn, per?: number) => {
+    const id = nextframefnId++;
+    frameFnsAdded.push({ id, fn, per: per ?? null, delta: 0, skip: 0 });
+    return id;
+  };
+
+  __remove_nextframe_fn__ = (id: number) => {
+    const index = frameFnsAdded.findIndex((x) => x.id === id);
+    if (index === -1) return;
+    frameFnsAdded.splice(index, 1);
   };
 
   // Start the animation loop
   animate();
-};
-
-__info__ = (md: string) => {
-  const button = document.createElement("a");
-  button.innerText = "Info";
-  button.className = "MenuButton";
-  button.onclick = () => {
-    createDialog({
-      width: 860,
-      title: "Info",
-      content: markdown.toHTML(md),
-    });
-  };
-
-  document.querySelector("#Menu .MenuButtons").appendChild(button);
 };
 
 const bootstrap = () => {
@@ -118,6 +125,9 @@ const bootstrap = () => {
 
 setTimeout(bootstrap);
 
+/**
+ * __3__
+ */
 {
   type Vec3 = [number, number, number];
 
@@ -210,7 +220,6 @@ setTimeout(bootstrap);
         },
       };
     },
-
     ball: (
       p: Vec3,
       r: number,
@@ -280,25 +289,62 @@ setTimeout(bootstrap);
       return plane;
     },
     vec: (x: number, y: number, z: number) => new THREE.Vector3(x, y, z),
-    l: (color: THREE.ColorRepresentation, ...ps: Vec3[]) => {
+    L: (color: THREE.ColorRepresentation, ...ps: Vec3[]) => {
       const points = ps.map((p) => new THREE.Vector3(...p));
       const geometry = new THREE.BufferGeometry().setFromPoints(points);
       const material = new THREE.LineBasicMaterial({ color });
       const line = new THREE.Line(geometry, material);
       return line;
     },
-    deg2rad: Math.PI / 180,
-    rad2deg: 180 / Math.PI,
-    grid3d: (size: number, divisions: number) => {},
     crs: (obj3d: THREE.Object3D, size = 5) => {
-      const lineX = __3__.l(0xe10191, [0, 0, 0], [size, 0, 0]);
-      const lineY = __3__.l(0x02fe01, [0, 0, 0], [0, size, 0]);
-      const lineZ = __3__.l(0x3491fe, [0, 0, 0], [0, 0, size]);
+      const lineX = __3__.L(0xe10191, [0, 0, 0], [size, 0, 0]);
+      const lineY = __3__.L(0x02fe01, [0, 0, 0], [0, size, 0]);
+      const lineZ = __3__.L(0x3491fe, [0, 0, 0], [0, 0, size]);
       obj3d.add(lineX, lineY, lineZ);
     },
+    deg2rad: Math.PI / 180,
+    rad2deg: 180 / Math.PI,
+    aX: new THREE.Vector3(1, 0, 0),
+    aY: new THREE.Vector3(0, 1, 0),
+    aZ: new THREE.Vector3(0, 0, 1),
   };
 
   const __3__cache__: { [k: string]: any } = {};
 
   Object.assign(__3_objects__, Utils);
 }
+
+__info__ = (md: string) => {
+  const button = document.createElement("a");
+  button.innerText = "Info";
+  button.className = "MenuButton";
+  button.onclick = () => {
+    createDialog({
+      width: 860,
+      title: "Info",
+      content: markdown.toHTML(md),
+    });
+  };
+
+  document.querySelector("#Menu .MenuButtons").appendChild(button);
+};
+
+__relativeURL__ = (path: string) => {
+  if (path.startsWith("/")) return path;
+
+  const segments = location.pathname.split(/\//g).filter(Boolean);
+  const segmentsTojoin = path.split(/\//g).filter(Boolean);
+
+  for (const seg of segmentsTojoin) {
+    if (seg === "..") {
+      segments.pop();
+      continue;
+    }
+
+    if (seg === ".") continue;
+
+    segments.push(seg);
+  }
+
+  return "/" + segments.join("/");
+};

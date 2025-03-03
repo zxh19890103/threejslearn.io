@@ -1,0 +1,9 @@
+- sampling solution: use the way `Fun-EarthSatellites` does
+- use distance to decide if the `Ball` is visible is not OK, considering `Fov`.
+- help width.
+- regressed state checking solution: use the way `Fun-EarthSatellites` does
+- but, in `Fun-EarthSatellites`, the `regressed state` calculation is not right, seems it may draw many circles, think about it seriously.
+- consider publish every single page to Twitter/Youtube, etc.
+  - title/keywords/description
+  - image cards when sharing.
+  - `favicon` for each page.

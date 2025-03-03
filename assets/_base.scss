@@ -67,6 +67,7 @@ dialog {
     height: 0;
     ul,
     ol {
+      text-transform: none;
       padding-left: 1em;
     }
   }

@@ -25,10 +25,10 @@ const createDialog = (config: CreateDialogConfig) => {
       }
     };
 
-    dialog.innerHTML = `<div class="dialog">
+    dialog.innerHTML = `<div class="dialog" style="font-size: 0.9rem;">
 <div class="dialog-header">
   <h3>${config.title}</h3>
-  <a href="javascript:void(0);" class="close" item-type="close">x</a>
+  <a href="javascript:void(0);" style="outline: none" class="close" item-type="close">x</a>
 </div>
 <div class="dialog-content">
   ${config.content}

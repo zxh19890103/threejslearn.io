@@ -21,7 +21,6 @@ __onControlsDOMChanged__iter__ = (exp) => {
 
 __main__ = (s: THREE.Scene, c: THREE.Camera, r: THREE.WebGLRenderer) => {
   // your code
-  __3__.grid3d(4, 4);
   __3__.axes();
 
   __updateTHREEJs__ = (k: string, val: any) => {

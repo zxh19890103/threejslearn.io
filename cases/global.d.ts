@@ -5,6 +5,7 @@ type ControlType =
   | "color"
   | "string"
   | "bit"
+  | "date"
   | "btn";
 type ControlValueType = "number" | "int" | "string" | "bit";
 
@@ -21,7 +22,12 @@ interface Control<T extends ControlValueType = any> {
   options?: ControlOption<T>[];
   min?: number;
   max?: number;
+  /**
+   * default: true
+   */
+  eval?: boolean;
   help?: string;
+  helpWidth?: number;
   type: ControlType;
   label: string;
   name: string;
@@ -33,11 +39,26 @@ interface ControlDefineProps {
 }
 
 type NextFrameFn = (
+  /**the unique world scene */
   scene: THREE.Scene,
+  /** the main camera */
   camera: THREE.Camera,
+  /** the canvas renderer */
   renderer: THREE.WebGLRenderer,
-  delta: number
+  /** the delta of time delta, unit: s */
+  delta: number,
+  /** frames skipped */
+  skip: number
 ) => void;
+
+type AddNextFrameFnItem = {
+  id: number;
+  delta: number;
+  skip: number;
+  fn: NextFrameFn;
+  /** seconds */
+  per: number;
+};
 
 type MainFunc = (
   scene: THREE.Scene,
@@ -68,7 +89,8 @@ type UsePanelConfig = {
 let __usePanel__: (cfg: UsePanelConfig) => void;
 let __usePanel_write__: (lineno: number, str: string) => void;
 
-let __add_nextframe_fn__: (fn: NextFrameFn) => void;
+let __add_nextframe_fn__: (fn: NextFrameFn, per?: number) => number;
+let __remove_nextframe_fn__: (id: number) => void;
 
 const JekyllEnv: "development" | "production";
 const __renderers__: THREE.Renderer[];
@@ -99,6 +121,8 @@ let __defineControl__: DefineControl;
 
 let __renderControls__: (data: Record<string, any>) => void;
 
+let __relativeURL__: (path: string) => string;
+
 let __info__: (md: string) => void;
 
 type UpdateTHREEJs = {
@@ -107,10 +131,15 @@ type UpdateTHREEJs = {
 
 let __updateTHREEJs__: UpdateTHREEJs;
 let __updateTHREEJs__after__: () => void;
+
 const __updateTHREEJs__invoke__: Record<string, (val: any) => void>;
 const __updateTHREEJs__only__: Record<
   string,
   (val: any) => Promise<unknown> | boolean | void
+>;
+const __updateTHREEJs__many__: Record<
+  string,
+  (k: string, val: any) => Promise<unknown> | boolean | void
 >;
 
 type ThreeObjects = {
@@ -130,18 +159,17 @@ type ThreeObjects = {
   };
   cam: (on?: boolean) => THREE.CameraHelper;
   grid: (on?: boolean) => THREE.GridHelper;
-  grid3d: (size: number, divisions: number) => void;
   axes: (on?: boolean) => THREE.AxesHelper;
   /**
    *  local coordinated system for an object
-   *
+   * ```
    * x - red: #e10191
    * y - green: #02fe01
    * z - blue: #3491fe
-   *
+   *```
    */
   crs: (obj3d: THREE.Object3D, size?: number) => void;
-  l: (color: THREE.ColorRepresentation, ...ps: Vec3[]) => THREE.Line;
+  L: (color: THREE.ColorRepresentation, ...ps: Vec3[]) => THREE.Line;
   line: (...ps: Vec3[]) => {
     update: (...pts: Vec3[]) => void;
     update2: (...vs: THREE.Vector3[]) => void;
@@ -163,11 +191,15 @@ type ThreeObjects = {
   box: (p0: Vec3, l: number, w: number, h: number) => THREE.Mesh;
   plane: (c: Vec3, l: number, w: number) => THREE.Mesh;
   vec: (x: number, y: number, z: number) => THREE.Vector3;
+  aX: THREE.Vector3;
+  aY: THREE.Vector3;
+  aZ: THREE.Vector3;
   deg2rad: number;
   rad2deg: number;
 };
 
 type Vec3 = [number, number, number];
+type Vec4 = [number, number, number, number];
 
 const __3_objects__: ThreeObjects;
 /**
