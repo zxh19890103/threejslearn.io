@@ -1,6 +1,7 @@
 type CreateDialogConfig = {
   title?: string;
   width?: number;
+  /**@todo */
   height?: number;
   content: string;
   mounted?: ($: JQuery, $1: JQueryOne) => void;

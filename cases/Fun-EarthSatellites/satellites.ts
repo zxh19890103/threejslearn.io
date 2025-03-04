@@ -21,9 +21,10 @@ export const loadStatellites = async () => {
       const values: any[] = line.slice(0, columnsSize);
 
       for (let i = 0; i < columnsSize; i++) {
-        const dt = names[2 * i + 1] as DT;
+        const dt = satelliteRecordsNames[2 * i + 1] as DT;
         values[i] = parseValue(values[i], dt);
       }
+
       rows.push(values);
     } else {
       columns = line.filter(Boolean);
@@ -31,6 +32,10 @@ export const loadStatellites = async () => {
     }
   }
   console.timeEnd("parsing");
+
+  console.time("sorting");
+  rows.sort((a, b) => a[19] - b[19]);
+  console.timeEnd("sorting");
 
   return {
     columns,
@@ -153,7 +158,7 @@ function parseValue(val: string, dt: DT) {
 
 type DT = "Str" | "Str_UnkownIfEmpty" | "Num" | "Dat";
 
-const names = [
+export const satelliteRecordsNames = [
   '"Name of Satellite, Alternate Names"',
   "Str",
   "Current Official Name of Satellite",

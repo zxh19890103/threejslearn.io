@@ -24,13 +24,31 @@ export const __useCSS2Renderer__ = () => {
   });
 };
 
-export const createCss2dObjectFor = (obj3d: THREE.Object3D, text: string) => {
+type CreateCss2dObjectForOptions = {
+  fontsize?: number;
+  color?: string;
+  placement?: "top" | "bottom" | "left" | "right";
+  offset?: number;
+};
+
+const defaultCreateCss2dObjectForOptions: CreateCss2dObjectForOptions = {
+  fontsize: 12,
+  color: "#fff",
+  placement: "top",
+  offset: 14,
+};
+
+export const createCss2dObjectFor = (
+  obj3d: THREE.Object3D,
+  text: string,
+  options: CreateCss2dObjectForOptions = defaultCreateCss2dObjectForOptions
+) => {
   const textElement = document.createElement("div");
   textElement.className = `label`;
   textElement.style.position = "absolute";
-  textElement.style.top = "14px";
-  textElement.style.color = "#fff";
-  textElement.style.fontSize = "12px";
+  textElement.style[options.placement] = `${options.offset}px`;
+  textElement.style.color = options.color;
+  textElement.style.fontSize = `${options.fontsize}px`;
   textElement.innerText = text;
 
   const textObject = new CSS2DObject(textElement);

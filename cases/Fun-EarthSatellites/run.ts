@@ -3,7 +3,7 @@
  */
 
 import * as THREE from "three";
-import { loadStatellites } from "./satellites.js";
+import { loadStatellites, satelliteRecordsNames } from "./satellites.js";
 import {
   checkRegress,
   ClassOfOrbit,
@@ -27,6 +27,8 @@ import {
   __useCSS2Renderer__,
   createCss2dObjectFor,
 } from "../css2r.js";
+import { createDialog } from "../dialog.js";
+import { useRayCast } from "./raycast.js";
 
 //#region reactive
 __dev__();
@@ -42,6 +44,7 @@ __main__ = (
   r_: THREE.WebGLRenderer
 ) => {
   // your code
+  __contact__();
 
   __info__(`
 I downloaded satellite data from [USCUSA](https://www.ucsusa.org), specifically from this [file](https://www.ucsusa.org/sites/default/files/2024-01/UCS-Satellite-Database%205-1-2023%20%28text%29.txt), which contains records of **7,550 satellites** collected since **November 15, 1974**.  
@@ -262,6 +265,14 @@ VX= 5.909382360925806E-01 VY=-7.093990580913949E-01 VZ= 1.885182644823649E-01
   sunLight.position.set(AU, 0, 0);
   world.add(sunLight);
 
+  const raycast = useRayCast(mainCam);
+
+  createCss2dObjectFor(sunLight, "sun", {
+    offset: 0,
+    fontsize: 14,
+    color: "#FF8C00",
+  });
+
   const earthQ4 = new THREE.Quaternion();
   const secsPerYear = 365 * 24 * 60 * 60;
 
@@ -338,7 +349,7 @@ VX= 5.909382360925806E-01 VY=-7.093990580913949E-01 VZ= 1.885182644823649E-01
       const position = v3.set(A, 0, 0).applyQuaternion(q4).toArray();
       const velocity = v3.set(0, 0, speed).applyQuaternion(q4).toArray();
 
-      satellites.push({
+      const sat = {
         name: row[1],
         dol: row[19],
         _coordinates: position,
@@ -355,7 +366,10 @@ VX= 5.909382360925806E-01 VY=-7.093990580913949E-01 VZ= 1.885182644823649E-01
         satelliteUser: row[5],
         satellitePurpose: row[6],
         needDrawTrajectory: row[9] === "Molniya" || Period > 1500,
-      });
+        _raw: row,
+      } as Satellite;
+
+      satellites.push(sat);
     }
 
     const satellitesUI = new THREE.Points(
@@ -365,6 +379,8 @@ VX= 5.909382360925806E-01 VY=-7.093990580913949E-01 VZ= 1.885182644823649E-01
         size: 2,
         vertexColors: true,
         sizeAttenuation: false,
+        depthTest: true,
+        depthWrite: true,
       })
     );
 
@@ -379,9 +395,9 @@ VX= 5.909382360925806E-01 VY=-7.093990580913949E-01 VZ= 1.885182644823649E-01
 
     trajectoriesUI.frustumCulled = false;
 
-    const secsIn1day = 24 * 60 * 60;
+    const secsInOneday = 24 * 60 * 60;
 
-    let throttle1day = 0;
+    let throttlePerOneday = 0;
 
     const move = (s_, c_: THREE.PerspectiveCamera, r_, dt) => {
       for (const sat of launchedSatellites) {
@@ -425,23 +441,32 @@ VX= 5.909382360925806E-01 VY=-7.093990580913949E-01 VZ= 1.885182644823649E-01
         }
       }
 
-      drawPoints();
+      if (MOMENT_N_PER_FRAME > 0) {
+        drawPoints();
+      }
 
-      if (drawSatelliteTrajectory) {
+      if (drawSatelliteTrajectory && MOMENT_N_PER_FRAME > 0) {
         drawTrajectories();
       }
 
-      throttle1day += intervalPerFrame / dt;
-      if (throttle1day > secsIn1day) {
-        console.time("filter");
-        launchedSatellites = satellites.filter((sat) => sat.dol < clock);
+      throttlePerOneday += intervalPerFrame / dt;
+      if (throttlePerOneday > secsInOneday) {
+        console.time("filtering");
+        let cursor = 0;
+        while (satellites[cursor++]?.dol <= clock) {}
+        launchedSatellites = satellites.slice(0, cursor);
         doFilteSatellites();
-        console.timeEnd("filter");
-        throttle1day = 0;
+        console.timeEnd("filtering");
+        throttlePerOneday = 0;
       }
     };
 
     const drawPoints = () => {
+      /**
+       * for raycast
+       */
+      satellitesUI.geometry.boundingSphere = null;
+
       satellitesUI.geometry.setAttribute(
         "position",
         new THREE.BufferAttribute(
@@ -501,6 +526,45 @@ VX= 5.909382360925806E-01 VY=-7.093990580913949E-01 VZ= 1.885182644823649E-01
 
     world.add(satellitesUI);
     world.add(trajectoriesUI);
+    raycast.bind(satellitesUI);
+    raycast.click((index) => {
+      const sat = filtedSatellites[index];
+      const raw = sat["_raw"];
+      createDialog({
+        title: sat.name,
+        content: markdown.toHTML(`
+${satelliteRecordsNames
+  .map((name, i) => {
+    if (i % 2 === 1) return null;
+    const value = raw[i / 2];
+    return `- ${name}: ${value}`;
+  })
+  .filter(Boolean)
+  .join("\n")}
+          `),
+      });
+    });
+
+    raycast.hover(
+      ($i, indices: number[]) => {
+        const colorAttrib = satellitesUI.geometry.attributes.color;
+        const begin = $i * colorAttrib.itemSize;
+        const xyzw = [
+          colorAttrib[begin],
+          colorAttrib[begin + 1],
+          colorAttrib[begin + 2],
+          colorAttrib[begin + 3],
+        ];
+        colorAttrib.setXYZW($i, 1, 0, 0, 1);
+        colorAttrib.needsUpdate = true;
+        return xyzw;
+      },
+      ($i, xyzw: number[]) => {
+        const colorAttrib = satellitesUI.geometry.attributes.color;
+        colorAttrib.setXYZW($i, xyzw[0], xyzw[1], xyzw[2], xyzw[3]);
+        colorAttrib.needsUpdate = true;
+      }
+    );
 
     __add_nextframe_fn__(move);
     __add_nextframe_fn__((x, y, z, dt, skip) => {
@@ -654,6 +718,39 @@ VX= 5.909382360925806E-01 VY=-7.093990580913949E-01 VZ= 1.885182644823649E-01
       }
     };
 
+    __updateTHREEJs__invoke__.stats = () => {
+      const T = new Date();
+      const data: Record<string, number> = {};
+      let year = 0;
+      for (const sat of satellites) {
+        T.setTime(sat.dol);
+        year = T.getFullYear();
+        if (data[year] === undefined) data[year] = 0;
+        data[year] += 1;
+      }
+
+      createDialog({
+        title: "Stats",
+        content: `
+        <h3>Number of Satellites Lanuched Over Years.</h3>
+        <div style="display: flex; align-items: end; flex-wrap: nowrap; gap: 12px; height: 400px; padding-bottom: 30px; ">
+        ${Object.entries(data)
+          .map(([year, count]) => {
+            const hpx = Math.ceil(count * 0.15);
+            return `
+          <div style="font-size: 11px; position: relative; left: 6px; top: -4px; border-radius: 2px 3px; border: 1px solid rgb(3, 51, 30); background: green; overflow: visible; width: 8px; height: ${hpx}px">
+            <span style="position: absolute; top: -1rem;  left: 50%; transform: translate(-50%, 0);">${count}</span>
+            <span style="position: absolute; bottom: -1rem; left: 50%; transform-origin: center; transform: translate(-50%, 8px) rotate(64deg);">${year}</span>
+          </div>`;
+          })
+          .join("")}
+        </div>
+        <hr style="transform: translate(0, -32px); background: #000" />
+        `,
+        width: 800,
+      });
+    };
+
     __updateTHREEJs__ = (k: string, val: any) => {
       // variables changed, run your code!
     };
@@ -725,7 +822,7 @@ __updateControlsDOM__ = () => {
 
 __defineControl__("satelliteSize", "range", satelliteSize, {
   label: "satellite size",
-  ...__defineControl__.rint(1, 4),
+  ...__defineControl__.rint(1, 8),
 });
 __defineControl__("launchDateBegin", "date", launchDateBegin, {
   label: "since",
@@ -879,6 +976,10 @@ __defineControl__(
 
 __defineControl__("drawSatelliteTrajectory", "bit", drawSatelliteTrajectory, {
   label: "trajectories visible",
+});
+
+__defineControl__("stats", "btn", "check", {
+  label: "stats charts",
 });
 
 interface Satellite extends SatelliteOrMoon {

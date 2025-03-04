@@ -4,6 +4,7 @@ var __dev__ = (clsN) => {
   document.querySelector(".Content")?.classList.toggle(clsN ?? "dev");
 };
 var __info__ = null;
+var __contact__ = null;
 var __renderers__ = [];
 var __add_nextframe_fn__ = null;
 var __remove_nextframe_fn__ = null;

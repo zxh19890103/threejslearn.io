@@ -124,6 +124,7 @@ let __renderControls__: (data: Record<string, any>) => void;
 let __relativeURL__: (path: string) => string;
 
 let __info__: (md: string) => void;
+let __contact__: () => void;
 
 type UpdateTHREEJs = {
   (k: string, val: any): void;

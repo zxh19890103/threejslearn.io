@@ -329,6 +329,27 @@ __info__ = (md: string) => {
   document.querySelector("#Menu .MenuButtons").appendChild(button);
 };
 
+__contact__ = () => {
+  const button = document.createElement("a");
+  button.innerText = "Touch";
+  button.className = "MenuButton";
+  button.onclick = () => {
+    createDialog({
+      width: 420,
+      title: "Contact",
+      content: markdown.toHTML(`
+- mail: zhangxinghai79@gmail.com
+- wx: singhijohn
+- tel: +86-18742538743
+- github: [https://github.com/zxh19890103](https://github.com/zxh19890103)
+- blog: [https://www.zhangxinghai.cn/](https://www.zhangxinghai.cn/)
+        `),
+    });
+  };
+
+  document.querySelector("#Menu .MenuButtons").appendChild(button);
+};
+
 __relativeURL__ = (path: string) => {
   if (path.startsWith("/")) return path;
 

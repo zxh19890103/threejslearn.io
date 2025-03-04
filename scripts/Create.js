@@ -25,7 +25,7 @@ let enableGrid = false;
 let enableAxes = false;
 
 //#region reactive
-// __dev__();
+__dev__();
 __defineControl__("enableGrid", "bit", enableGrid);
 __defineControl__("enableAxes", "bit", enableAxes);
 
@@ -39,7 +39,7 @@ __updateControlsDOM__ = () => {
 __onControlsDOMChanged__iter__ = (exp) => eval(exp);
 //#endregion
 
-__main__ = (s: THREE.Scene, c: THREE.Camera, r: THREE.WebGLRenderer) => {
+__main__ = (world: THREE.Scene, maincam: THREE.Camera, renderer: THREE.WebGLRenderer) => {
   // your code
 
   __updateTHREEJs__only__.enableGrid = val => __3__.grid(val);
