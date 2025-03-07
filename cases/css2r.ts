@@ -18,10 +18,6 @@ export const __useCSS2Renderer__ = () => {
   __css2drenderer__.domElement.style.top = "0px";
   __css2drenderer__.domElement.style.pointerEvents = "none";
   PgAppDiv.appendChild(__css2drenderer__.domElement);
-
-  __add_nextframe_fn__((scene, camera) => {
-    __css2drenderer__.render(scene, camera);
-  });
 };
 
 type CreateCss2dObjectForOptions = {
@@ -38,11 +34,11 @@ const defaultCreateCss2dObjectForOptions: CreateCss2dObjectForOptions = {
   offset: 14,
 };
 
-export const createCss2dObjectFor = (
-  obj3d: THREE.Object3D,
+export const createCss2dObject = (
   text: string,
-  options: CreateCss2dObjectForOptions = defaultCreateCss2dObjectForOptions
+  options_?: CreateCss2dObjectForOptions
 ) => {
+  const options = { ...defaultCreateCss2dObjectForOptions, ...options_ };
   const textElement = document.createElement("div");
   textElement.className = `label`;
   textElement.style.position = "absolute";
@@ -50,8 +46,15 @@ export const createCss2dObjectFor = (
   textElement.style.color = options.color;
   textElement.style.fontSize = `${options.fontsize}px`;
   textElement.innerText = text;
+  return new CSS2DObject(textElement);
+};
 
-  const textObject = new CSS2DObject(textElement);
+export const createCss2dObjectFor = (
+  obj3d: THREE.Object3D,
+  text: string,
+  options?: CreateCss2dObjectForOptions
+) => {
+  const textObject = createCss2dObject(text, options);
   obj3d.add(textObject);
   return textObject;
 };

@@ -17,9 +17,9 @@ const setup = () => {
 
   // Create a camera (Field of view, aspect ratio, near and far clipping plane)
   camera = new THREE.PerspectiveCamera(
-    __config__.camFv,
+    __config__.camFov,
     1 / 1,
-    0.1,
+    __config__.camNear,
     __config__.camFar
   );
 
@@ -87,9 +87,17 @@ const setup = () => {
     }
 
     // Render the scene from the perspective of the camera
-    renderer.render(scene, camera);
+    for (const k in __renderers__) __renderers__[k].render(scene, camera);
 
     stats.end();
+  };
+
+  window.onerror = (err) => {
+    console.log("onerror", err);
+  };
+
+  window.onunhandledrejection = (err) => {
+    console.log("onunhandledrejection", err);
   };
 
   new ResizeObserver(whenClientViewResized).observe(element, {
@@ -192,10 +200,10 @@ setTimeout(bootstrap);
         }
       }
     },
-    axes: (on = true) => {
+    axes: (on = true, size: number = 5) => {
       if (on) {
         if (__3__cache__["axes"]) return;
-        const axesHelper = new THREE.AxesHelper(5); // 5 is the size of the axes
+        const axesHelper = new THREE.AxesHelper(size); // 5 is the size of the axes
         scene.add(axesHelper);
         __3__cache__["axes"] = axesHelper;
         return axesHelper;

@@ -8,12 +8,12 @@ import {
   checkRegress,
   ClassOfOrbit,
   doGravityBufferCompution,
-  G,
+  GRAVITY_G,
   intervalPerFrame,
   MOMENT,
   MOMENT_N_PER_FRAME,
   MovingBody,
-  Planet,
+  GravityCaringBody,
   resetRegress,
   setGravityParam,
   shouldSaveTrajectoryPosition,
@@ -119,7 +119,7 @@ It's incredible to see how far humanity has come in space technology! 🚀
 
   __useCSS2Renderer__();
 
-  const earthBody: Planet = {
+  const earthBody: GravityCaringBody = {
     nextCoordinates: [0, 0, 0],
     inf: earthInf,
   };
@@ -334,7 +334,7 @@ VX= 5.909382360925806E-01 VY=-7.093990580913949E-01 VZ= 1.885182644823649E-01
       const LonOfGEO = row[10] * __3__.deg2rad;
       const S = (A + P) / 2;
 
-      const speed = Math.sqrt(G * earthInf.mass * (2 / A - 1 / S));
+      const speed = Math.sqrt(GRAVITY_G * earthInf.mass * (2 / A - 1 / S));
       const Period = computeSatelliteOrbitalPeriod(
         row[12],
         row[11],
@@ -781,7 +781,7 @@ ${satelliteRecordsNames
   loadSatellites();
 };
 
-let fov = __config__.camFv;
+let fov = __config__.camFov;
 let typeOfOrbit: string = null;
 let coloredByTypeOfOrbit: boolean = false;
 let classOfOrbit: string = null;
@@ -842,7 +842,7 @@ __defineControl__("fov", "range", fov, __defineControl__.rint(1, 150));
 __defineControl__("moment", "range", MOMENT, {
   ...__defineControl__.rfloat(0.1, 30),
   eval: false,
-  label: "compution unit (s)",
+  label: "computation unit (s)",
   help: `
   The minimum duration to compute the position/velocity of satellites and the Moon. The smaller it is, the more accurate the calculation.
   `,
@@ -851,7 +851,7 @@ __defineControl__("moment", "range", MOMENT, {
 __defineControl__("momentN", "range", MOMENT_N_PER_FRAME, {
   ...__defineControl__.rint(0, 15),
   eval: false,
-  label: "compution times per frame",
+  label: "computation times per frame",
   help: `
   This can accelerate the movement of satellites and the Moon, including the self-rotation rates of the Earth and Moon. However, if the number of points is large, increasing the duration may cause performance issues.
   `,

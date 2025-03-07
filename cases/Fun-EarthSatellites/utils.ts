@@ -29,7 +29,10 @@ export function angleBetweenVectors(A: Vec3, B: Vec3, normal: Vector3): number {
  * @param dataString
  * @returns
  */
-export function parseJPLHorizonData(dataString: string): { P: Vec3; V: Vec3 } {
+export function parseJPLHorizonData(
+  dataString: string,
+  unitFactor: number = 1e-3
+): { P: Vec3; V: Vec3 } {
   // Split the input string into individual values
   const values = dataString.split(/\n*\s*[A-Z]{1,2}\s*=\s*/);
 
@@ -45,7 +48,7 @@ export function parseJPLHorizonData(dataString: string): { P: Vec3; V: Vec3 } {
   // Apply the scale (0.001) to the position values
 
   return {
-    P: [Z * 1e-3, X * 1e-3, Y * 1e-3],
-    V: [VZ * 1e-3, VX * 1e-3, VY * 1e-3],
+    P: [Z * unitFactor, X * unitFactor, Y * unitFactor],
+    V: [VZ * unitFactor, VX * unitFactor, VY * unitFactor],
   };
 }

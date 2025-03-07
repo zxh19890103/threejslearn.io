@@ -1,3 +1,4 @@
+import { BodyInfo } from "../Fun-SolarSystem/planets.js";
 import * as THREE from "three";
 
 const v3$ = new THREE.Vector3();
@@ -5,11 +6,11 @@ const v3$ = new THREE.Vector3();
 /**
  * 1
  */
-export let MOMENT_N_PER_FRAME = 1;
+export let MOMENT_N_PER_FRAME = 1e1;
 /**
  * s
  */
-export let MOMENT = 10; // s
+export let MOMENT = 1e1; // s
 /**
  * s
  */
@@ -29,7 +30,8 @@ export function doGravityBufferCompution(
   body: MovingBody,
   N: number,
   coordinates$: THREE.Vector3Tuple,
-  velocity$: THREE.Vector3Tuple
+  velocity$: THREE.Vector3Tuple,
+  durUnit: number = MOMENT
 ) {
   let n = N;
 
@@ -41,13 +43,13 @@ export function doGravityBufferCompution(
       velocity$[2] = 0;
       break;
     }
-    const dv = [a[0] * MOMENT, a[1] * MOMENT, a[2] * MOMENT];
+    const dv = [a[0] * durUnit, a[1] * durUnit, a[2] * durUnit];
     const [vx, vy, vz] = velocity$;
     const [dvx, dvy, dvz] = dv;
     const ds = [
-      vx * MOMENT + 0.5 * dvx * MOMENT,
-      vy * MOMENT + 0.5 * dvy * MOMENT,
-      vz * MOMENT + 0.5 * dvz * MOMENT,
+      vx * durUnit + 0.5 * dvx * durUnit,
+      vy * durUnit + 0.5 * dvy * durUnit,
+      vz * durUnit + 0.5 * dvz * durUnit,
     ];
 
     velocity$[0] += dv[0];
@@ -78,7 +80,7 @@ function computeAccBy(
 
   if (radius > length) return ZERO_ACC;
 
-  const scalar = (G * mass) / r2;
+  const scalar = (GRAVITY_G * mass) / r2;
   const factor = scalar / length;
   return [dx * factor, dy * factor, dz * factor];
 }
@@ -128,13 +130,15 @@ export interface MovingBody {
   _regressed?: boolean;
   _coordinates: Vec3;
   _velocity: Vec3;
-  gravityCaringObjects: Planet[];
+  gravityCaringObjects: GravityCaringBody[];
   nextCoordinates: THREE.Vector3Tuple;
   nextVelocity: THREE.Vector3Tuple;
   trajectory: number[];
 }
 
-export interface Planet {
+export type CelestialBody = MovingBody & GravityCaringBody;
+
+export interface GravityCaringBody {
   nextCoordinates: THREE.Vector3Tuple;
   inf: PlanetInf;
 }
@@ -144,8 +148,34 @@ type PlanetInf = {
   radius: number;
 };
 
+type CreateCelestialBodyInput = {
+  V: Vec3;
+  P: Vec3;
+  GCO: GravityCaringBody[];
+  inf: BodyInfo;
+};
+
+export const createCelestialBody = (
+  input: CreateCelestialBodyInput
+): CelestialBody => {
+  return {
+    _angleScanned: 0,
+    _regressed: false,
+    _coordinates: input.P,
+    _velocity: input.V,
+    gravityCaringObjects: input.GCO,
+    nextCoordinates: [0, 0, 0],
+    nextVelocity: [0, 0, 0],
+    trajectory: [],
+    inf: input.inf,
+  };
+};
+
 const ZERO_ACC = [0, 0, 0];
-export const G = 6.67e-5;
+// Gravity Constant
+export const GRAVITY_G = 6.67e-5;
+// 10^3 km
+export const GRAVITY_AU = 149597.8707;
 
 export type TypeOfOrbit =
   | "Non-Polar Inclined"
@@ -191,4 +221,24 @@ export const resetRegress = (b: MovingBody) => {
   b._angleScanned = 0;
   b._regressed = false;
   b.trajectory = [];
+};
+
+export const cpCurrentToNext = (movingBody: MovingBody) => {
+  movingBody.nextCoordinates[0] = movingBody._coordinates[0];
+  movingBody.nextCoordinates[1] = movingBody._coordinates[1];
+  movingBody.nextCoordinates[2] = movingBody._coordinates[2];
+
+  movingBody.nextVelocity[0] = movingBody._velocity[0];
+  movingBody.nextVelocity[1] = movingBody._velocity[1];
+  movingBody.nextVelocity[2] = movingBody._velocity[2];
+};
+
+export const cpNextToCurrent = (movingBody: MovingBody) => {
+  movingBody._coordinates[0] = movingBody.nextCoordinates[0];
+  movingBody._coordinates[1] = movingBody.nextCoordinates[1];
+  movingBody._coordinates[2] = movingBody.nextCoordinates[2];
+
+  movingBody._velocity[0] = movingBody.nextVelocity[0];
+  movingBody._velocity[1] = movingBody.nextVelocity[1];
+  movingBody._velocity[2] = movingBody.nextVelocity[2];
 };

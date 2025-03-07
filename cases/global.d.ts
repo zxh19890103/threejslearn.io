@@ -67,8 +67,9 @@ type MainFunc = (
 ) => void;
 
 type Config = {
-  camFv: number;
+  camFov: number;
   camFar: number;
+  camNear: number;
   camPos: Vec3;
 };
 
@@ -160,7 +161,7 @@ type ThreeObjects = {
   };
   cam: (on?: boolean) => THREE.CameraHelper;
   grid: (on?: boolean) => THREE.GridHelper;
-  axes: (on?: boolean) => THREE.AxesHelper;
+  axes: (on?: boolean, size?: number) => THREE.AxesHelper;
   /**
    *  local coordinated system for an object
    * ```

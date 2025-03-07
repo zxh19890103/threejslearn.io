@@ -61,7 +61,7 @@ __updateControlsDOM__ = () => {
 __onControlsDOMChanged__iter__ = (exp) => eval(exp);
 //#endregion
 
-__config__.camFv = 120;
+__config__.camFov = 120;
 __config__.camPos = [0, CAMERA_POSITION_Y, 0];
 
 __main__ = async (
@@ -74,6 +74,8 @@ __main__ = async (
     width: 450,
     lines: 4,
   });
+
+  __contact__();
 
   __info__(
     `
@@ -884,7 +886,7 @@ let moment: number = MOMENT;
 let bufferSize: number = BUFFER_SIZE;
 let hideMoonLabels: boolean = false;
 let hidePlanetLabels: boolean = false;
-let camFov: number = __config__.camFv;
+let camFov: number = __config__.camFov;
 let camFov2: number = 1;
 let camFov3: number = 0.1;
 
@@ -949,7 +951,7 @@ __defineControl__("tracingLookat", "enum", tracingLookat, {
 
 __defineControl__("moment", "range", moment, {
   ...__defineControl__.rint(1, 1000),
-  label: "unit(s)",
+  label: "computation unit(s)",
   help: `
   It is the smallest time interval (in seconds) used to calculate the next position and velocity of celestial bodies.
   The larger the value, the less accurate the calculations will be.
@@ -958,7 +960,7 @@ __defineControl__("moment", "range", moment, {
 });
 __defineControl__("bufferSize", "range", bufferSize, {
   ...__defineControl__.rint(1, 500),
-  label: "calculation times",
+  label: "computation times per frame",
   help: `
     Number of calculations per frame
     `,
