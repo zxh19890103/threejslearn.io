@@ -1,13 +1,18 @@
 import * as THREE from "three";
+
+import * as tween from "@tweenjs/tween.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
 import "./controls.js";
 import "./panel.js";
 import { createDialog } from "./dialog.js";
+import { debounce } from "./Fun-SolarSystem/utils.js";
 
 let scene: THREE.Scene;
 let camera: THREE.PerspectiveCamera;
 let renderer: THREE.WebGLRenderer;
+
+const tweenGroup = new tween.Group();
 
 const setup = () => {
   const element = document.querySelector("#PgApp")!;
@@ -25,6 +30,7 @@ const setup = () => {
 
   // Create a WebGLRenderer and attach it to the DOM
   renderer = new THREE.WebGLRenderer({ alpha: false, antialias: true });
+  renderer.setPixelRatio(window.devicePixelRatio); // 避免模糊
 
   __renderers__.push(renderer);
 
@@ -33,6 +39,9 @@ const setup = () => {
   const whenClientViewResized = () => {
     const vW = element.clientWidth;
     const vH = element.clientHeight;
+
+    __viewport__.width = vW;
+    __viewport__.height = vH;
 
     camera.aspect = vW / vH;
     camera.updateProjectionMatrix();
@@ -46,8 +55,20 @@ const setup = () => {
   camera.position.set(...__config__.camPos);
   renderer.setClearColor(0x0d0f0e);
 
-  const controls = new OrbitControls(camera, renderer.domElement);
-  controls.update();
+  const cameraCtrls = new OrbitControls(camera, renderer.domElement);
+
+  cameraCtrls.enablePan = true;
+  cameraCtrls.enableDamping = true;
+
+  cameraCtrls.autoRotate = false;
+  cameraCtrls.autoRotateSpeed = 0.07;
+  cameraCtrls.update();
+
+  __updateCameraControls__ = (rs: number, zs: number) => {
+    cameraCtrls.rotateSpeed = rs;
+    cameraCtrls.zoomSpeed = zs;
+    cameraCtrls.update();
+  };
 
   const clock = new THREE.Clock();
 
@@ -70,7 +91,7 @@ const setup = () => {
     renderer.clearColor();
 
     const delta = clock.getDelta();
-    controls.update(delta);
+    cameraCtrls.update(delta);
 
     for (const item of frameFnsAdded) {
       if (item.per) {
@@ -86,6 +107,8 @@ const setup = () => {
       }
     }
 
+    tweenGroup.update();
+
     // Render the scene from the perspective of the camera
     for (const k in __renderers__) __renderers__[k].render(scene, camera);
 
@@ -100,7 +123,9 @@ const setup = () => {
     console.log("onunhandledrejection", err);
   };
 
-  new ResizeObserver(whenClientViewResized).observe(element, {
+  const debounced_whenClientViewResized = debounce(whenClientViewResized);
+
+  new ResizeObserver(debounced_whenClientViewResized).observe(element, {
     box: "border-box",
   });
 
@@ -343,11 +368,12 @@ __contact__ = () => {
   button.className = "MenuButton";
   button.onclick = () => {
     createDialog({
+      css: `img  { width: 200px; vertical-align: middle; } `,
       width: 420,
       title: "Contact",
       content: markdown.toHTML(`
 - mail: zhangxinghai79@gmail.com
-- wx: singhijohn
+- wx: ![wx](https://zxh1989.oss-cn-qingdao.aliyuncs.com/20181105/151627_71615.jpg)
 - tel: +86-18742538743
 - github: [https://github.com/zxh19890103](https://github.com/zxh19890103)
 - blog: [https://www.zhangxinghai.cn/](https://www.zhangxinghai.cn/)
@@ -376,4 +402,21 @@ __relativeURL__ = (path: string) => {
   }
 
   return "/" + segments.join("/");
+};
+
+__createAnimation__ = (
+  target: any,
+  to: Record<string, number>,
+  duration: number,
+  overFn?: VoidFunction,
+  updateFn?: VoidFunction
+) => {
+  const t = new tween.Tween(target).to(to, duration);
+
+  overFn && t.onComplete(overFn);
+  updateFn && t.onUpdate(updateFn);
+
+  tweenGroup.add(t);
+
+  return t;
 };

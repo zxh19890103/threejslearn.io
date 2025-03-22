@@ -26,6 +26,12 @@ var __config__ = {
   camPos: [0, 0, 10],
 };
 
+var __viewport__ = {
+  width: 0,
+  height: 0,
+};
 var __usePanel__ = null;
 var __usePanel_write__ = null;
 var __relativeURL__ = null;
+var __createAnimation__ = null;
+var __updateCameraControls__ = null;

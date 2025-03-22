@@ -114,7 +114,7 @@
 
       &-select-clear-btn {
         margin-left: 2px;
-        padding: 0 .3em;
+        padding: 0 0.3em;
         border-radius: 50%;
         border: none;
         cursor: pointer;
@@ -146,6 +146,28 @@
           content: ":";
         }
       }
+    }
+  }
+
+  &ScaleBar {
+    display: flex;
+    justify-content: right;
+    align-items: center;
+    gap: 2px;
+
+    label {
+      font-size: 0.9rem;
+    }
+
+    div {
+      width: 100px;
+      height: 10px;
+      border-color: #fff;
+      border-style: solid;
+      border-top-width: 0;
+      border-left-width: 1px;
+      border-bottom-width: 1px;
+      border-right-width: 1px;
     }
   }
 }
@@ -275,6 +297,10 @@
 
   &.fixed {
     position: fixed;
+  }
+
+  &.thin {
+    padding: 0.1em 1em;
   }
 
   position: absolute;

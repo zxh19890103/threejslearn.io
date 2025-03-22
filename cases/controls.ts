@@ -238,18 +238,18 @@ const $cDOM = (c: Control): HTMLDivElement => {
       input.min = "0";
       input.max = "100";
 
-      const span = document.createElement("div");
-      span.style.fontSize = "0.6rem";
-      span.style.width = "24px";
-      span.style.textAlign = "left";
-      span.style.pointerEvents = "none";
+      const text = document.createElement("div");
+      text.style.fontSize = "0.6rem";
+      text.style.width = "24px";
+      text.style.textAlign = "left";
+      text.style.pointerEvents = "none";
 
       const writeValue = (event: Event) => {
         let value = event ? rangeInputValueGet(input, c) : c.value;
         if (c.valueType === "int") {
-          span.innerText = value + "";
+          text.innerText = value + "";
         } else {
-          span.innerText = value.toFixed(2);
+          text.innerText = value.toFixed(2);
         }
       };
 
@@ -260,7 +260,7 @@ const $cDOM = (c: Control): HTMLDivElement => {
       input.$meta4ctrl = c;
       input.onchange = $onchange;
       div.appendChild(input);
-      div.appendChild(span);
+      div.appendChild(text);
 
       writeValue(null);
       break;
@@ -433,6 +433,7 @@ const rangeInputValueSet = (
   const scale = 100 / (meta.max - meta.min);
   const viewValue = scale * Math.max(0, val - meta.min);
   input.value = viewValue.toString();
+  input.oninput?.(null);
 };
 //#endregion
 

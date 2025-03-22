@@ -519,6 +519,8 @@ abstract class CometParticle {
   /** s */
   remaining: number = 1;
 
+  readonly noiseSize: number = 500;
+
   constructor(readonly comet: Comet, readonly type: ParticleType = "ion") {
     this.randomXYZ();
     this.lifetime = this.getLifetime();
@@ -535,7 +537,7 @@ abstract class CometParticle {
   move(dt: number) {
     this._move(dt);
 
-    const rv = rV3.randomDirection().setLength(500);
+    const rv = rV3.randomDirection().setLength(this.noiseSize);
 
     this.x += rv.x;
     this.y += rv.y;
@@ -550,6 +552,8 @@ abstract class CometParticle {
 const fullRad = Math.PI * 2;
 
 class ComaCometParticle extends CometParticle {
+  readonly noiseSize = 100;
+
   constructor(comet: Comet) {
     super(comet, "coma");
   }

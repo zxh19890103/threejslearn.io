@@ -13,7 +13,7 @@
     "postcc": "npm run gen",
     "gen": "node scripts/Gen",
     "predev": "npm run gen",
-    "dev": "jekyll serve --livereload --verbose & tsc --watch",
+    "dev": "jekyll serve --incremental --livereload --verbose & tsc --watch",
     "prebuild": "npm run gen",
     "build": "jekyll build & tsc"
   },
@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@types/big.js": "^6.2.2",
-    "@types/three": "^0.173.0"
+    "@types/three": "^0.173.0",
+    "@types/tween.js": "^18.6.1"
   }
 }

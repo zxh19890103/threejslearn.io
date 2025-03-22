@@ -1,0 +1,18 @@
+{
+  "name": "funearthmap",
+  "version": "1.0.0",
+  "description": "no",
+  "main": "no.js",
+  "author": "singhi",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "nodemon tileserver.js"
+  },
+  "dependencies": {
+    "geotiff": "^2.1.3",
+    "nodemon": "^3.1.9",
+    "pngjs": "^7.0.0"
+  }
+}

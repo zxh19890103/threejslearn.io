@@ -106,6 +106,25 @@ let __onControlsDOMChanged__iter__: (
 ) => void;
 let __updateControlsDOM__: () => void;
 
+let __createAnimation__: <T>(
+  target: T,
+  to: Partial<Record<keyof T, number>>,
+  duration: number,
+  overFn?: VoidFunction,
+  updateFn?: VoidFunction
+) => CreateAnimationReturns;
+
+interface CreateAnimationReturns {
+  stop: () => void;
+  start: () => void;
+  isPlaying: () => boolean;
+}
+
+let __viewport__: {
+  width: readonly number;
+  height: readonly number;
+};
+
 type DefineControl = {
   <T>(
     name: string,
@@ -126,6 +145,12 @@ let __relativeURL__: (path: string) => string;
 
 let __info__: (md: string) => void;
 let __contact__: () => void;
+let __updateCameraControls__: (rotateSpeed: number, zoomSpeed: number) => void;
+
+interface CameraControls {
+  panSpeed: number;
+  zoomSpeed: number;
+}
 
 type UpdateTHREEJs = {
   (k: string, val: any): void;
@@ -200,8 +225,12 @@ type ThreeObjects = {
   rad2deg: number;
 };
 
+type Vec2 = [number, number];
+type Vec2Like = { x: number; y: number };
 type Vec3 = [number, number, number];
 type Vec4 = [number, number, number, number];
+type Vec3Like = { x: number; y: number; z: number };
+type LatLng = { lat: number; lng: number };
 
 const __3_objects__: ThreeObjects;
 /**
@@ -209,7 +238,11 @@ const __3_objects__: ThreeObjects;
  */
 const __3__: ThreeObjects;
 
-interface HTMLElement {
+interface HTMLInputElement {
+  $meta4ctrl: Control;
+}
+
+interface HTMLSelectElement {
   $meta4ctrl: Control;
 }
 
@@ -225,4 +258,39 @@ namespace markdown {
   const parse: (a: string, b?) => string;
   const renderJsonML: (a, b) => string;
   const toHTML: (a: string, c?, d?) => string;
+}
+
+namespace SunCalc {
+  type GetPositionRes = {
+    /**
+     * sun azimuth in radians (direction along the horizon, measured from south to west), e.g. 0 is south and Math.PI * 3/4 is northwest
+     */
+    azimuth: number;
+    /**
+     * sun altitude above the horizon in radians, e.g. 0 at the horizon and PI/2 at the zenith (straight over your head)
+     */
+    altitude: number;
+  };
+
+  type GetMoonPositionRes = GetPositionRes & {
+    /**
+     * distance to moon in kilometers
+     */
+    distance: number;
+    /**
+     * parallactic angle of the moon in radians
+     */
+    parallacticAngle;
+  };
+
+  type GetTimesRes = {};
+
+  const getMoonPosition: (
+    dt: Date,
+    lat: number,
+    lon: number
+  ) => GetMoonPositionRes;
+
+  const getTimes: (dt: Date, lat: number, lon: number) => GetTimesRes;
+  const getPosition: (dt: Date, lat: number, lon: number) => GetPositionRes;
 }

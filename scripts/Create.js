@@ -39,7 +39,7 @@ __updateControlsDOM__ = () => {
 __onControlsDOMChanged__iter__ = (exp) => eval(exp);
 //#endregion
 
-__main__ = (world: THREE.Scene, maincam: THREE.Camera, renderer: THREE.WebGLRenderer) => {
+__main__ = (world: THREE.Scene, camera: THREE.PerspectiveCamera, renderer: THREE.WebGLRenderer) => {
   // your code
 
   __updateTHREEJs__only__.enableGrid = val => __3__.grid(val);
@@ -64,8 +64,8 @@ fs.writeFileSync(
 fs.writeFileSync(
   join(folder, "index.md"),
   `---
-layout: playground
-title: Materials-LineBasicMaterial
+layout: case
+title: ${name}
 ---
 
 {% include_relative _explain.md %}

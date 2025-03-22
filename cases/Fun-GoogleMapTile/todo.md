@@ -1,0 +1,9 @@
+- labels
+- grid grey/lines ✅
+- circle twinkling current position ✅
+- introduction
+- createDialog.css ✅
+- publish/x/youtube
+- cursor - latlng ✅
+- camera's near dyanmically varies by zoom.✅
+- scale bar ✅

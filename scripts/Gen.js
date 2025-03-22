@@ -28,7 +28,10 @@ function readDir() {
   return sortedDirs[++readCursor];
 }
 
+/**@type {fs.Dirent} */
 let dirent = null;
+/**@type {string} */
+let currentCat = null;
 
 const writeToIndex = fs.createWriteStream(join(__dirname, "../cases.md"), {
   encoding: "utf8",
@@ -55,24 +58,28 @@ while ((dirent = readDir())) {
   if (dirent.isDirectory()) {
     const indexfile = join(cases.path, dirent.name, "index.md");
 
+    const directoryName = dirent.name;
+
     fs.writeFileSync(
       indexfile,
       `---
 layout: case
-title: ${dirent.name}
+title: ${directoryName}
 ---
 
 {% include_relative _explain.md %}
 
 <h3>📃 Source Code</h3>
 <div>
-<a href="https://github.com/zxh19890103/threejslearn.io/tree/main/cases/${dirent.name}" target="_blank">Go!</a>
+<a href="https://github.com/zxh19890103/threejslearn.io/tree/main/cases/${
+        dirent.name
+      }" target="_blank">Go!</a>
 </div>
 
 <h3>📝 Git logs</h3>
 <div class="RuntsGitLogs">
 <pre>
-${readGitLogs(dirent.name)}
+${readGitLogs(directoryName)}
 </pre>
 </div>
 
@@ -80,12 +87,30 @@ ${readGitLogs(dirent.name)}
       { encoding: "utf8" }
     );
 
-    writeToIndex.write(`- [${dirent.name}](/cases/${dirent.name})\n`);
+    const parts = directoryName.split("-");
+
+    if (currentCat !== parts[0]) {
+      if (currentCat !== null) {
+        writeToMenu.write("</div>");
+      }
+      writeToMenu.write('<div class="Cat MenuItemsGroup">');
+    }
+
+    currentCat = parts[0];
+
+    writeToIndex.write(`- [${directoryName}](/cases/${directoryName})\n`);
+
     writeToMenu.write(
-      `<div class="MenuItem"><a href="/cases/${dirent.name}">${dirent.name}</a></div>`
+      `
+<div class="MenuItem">
+  <a href="/cases/${directoryName}">${directoryName}</a>
+</div>
+      `
     );
   }
 }
+
+writeToMenu.write("</div>");
 
 sortedDirs = [];
 readCursor = -1;
