@@ -46,3 +46,4 @@ export const scaleBarMeters = [
 ];
 
 export type GoogleTileScale = 1 | 2 | 4;
+export const __default_tileurl__ = `https://mt1.google.com/vt/lyrs={lyrs}&x={x}&y={y}&z={z}&scale={scale}&hl=en`;

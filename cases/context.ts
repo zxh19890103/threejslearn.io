@@ -28,6 +28,8 @@ const setup = () => {
     __config__.camFar
   );
 
+  camera.position.set(...__config__.camPos);
+
   // Create a WebGLRenderer and attach it to the DOM
   renderer = new THREE.WebGLRenderer({ alpha: false, antialias: true });
   renderer.setPixelRatio(window.devicePixelRatio); // 避免模糊
@@ -51,8 +53,6 @@ const setup = () => {
 
   whenClientViewResized();
 
-  // Position the camera so it's not inside the cube
-  camera.position.set(...__config__.camPos);
   renderer.setClearColor(0x0d0f0e);
 
   const cameraCtrls = new OrbitControls(camera, renderer.domElement);
@@ -149,11 +149,20 @@ const setup = () => {
 };
 
 const bootstrap = () => {
-  setup();
+  const check = () => {
+    if (__main__) {
+      setup();
+      console.log("setup.");
+      console.log("main found.");
+      __main__(scene, camera, renderer);
+      __updateTHREEJs__?.(null, null);
+      __updateControlsDOM__?.();
+    } else {
+      setTimeout(check, 30);
+    }
+  };
 
-  __main__?.(scene, camera, renderer);
-  __updateTHREEJs__?.(null, null);
-  __updateControlsDOM__?.();
+  check();
 };
 
 setTimeout(bootstrap);
@@ -162,8 +171,6 @@ setTimeout(bootstrap);
  * __3__
  */
 {
-  type Vec3 = [number, number, number];
-
   const deaultLightDir = new THREE.Vector3(0, 0, 1);
 
   const Utils = {
@@ -349,7 +356,7 @@ setTimeout(bootstrap);
 
 __info__ = (md: string) => {
   const button = document.createElement("a");
-  button.innerText = "Info";
+  button.innerHTML = '<img src="/assets/images/icon-info.svg">';
   button.className = "MenuButton";
   button.onclick = () => {
     createDialog({
@@ -364,7 +371,7 @@ __info__ = (md: string) => {
 
 __contact__ = () => {
   const button = document.createElement("a");
-  button.innerText = "Touch";
+  button.innerHTML = '<img src="/assets/images/icon-phone.svg">';
   button.className = "MenuButton";
   button.onclick = () => {
     createDialog({

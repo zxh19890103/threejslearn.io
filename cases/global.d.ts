@@ -9,9 +9,9 @@ type ControlType =
   | "btn";
 type ControlValueType = "number" | "int" | "string" | "bit";
 
-type ControlOption<T> = { label: string; value: T };
+type ControlOption<T> = { label: string; value: T; data?: any };
 type DefCtrlExtras<T> = Omit<
-  Control,
+  Control<T>,
   "value" | "$el" | "type" | "name" | "value"
 >;
 

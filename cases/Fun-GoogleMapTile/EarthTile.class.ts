@@ -16,18 +16,26 @@ export class EarthTile {
   readonly gridindices: number[];
 
   state: EarthTileState = EarthTileState.created;
+  readonly stateMgr: EarthTileStateManager;
+  readonly cacheKey: string;
+
   grid: THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial>;
   mesh: THREE.Mesh<THREE.BufferGeometry, THREE.MeshPhongMaterial>;
-  texLoaded: boolean = false;
-
-  msElapseSinceToDispose: number = 0;
 
   constructor(
     readonly earth: Earth,
+    readonly uiGroup: THREE.Group,
+    readonly cache: Map<string, EarthTile>,
     readonly x: number,
     readonly y: number,
     readonly z: number
   ) {
+    this.cacheKey = getTileCacheKey(x, y, z);
+
+    this.stateMgr = new EarthTileStateManager(this);
+
+    this.cache.set(this.cacheKey, this);
+
     const latlngToUV = (lat: number, lng: number): Vec2 => {
       const u = (lng - leftBottom.lng) / lngSpan;
       const v = (lat - leftBottom.lat) / latSpan;
@@ -175,7 +183,7 @@ export class EarthTile {
     this.latlng = leftTop;
   }
 
-  createGridLine() {
+  private createGridLine() {
     const geometry = new THREE.BufferGeometry();
 
     this.grid = new THREE.Line(
@@ -191,7 +199,7 @@ export class EarthTile {
     geometry.setIndex(this.gridindices);
   }
 
-  createMesh() {
+  private createMesh() {
     const geometry = new THREE.BufferGeometry();
 
     const mesh = new THREE.Mesh(
@@ -226,103 +234,6 @@ export class EarthTile {
     this.mesh = mesh;
   }
 
-  private animations: CreateAnimationReturns[] = [];
-  private isPlaying: boolean = false;
-
-  private pushAnimation(animation: CreateAnimationReturns) {
-    this.animations.push(animation);
-
-    if (this.isPlaying) return;
-
-    this.isPlaying = true;
-
-    this.playAnimation();
-  }
-
-  private playAnimation = () => {
-    const animation = this.animations.shift();
-
-    if (!animation) {
-      this.isPlaying = false;
-      return;
-    }
-
-    if (this.mesh) {
-      this.mesh.material.depthTest = false;
-    }
-
-    animation.start();
-  };
-
-  /**
-   * @deprecated
-   */
-  fadeOut(ms: number, done: (tile: EarthTile) => void) {
-    const mat = this.mesh.material;
-    mat.transparent = true;
-
-    const animation = __createAnimation__(
-      mat,
-      {
-        opacity: 0,
-      },
-      ms,
-      () => {
-        done?.(this);
-        mat.transparent = false;
-
-        this.playAnimation();
-      }
-    );
-
-    this.pushAnimation(animation);
-  }
-
-  /**
-   * @deprecated
-   */
-  fadeIn(ms: number) {
-    const mat = this.mesh.material;
-
-    mat.transparent = true;
-    mat.opacity = 0;
-
-    const animation = __createAnimation__(
-      mat,
-      {
-        opacity: 1,
-      },
-      ms,
-      () => {
-        mat.transparent = false;
-        this.playAnimation();
-      }
-    );
-
-    this.pushAnimation(animation);
-  }
-
-  dispose() {
-    this.state = EarthTileState.disposed;
-
-    const { mesh, grid } = this;
-
-    if (mesh) {
-      mesh.removeFromParent();
-      mesh.geometry.dispose();
-      mesh.material.dispose();
-    }
-
-    if (grid) {
-      grid.removeFromParent();
-      grid.geometry.dispose();
-      grid.material.dispose();
-    }
-
-    this.mesh = null;
-    this.grid = null;
-  }
-
   cannotUse() {
     return (
       this.state === EarthTileState.disposed ||
@@ -330,56 +241,383 @@ export class EarthTile {
     );
   }
 
-  toDispose() {
-    const { mesh, grid } = this;
-
-    mesh?.removeFromParent();
-    grid?.removeFromParent();
-
-    this.state = EarthTileState.todispose;
-    this.msElapseSinceToDispose = 0;
+  private getUrl() {
+    return this.earth.tileUrl
+      .replace("{x}", this.x + "")
+      .replace("{y}", this.y + "")
+      .replace("{z}", this.z + "")
+      .replace("{scale}", this.earth.getTileScale() + "")
+      .replace("{lyrs}", this.earth.getLyrs());
   }
 
-  toUse() {
-    this.state = EarthTileState.using;
+  /**
+   * ms
+   */
+  _t: number = 0;
+
+  toRemove() {
+    switch (this.state) {
+      case EarthTileState.created:
+      case EarthTileState.texture:
+      case EarthTileState.added:
+      case EarthTileState.fadingIn:
+      case EarthTileState.settled: {
+        this.stateMgr.state = EarthTileState.toRemove;
+        break;
+      }
+      case EarthTileState.toRemove:
+      case EarthTileState.fadingOut:
+      case EarthTileState.removed:
+      case EarthTileState.toDispose:
+      case EarthTileState.disposing:
+      case EarthTileState.disposed:
+      default: {
+        break;
+      }
+    }
   }
 
-  loadTex(done?: (tile: EarthTile) => void) {
-    const lyrs = this.earth.getLyrs();
-    const scale = this.earth.getTileScale();
+  toReUse() {
+    switch (this.state) {
+      case EarthTileState.created:
+      case EarthTileState.texture:
+      case EarthTileState.added:
+      case EarthTileState.fadingIn:
+      case EarthTileState.settled: {
+        return true;
+      }
+      case EarthTileState.toRemove:
+      case EarthTileState.fadingOut: {
+        this.stateMgr.state = EarthTileState.added;
+        return true;
+      }
+      case EarthTileState.removed: {
+        this.uiGroup.add(this.grid);
+        if (this.mesh) {
+          this.uiGroup.add(this.mesh);
+        }
+        this.stateMgr.state = EarthTileState.added;
+        return true;
+      }
+      case EarthTileState.toDispose:
+      case EarthTileState.disposing:
+      case EarthTileState.disposed:
+      default: {
+        return false;
+      }
+    }
+  }
+
+  toReloadTex() {
+    switch (this.state) {
+      case EarthTileState.created:
+      case EarthTileState.texture: {
+        // nothing!
+        break;
+      }
+      case EarthTileState.added:
+      case EarthTileState.fadingIn:
+      case EarthTileState.settled: {
+        this.loadTexPhase = "ready";
+        this.stateMgr.state = EarthTileState.texture;
+        break;
+      }
+      default: {
+        this.loadTexPhase = "ready";
+        break;
+      }
+    }
+  }
+
+  /**
+   *
+   * @param dt: delta s
+   * @param now: ms since the app's bootstrapped
+   */
+  checkTileState(dt: number, now: number) {
+    this._t = now;
+
+    switch (this.state) {
+      case EarthTileState.created: {
+        this.createGridLine();
+        this.createMesh();
+        this.stateMgr.state = EarthTileState.texture;
+        break;
+      }
+      case EarthTileState.texture: {
+        this.uiGroup.add(this.grid);
+
+        if (this.loadTexPhase === "ready") {
+          this.loadTex((_, tex) => {
+            if (this.state === EarthTileState.texture) {
+              if (tex) {
+                const mat = this.mesh.material;
+
+                mat.depthTest = false;
+                mat.transparent = true;
+                mat.opacity = 0;
+                mat.needsUpdate = true;
+
+                this.processTex(tex);
+                this.uiGroup.add(this.mesh);
+                this.stateMgr.state = EarthTileState.added;
+              } else {
+                this.stateMgr.state = EarthTileState.settled;
+              }
+            }
+          });
+        }
+
+        break;
+      }
+      case EarthTileState.added: {
+        this.stateMgr.state = EarthTileState.fadingIn;
+        break;
+      }
+      case EarthTileState.fadingIn: {
+        if (this.mesh) {
+          const mat = this.mesh.material;
+          mat.opacity += 0.03;
+
+          if (mat.opacity >= 1) {
+            mat.transparent = false;
+            mat.opacity = 1;
+            mat.depthTest = true;
+            this.stateMgr.state = EarthTileState.settled;
+          }
+
+          mat.needsUpdate = true;
+        } else {
+          this.stateMgr.state = EarthTileState.settled;
+        }
+        break;
+      }
+      case EarthTileState.settled: {
+        break;
+      }
+      case EarthTileState.toRemove: {
+        if (this.mesh) {
+          const mat = this.mesh.material;
+
+          mat.transparent = true;
+          mat.opacity = 0.3;
+          mat.depthTest = false;
+
+          mat.needsUpdate = true;
+        }
+
+        this.stateMgr.state = EarthTileState.readyToFadingOut;
+        break;
+      }
+      case EarthTileState.readyToFadingOut: {
+        const elapse = this.stateMgr.getElapse("readyToFadingOutAt");
+        // wait the texture to loaded and added!
+        if (elapse > 500) {
+          this.stateMgr.state = EarthTileState.fadingOut;
+        }
+        break;
+      }
+      case EarthTileState.fadingOut: {
+        if (this.mesh) {
+          const mat = this.mesh.material;
+          mat.opacity -= 0.02;
+
+          if (mat.opacity <= 0) {
+            mat.transparent = false;
+            mat.opacity = 0;
+            mat.depthTest = true;
+
+            this.uiGroup.remove(this.mesh, this.grid);
+            this.stateMgr.state = EarthTileState.removed;
+          }
+
+          mat.needsUpdate = true;
+        } else {
+          this.uiGroup.remove(this.grid);
+          this.stateMgr.state = EarthTileState.removed;
+        }
+        break;
+      }
+      case EarthTileState.removed: {
+        const elapse = this.stateMgr.getElapse("removedAt");
+        if (elapse >= 3000) {
+          this.stateMgr.state = EarthTileState.toDispose;
+        }
+        break;
+      }
+      case EarthTileState.toDispose: {
+        this.stateMgr.state = EarthTileState.disposing;
+        break;
+      }
+      case EarthTileState.disposing: {
+        const { mesh, grid } = this;
+
+        if (mesh) {
+          mesh.geometry.dispose();
+          mesh.material.dispose();
+        }
+
+        if (grid) {
+          grid.geometry.dispose();
+          grid.material.dispose();
+        }
+
+        this.stateMgr.state = EarthTileState.disposed;
+        break;
+      }
+      case EarthTileState.disposed: {
+        this.mesh = null;
+        this.grid = null;
+        this.loadTexPhase = "ready";
+
+        this.cache.delete(this.cacheKey);
+        break;
+      }
+      default: {
+        break;
+      }
+    }
+  }
+
+  private processTex(texture: THREE.Texture) {
+    const mat = this.mesh.material;
+    if (mat.map) mat.map.dispose();
+
+    texture.minFilter = THREE.NearestMipMapNearestFilter; // 或 THREE.NearestFilter
+    texture.magFilter = THREE.NearestFilter; // 避免模糊
+    texture.anisotropy = this.earth.renderer$.capabilities.getMaxAnisotropy(); // 提升細節
+
+    mat.color.set(0xffffff);
+    mat.map = texture;
+    mat.needsUpdate = true;
+  }
+
+  loadTexPhase: LoadTexPhase = "ready";
+  loadTex(done?: (tile: EarthTile, tex: THREE.Texture) => void) {
+    this.loadTexPhase = "loading";
 
     textloader.load(
-      `https://mt3.google.com/vt/lyrs=${lyrs}&x=${this.x}&y=${this.y}&z=${this.z}&scale=${scale}&hl=en`,
+      this.getUrl(),
       (texture) => {
-        if (!this.mesh) return;
-
-        const mat = this.mesh.material;
-        if (mat.map) mat.map.dispose();
-
-        texture.minFilter = THREE.NearestMipMapNearestFilter; // 或 THREE.NearestFilter
-        texture.magFilter = THREE.NearestFilter; // 避免模糊
-        texture.anisotropy =
-          this.earth.renderer$.capabilities.getMaxAnisotropy(); // 提升細節
-
-        mat.color.set(0xffffff);
-        mat.map = texture;
-        mat.needsUpdate = true;
-
-        done?.(this);
-
-        this.texLoaded = true;
+        if (this.loadTexPhase === "abort") return;
+        this.loadTexPhase = "done";
+        done?.(this, texture);
+      },
+      null,
+      () => {
+        if (this.loadTexPhase === "abort") return;
+        this.loadTexPhase = "fail";
+        done?.(this, null);
       }
     );
   }
 }
 
+type LoadTexPhase = "ready" | "loading" | "done" | "fail" | "abort";
+
 export enum EarthTileState {
+  /**
+   * # 1
+   * just called the constructor.
+   * where points/colors/normals/nvs are all computed!
+   */
   created = 1,
-  using = 10,
-  toremove = 15,
-  todispose = 20,
+  /**
+   * # 2
+   * mesh and grid lines are created!
+   * next: loading texture!
+   */
+  texture = 3,
+  /**
+   * # 3
+   * texture loaded succefully and added to uiGroup
+   * if texture loading is failed! no this phase, nor fadingIn.
+   * instead, directly step to `settled`
+   * material are set to `transparent = true & opacity = 0`
+   * next: fading in.
+   */
+  added = 5,
+  /**
+   * # 4
+   *
+   * fading in loop
+   */
+  fadingIn = 7,
+  /**
+   * # 5
+   * `transparent = false & opacity = 1`
+   * fading in animation are completed!
+   * keep this state!
+   */
+  settled = 10,
+  /**
+   * # 6
+   * tile should not be visible in the scene.
+   * the tile will be removed, but still in the scene.
+   * will play a fading-out animation
+   */
+  toRemove = 15,
+  readyToFadingOut = 16,
+  /**
+   *  # 7
+   * can switch to fading-in, no need to add.
+   */
+  fadingOut = 18,
+  /**
+   * # 8
+   * removed from the scene.
+   * you cannot see it at this time.
+   * but it can be re-added!
+   */
+  removed = 20,
+  /**
+   * # 9
+   * 3 second later,
+   * cannot be re-added!
+   */
+  toDispose = 22,
+  /**
+   * # 10
+   * cannot be re-used.
+   */
   disposing = 25,
+  /**
+   * # 11
+   * dead! it will be disposded totally from scene & memory.
+   * cannot be re-used!
+   */
   disposed = 30,
 }
 
-const textloader = new THREE.TextureLoader(new THREE.LoadingManager());
+type StateMutationAtKey = `${keyof typeof EarthTileState}At`;
+
+type StateMutationAt = Record<StateMutationAtKey, number>;
+
+class EarthTileStateManager {
+  constructor(readonly tile: EarthTile) {
+    this.createdAt = performance.now();
+  }
+
+  set state(s: EarthTileState) {
+    this.tile.state = s;
+    const key = EarthTileState[s] + "At";
+    this[key] = this.tile._t;
+  }
+
+  /** ms */
+  getElapse(name: StateMutationAtKey) {
+    if (this[name] === undefined) {
+      return -1;
+    }
+    return this.tile._t - this[name];
+  }
+}
+
+interface EarthTileStateManager extends StateMutationAt {}
+
+const loadingMgr = new THREE.LoadingManager();
+const textloader = new THREE.TextureLoader(loadingMgr);
+
+export const getTileCacheKey = (x: number, y: number, z: number) => {
+  return `${z}.${x}.${y}`;
+};

@@ -65,23 +65,25 @@ export function tileXYToLatLng(x: number, y: number, zoom: number) {
 export const getZoomLevel = (
   camera: THREE.PerspectiveCamera,
   R: number,
-  max = 22
+  max = 22,
+  fix = -1
 ) => {
-  return getZoomLevel_internal(camera.position, camera.fov, R, max);
+  return getZoomLevel_internal(camera.position, camera.fov, R, max, fix);
 };
 
 const getZoomLevel_internal = (
   pos: THREE.Vector3,
   fov: number,
   R: number,
-  max: number
+  max: number,
+  fix: number
 ) => {
   const dist = pos.length() - R;
   const distPerPixel = getPixelWorldSize(fov, dist);
 
   for (const item of ZoomLevel_MetersPerPixels_Mapping) {
     if (distPerPixel >= item[1]) {
-      return clamp(item[0] - 1, 0, max);
+      return clamp(item[0] + fix, 0, max);
     }
   }
 

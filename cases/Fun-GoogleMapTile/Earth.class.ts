@@ -1,18 +1,21 @@
 import * as THREE from "three";
-import { EarthTile, EarthTileState } from "./EarthTile.class.js";
+import {
+  EarthTile,
+  EarthTileState,
+  getTileCacheKey,
+} from "./EarthTile.class.js";
 import {
   clamp,
-  deg2rad,
   earthConfig,
   getCameraDistanceForZoom,
   getZoomLevel,
   latLngToSphere,
   latLngToTileXY,
-  rad2deg,
   sphereToLatlng,
   tileXYToLatLng,
 } from "./calc.js";
 import {
+  __default_tileurl__,
   __resuable_q4_1__,
   __resuable_q4__,
   __resuable_vec3_1__,
@@ -26,6 +29,7 @@ import {
 } from "./shared.js";
 import { createCss2dObject } from "../css2r.js";
 import { PointsCloud } from "./PointsCloud.class.js";
+import { CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
 
 type EarthEventMap = THREE.Object3DEventMap & {
   latlng: {
@@ -83,14 +87,16 @@ export class Earth extends THREE.Mesh<
 
     this.LatLines = new THREE.Group();
     this.LonLines = new THREE.Group();
+    this.LonLines.visible = true;
+    this.LatLines.visible = false;
 
     {
-      for (let lng = -180; lng <= 180; lng += 15) {
+      for (let lng = -180; lng < 180; lng += 15) {
         this.LonLines.add(new LonLine(lng));
       }
     }
 
-    this.add(this.Core, this.tilesMeshGroup, this.LatLines, this.LonLines);
+    this.add(this.Core, this.tilesUIGroup, this.LatLines, this.LonLines);
 
     {
       const raycaster = new THREE.Raycaster();
@@ -171,9 +177,14 @@ export class Earth extends THREE.Mesh<
     }
 
     {
+      const PgAppScaleBar = document.querySelector(
+        "#PgAppScaleBar"
+      ) as HTMLDivElement;
+      PgAppScaleBar.classList.remove("hidden");
+
       this.scaleBarElement = {
-        label: document.querySelector("#PgAppScaleBar label"),
-        div: document.querySelector("#PgAppScaleBar div"),
+        label: PgAppScaleBar.children[0] as HTMLLabelElement,
+        div: PgAppScaleBar.children[1] as HTMLDivElement,
       };
     }
   }
@@ -229,18 +240,12 @@ export class Earth extends THREE.Mesh<
     }
   }
 
-  /**
-   * @todo
-   */
-  isLonLineInView(lon: LonLine) {
-    // const { lat, lng } = this.centerLatLng;
-    // const dist = this.camera$.position.length();
-    // const t = Math.sin(Math.abs(lat * deg2rad));
-    // let r = this.camera$.aspect * (Math.atan(earthConfig.R / dist) * rad2deg);
-    // r += (90 - r) * t;
-    // const diff = Math.abs(lng - lon.lng) % 360;
-    // return diff < r;
-    return false;
+  isLonLineLabelVisible(lon: LonLine) {
+    const dotVal = __reusable_vec3__
+      .copy(this.camera$.position)
+      .normalize()
+      .dot(lon.normal);
+    return dotVal > 0.5;
   }
 
   measureMetersPerPixelAtCenter() {
@@ -295,11 +300,12 @@ export class Earth extends THREE.Mesh<
   }
 
   checkLonLines() {
-    for (const child of this.LonLines.children) {
-      if (this.isLonLineInView(child as LonLine)) {
-        child.visible = true;
+    for (const item of this.LonLines.children) {
+      const line = item as LonLine;
+      if (this.isLonLineLabelVisible(line)) {
+        line.label.visible = true;
       } else {
-        child.visible = false;
+        line.label.visible = false;
       }
     }
   }
@@ -435,33 +441,38 @@ export class Earth extends THREE.Mesh<
       for (let j = -ny; j <= ny; j += 1) {
         const y = (xy.y + j + tilesNx100) % tilesN;
 
-        const cacheKey = `${x}.${y}.${this.zoom}`;
+        const cacheKey = getTileCacheKey(x, y, this.zoom);
+
         let tile: EarthTile;
 
         if (this.tilesCache.has(cacheKey)) {
           tile = this.tilesCache.get(cacheKey);
-          if (tile.cannotUse()) {
+          if (!tile.toReUse()) {
             tile = null;
           }
         }
 
         if (!tile) {
-          tile = new EarthTile(this, x, y, this.zoom);
+          tile = new EarthTile(
+            this,
+            this.tilesUIGroup,
+            this.tilesCache,
+            x,
+            y,
+            this.zoom
+          );
         }
 
         this.tilesCache.set(cacheKey, tile);
-        tile.toUse();
         tiles.push(tile);
       }
     }
 
-    this.pushTilesToFadeOut(
-      ...this.tilesToFadeIn.filter((t) => !tiles.includes(t))
-    );
-
-    this.tilesToKeep = tiles.filter((tile) =>
-      this.tilesToFadeIn.includes(tile)
-    );
+    for (const tile of this.tilesToFadeIn) {
+      if (!tiles.includes(tile)) {
+        tile.toRemove();
+      }
+    }
 
     this.tilesToFadeIn = tiles;
   }
@@ -544,6 +555,20 @@ export class Earth extends THREE.Mesh<
     );
   }
 
+  setTileArgs(zMax: number, zFix: number) {
+    this.zoomMax = zMax;
+    this.zoomFix = zFix;
+  }
+
+  setTileUrl(arg0: string) {
+    if (arg0 === this.tileUrl) return;
+
+    this.tileUrl = arg0;
+
+    this.reqUpdateTileTexures();
+  }
+
+  public tileUrl = __default_tileurl__;
   private tileScale: GoogleTileScale = 1;
 
   getTileScale() {
@@ -553,7 +578,7 @@ export class Earth extends THREE.Mesh<
   setTileScale(val: GoogleTileScale) {
     if (val === this.tileScale) return;
     this.tileScale = val;
-    this.updateLyrs();
+    this.reqUpdateTileTexures();
   }
 
   calcMinLatLngChangeThreshold() {
@@ -563,8 +588,19 @@ export class Earth extends THREE.Mesh<
     this.minLngChangeThreshold = 360 / w;
   }
 
+  private zoomMax: number = 22;
+  private zoomFix: number = -1;
+
   checkZoomLoop() {
-    const zoomlevel = getZoomLevel(this.camera$, earthConfig.R);
+    this.setTileUrl;
+
+    const zoomlevel = getZoomLevel(
+      this.camera$,
+      earthConfig.R,
+      this.zoomMax,
+      this.zoomFix
+    );
+
     this.setZoom(zoomlevel);
   }
 
@@ -587,7 +623,7 @@ export class Earth extends THREE.Mesh<
   }
 
   readonly tilesCache: Map<string, EarthTile> = new Map();
-  readonly tilesMeshGroup = new THREE.Group();
+  readonly tilesUIGroup = new THREE.Group();
 
   /**
    * unit: s
@@ -612,7 +648,7 @@ export class Earth extends THREE.Mesh<
       } else {
         this.idleLast += t;
         if (this.idleLast > 0.3) {
-          this._doUpdateDiff();
+          this.build();
           this.idleLast = null;
         }
       }
@@ -628,125 +664,39 @@ export class Earth extends THREE.Mesh<
   setLyrs(val: GoogleLyrs) {
     if (val === this.lyrs) return;
     this.lyrs = val;
-    this.updateLyrs();
+
+    this.reqUpdateTileTexures();
   }
 
-  private updateLyrs() {
-    console.log("render! [force]");
-
+  private reqUpdateTileTexures() {
     this.Core.material.color.set(lyrsColors[this.lyrs]);
     this.Core.material.needsUpdate = true;
 
-    this.tilesCache.forEach((tile) => {
-      tile.texLoaded = false;
-    });
-
-    for (const tile of this.tilesToFadeIn) {
-      tile.loadTex(null);
+    for (const [_, tile] of this.tilesCache) {
+      tile.toReloadTex();
     }
   }
 
-  private _doUpdateDiff() {
-    console.log("render!");
-    this.build();
-    this.renderTiles();
-  }
-
-  private renderTiles() {
-    const eachFn = (tile: EarthTile) => {
-      this.tilesMeshGroup.add(tile.mesh);
-      tile.fadeIn(900);
-      size--;
-      if (size === 0) this.toDiposeTiles();
-    };
-
-    let size = this.tilesToFadeIn.length;
-
-    for (const tile of this.tilesToFadeOut) {
-      if (!tile.mesh) continue;
-
-      tile.mesh.material.transparent = true;
-      tile.mesh.material.opacity = 0.67;
+  checkTileStateLoop(dt: number) {
+    const now = performance.now();
+    for (const [key, tile] of this.tilesCache) {
+      tile.checkTileState(dt, now);
     }
-
-    for (const tile of this.tilesToFadeIn) {
-      if (this.tilesToKeep.includes(tile)) {
-        continue;
-      }
-
-      if (!tile.grid) {
-        tile.createGridLine();
-        this.tilesMeshGroup.add(tile.grid);
-      }
-
-      if (!tile.mesh) {
-        tile.createMesh();
-      }
-
-      if (tile.texLoaded) {
-        eachFn(tile);
-      } else {
-        tile.loadTex(eachFn);
-      }
-    }
-
-    this.tilesToKeep = [];
-  }
-
-  private pushTilesToFadeOut(...tiles: EarthTile[]) {
-    for (const tile of tiles) {
-      tile.state = EarthTileState.toremove;
-      this.tilesToFadeOut.push(tile);
-    }
-  }
-
-  private toDiposeTiles() {
-    const done = (tile) => {
-      tile.toDispose();
-    };
-
-    for (const tile of this.tilesToFadeOut) {
-      if (tile.state === EarthTileState.toremove) {
-        tile.fadeOut(800, done);
-      }
-    }
-
-    this.tilesToFadeOut = [];
-  }
-
-  checkDisposeLoop(dt: number) {
-    let c = 0;
-    for (const [k, tile] of this.tilesCache) {
-      if (tile.state === EarthTileState.todispose) {
-        tile.msElapseSinceToDispose += dt;
-        /**
-         * 1s later, if this tile is not in using, remove it from cache!
-         */
-        if (tile.msElapseSinceToDispose > 3) {
-          tile.state = EarthTileState.disposing;
-
-          tile.dispose();
-          this.tilesCache.delete(k);
-          c++;
-        }
-      }
-    }
-
-    if (c > 0) {
-      console.log("disposed!", c);
-      console.log("remaining!", this.tilesCache.size);
-    }
+    console.log("disposed!", this.tilesCache.size);
   }
 }
 
 const getLabel = (lng: number) => {
   if (lng === 0) return "0°";
+  if (lng === 180 || lng === -180) return "180°";
   if (lng < 0) return `W${-lng}°`;
   if (lng > 0) return `E${lng}°`;
 };
 
-class LonLine extends THREE.Line {
+class LonLine extends THREE.LineSegments {
   readonly centerCoords: Vec3Like;
+  readonly label: CSS2DObject;
+  readonly normal: THREE.Vector3;
 
   constructor(readonly lng: number) {
     const pts: number[] = [];
@@ -761,7 +711,7 @@ class LonLine extends THREE.Line {
       })
     );
 
-    for (let lat = -90; lat <= 90; lat += 3) {
+    for (let lat = -90; lat <= 90; lat += 1) {
       const coords = latLngToSphere(
         lat,
         lng,
@@ -779,8 +729,14 @@ class LonLine extends THREE.Line {
       color: "#fe2310",
       offset: 0,
     });
+
+    text.visible = false;
     text.position.copy(labelPos);
+    this.normal = new THREE.Vector3().copy(labelPos).normalize();
+
     this.add(text);
+
+    this.label = text;
 
     this.geometry.setAttribute(
       "position",

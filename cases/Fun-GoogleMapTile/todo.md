@@ -7,3 +7,6 @@
 - cursor - latlng ✅
 - camera's near dyanmically varies by zoom.✅
 - scale bar ✅
+
+- fade in & fade out!
+- z-fighting while zoom varying

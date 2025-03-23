@@ -11,6 +11,7 @@ import {
 import { getEarthHorizonCRS } from "./Space.class.js";
 import { __useCSS2Renderer__, createCss2dObjectFor } from "../css2r.js";
 import {
+  __default_tileurl__,
   __resuable_q4_1__,
   __resuable_q4__,
   __resuable_vec3_1__,
@@ -114,7 +115,7 @@ This project may seem simple at first glance, but it involves a lot of GIS and W
     __renderControls__({ zoom });
   });
 
-  __3__.crs(earth, earthConfig.R * 1.8);
+  // __3__.crs(earth, earthConfig.R * 1.8);
 
   __usePanel__({
     width: 500,
@@ -134,6 +135,8 @@ This project may seem simple at first glance, but it involves a lot of GIS and W
   createCss2dObjectFor(moon, "moon");
 
   const sunMove = () => {
+    if (!useSunLight) return;
+
     const dt = new Date();
     const sunPos = sunCurrentPosition(0, 0, dt);
     const earthSurfaceCRS = getEarthHorizonCRS(0, 0);
@@ -153,6 +156,8 @@ This project may seem simple at first glance, but it involves a lot of GIS and W
     moon.position.copy(moonPosInWorld);
 
     __usePanel_write__(0, dt.toLocaleString());
+
+    setTimeout(sunMove, 30 * 1000);
   };
 
   sunLight.target = earth;
@@ -194,14 +199,21 @@ This project may seem simple at first glance, but it involves a lot of GIS and W
     earth.setTileScale(tileScale);
   };
 
+  __updateTHREEJs__only__.tileSource = () => {
+    const _val = tileSource || __default_tileurl__;
+    const { data, value } = tileSourceOptions.find((opt) => opt.value === _val);
+
+    earth.setTileArgs(data.zoom, data.zoomFix);
+    earth.setTileUrl(value);
+  };
+
   __add_nextframe_fn__((s, c, r, dt) => {
     earth.checkCenterLoop();
     earth.checkZoomLoop();
     earth.calcTilesGrid();
-    earth.checkLonLines();
 
-    earth.checkDisposeLoop(dt);
     earth.updateDiff(dt);
+    earth.checkTileStateLoop(dt);
   });
 
   __add_nextframe_fn__(() => {
@@ -219,6 +231,8 @@ This project may seem simple at first glance, but it involves a lot of GIS and W
 
     const { lat, lng } = center;
     __usePanel_write__(2, `center: ${lat.toFixed(2)},${lng.toFixed(2)}`);
+
+    earth.checkLonLines();
   }, 0.2);
 
   __add_nextframe_fn__(() => {
@@ -232,12 +246,50 @@ let zoom = 4;
 let lyrs: GoogleLyrs = "m";
 let tileScale: GoogleTileScale = 1;
 let useSunLight = false;
+let tileSource = __default_tileurl__;
+
+const tileSourceOptions = [
+  {
+    label: "google",
+    value: __default_tileurl__,
+    data: { zoom: 22, zoomFix: -1 },
+  },
+  {
+    label: "openstreet",
+    value: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    data: { zoom: 19, zoomFix: -2 },
+  },
+  {
+    label: "nasa",
+    value:
+      "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpg",
+    data: { zoom: 8, zoomFix: 0 },
+  },
+  {
+    label: "stadiamaps",
+    value:
+      "https://tiles.stadiamaps.com/tiles/stamen_terrain/{z}/{x}/{y}@2x.png",
+    data: { zoom: 22, zoomFix: -1 },
+  },
+  {
+    value: "https://basemaps.cartocdn.com/positron/{z}/{x}/{y}@2x.png",
+    label: "carto",
+    data: { zoom: 22, zoomFix: 0 },
+  },
+];
+
+__defineControl__("tileSource", "enum", tileSource, {
+  valueType: "string",
+  label: "tiles provider",
+  options: [...tileSourceOptions],
+});
 
 __defineControl__("locate", "btn", "1");
 
 __defineControl__("useSunLight", "bit", useSunLight, {
   label: "sun light",
-  help: ``,
+  helpWidth: 300,
+  help: `Display real-time sunlight shining on Earth, updating every 30 seconds.`,
 });
 
 __defineControl__("lat", "range", lat, {
@@ -283,9 +335,3 @@ __defineControl__("tileScale", "enum", tileScale, {
   help: `You can set the tile scale to 1, 2, or 4.`,
   options: [1, 2, 4].map((r) => ({ label: "x" + r, value: r })),
 });
-
-// https://mt1.google.com/vt/lyrs=m&x=${xy.x}&y=${xy.y}&z=${this.zoom}
-// `https://tile.openstreetmap.org/${this.z}/${this.x}/${this.y}.png`,
-// `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief/default/GoogleMapsCompatible_Level8/${this.z}/${this.y}/${this.x}.jpg`, // 8
-// `https://tiles.stadiamaps.com/tiles/stamen_terrain/${this.z}/${this.x}/${this.y}@2x.png`,
-// `https://tiles.stadiamaps.com/tiles/stamen_watercolor/10/163/394.jpg`,

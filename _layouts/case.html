@@ -16,24 +16,28 @@
   <div class="Content">
     <div class="Menu" id="Menu" onclick="if(event.target.dataset.toggle) {this.classList.toggle('inview')}">
       {% include menu.html %}
-      <div class="MenuButtons panel keep fixed">
+      <div class="MenuButtons panel keep fixed white shadow">
         <a href="javascript:void(0);" onclick="__dev__()" class="MenuButton Callapse">
-          &gt;
+          <img src="/assets/images/icon-right.svg">
         </a>
         <a href="javascript:void(0);" onclick="__dev__()" class="MenuButton Expand">
-          &lt;
+          <img src="/assets/images/icon-left.svg">
         </a>
-        <a href="javascript:void(0);" onclick="__dev__('nopanel')" class="MenuButton">Dive</a>
-        <a href="/" class="MenuButton">Home</a>
+        <a href="javascript:void(0);" onclick="__dev__('nopanel')" class="MenuButton">
+          <img src="/assets/images/icon-immerse.svg">
+        </a>
+        <a href="/" class="MenuButton">
+          <img src="/assets/images/icon-home.svg">
+        </a>
         <a href="javascript:void(0);" data-toggle="1" class="MenuButton Toggle">
-          Cases
+          <img style="pointer-events: none;" src="/assets/images/icon-list.svg">
         </a>
       </div>
     </div>
     <div id="SectionPgAppWrap" class="PgAppWrap Section">
       <div id="PgApp" class="PgApp"></div>
       <div id="PgAppControls" class="PgAppControls panel panel-right-top rounded"></div>
-      <div id="PgAppScaleBar" class="PgAppScaleBar panel thin panel-right-bottom rounded">
+      <div id="PgAppScaleBar" class="PgAppScaleBar hidden panel thin panel-right-bottom rounded">
         <label>0km</label>
         <div></div>
       </div>
