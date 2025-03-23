@@ -120,13 +120,14 @@ export class Earth extends THREE.Mesh<
         return null;
       };
 
-      let isClick = 0;
+      let clickCount = 0;
+      let isMoved = false;
 
       const pMove = (event) => {
-        isClick += 1;
+        isMoved = true;
       };
 
-      domElement.addEventListener("mousemove", (event) => {
+      domElement.addEventListener("pointermove", (event) => {
         const x = event.offsetX;
         const y = event.offsetY;
 
@@ -142,27 +143,57 @@ export class Earth extends THREE.Mesh<
         }
       });
 
-      const pUp = (event) => {
-        if (isClick === 0) {
+      const releaseEventListeners = (event) => {
+        if (clickCount === 0) {
+          // not click
+        } else if (clickCount === 1) {
           pClick(event);
-        } else {
-          console.log("it's not a click action!");
+        } else if (clickCount === 2) {
+          pDblClick(event);
         }
+
+        clickCount = 0;
+        isMoved = false;
 
         domElement.removeEventListener("pointermove", pMove);
         domElement.removeEventListener("pointerup", pUp);
         domElement.removeEventListener("pointerleave", pUp);
       };
 
-      const pDown = () => {
-        isClick = 0;
+      let timeoutForReleaseEventListeners = -1;
 
-        domElement.addEventListener("pointermove", pMove);
-        domElement.addEventListener("pointerup", pUp);
-        domElement.addEventListener("pointerleave", pUp);
+      const pUp = (event) => {
+        if (isMoved) {
+          clickCount = 0;
+          // console.log("it's not a click action!");
+          releaseEventListeners(event);
+        } else {
+          clickCount += 1;
+          timeoutForReleaseEventListeners = setTimeout(
+            releaseEventListeners,
+            200,
+            { offsetX: event.offsetX, offsetY: event.offsetY }
+          );
+        }
+      };
+
+      const pDown = () => {
+        if (clickCount === 0) {
+          domElement.addEventListener("pointermove", pMove);
+          domElement.addEventListener("pointerup", pUp);
+          domElement.addEventListener("pointerleave", pUp);
+        } else {
+          clearTimeout(timeoutForReleaseEventListeners);
+        }
       };
 
       domElement.addEventListener("pointerdown", pDown);
+
+      const pDblClick = (event) => {
+        // console.log("dblclick", event);
+        // pClick(event);
+        this.zoomTo(this.zoom + 1);
+      };
 
       const pClick = (event) => {
         let x = event.offsetX;
@@ -171,7 +202,9 @@ export class Earth extends THREE.Mesh<
         const latlng = raycast(x, y);
 
         if (latlng) {
-          this.flyTo(latlng.lat, latlng.lng);
+          return this.flyTo(latlng.lat, latlng.lng);
+        } else {
+          return null;
         }
       };
     }
@@ -682,7 +715,7 @@ export class Earth extends THREE.Mesh<
     for (const [key, tile] of this.tilesCache) {
       tile.checkTileState(dt, now);
     }
-    console.log("disposed!", this.tilesCache.size);
+    // console.log("disposed!", this.tilesCache.size);
   }
 }
 

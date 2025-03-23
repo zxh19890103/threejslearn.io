@@ -108,7 +108,7 @@ This project may seem simple at first glance, but it involves a lot of GIS and W
     const near = Math.pow(2, 23 - _zoom);
     camera.near = near;
     camera.far = dist + earthConfig.R * 2;
-    console.log("near:", camera.near, camera.far * 1e-3);
+    // console.log("near:", camera.near, camera.far * 1e-3);
     camera.updateProjectionMatrix();
 
     zoom = _zoom;
