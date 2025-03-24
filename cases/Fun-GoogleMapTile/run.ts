@@ -293,8 +293,12 @@ __defineControl__("tileSource", "enum", tileSource, {
   options: [...tileSourceOptions],
 });
 
-__defineControl__("showTileGrids", "bit", showTileGrids, {});
-__defineControl__("showLonLines", "bit", showLonLines, {});
+__defineControl__("showTileGrids", "bit", showTileGrids, {
+  label: "tile grids",
+});
+__defineControl__("showLonLines", "bit", showLonLines, {
+  label: "lon lines",
+});
 
 __defineControl__("locate", "btn", "1");
 

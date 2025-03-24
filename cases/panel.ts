@@ -1,11 +1,16 @@
 __usePanel__ = (cfg: UsePanelConfig) => {
   const lineHeight = 20;
+  const width = cfg.width;
+  const height = cfg.lines * lineHeight;
 
   const container = document.querySelector("#SectionPgAppWrap");
 
   const panelDiv = document.createElement("div");
   panelDiv.className = `panel panel-${cfg.placement}`;
-  panelDiv.style.cssText = `padding: 0; width: fit-content; height: fit-content;`;
+  panelDiv.style.cssText = `
+  padding: 3px 0; 
+  width: ${width}px; 
+  height: ${height + 6}px; `;
 
   const canvas = document.createElement("canvas");
 
@@ -13,8 +18,8 @@ __usePanel__ = (cfg: UsePanelConfig) => {
 
   canvas.style.cssText = `
   padding: 0;
-  width: ${cfg.width}px;
-  height: ${cfg.lines * lineHeight}px;
+  width: ${width}px;
+  height: ${height}px;
   `;
 
   const dpr = window.devicePixelRatio;

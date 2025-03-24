@@ -31,10 +31,27 @@ const createDialog = (config: CreateDialogConfig) => {
   document.body.appendChild(dialog);
 
   dialog.onclick = (evt) => {
-    if (
-      (evt.target as HTMLAnchorElement).getAttribute("item-type") === "close"
-    ) {
+    const isCloseButton =
+      (evt.target as HTMLAnchorElement).getAttribute("item-type") === "close";
+
+    let shouldClose = isCloseButton;
+
+    if (!shouldClose) {
+      const rect = dialog.getBoundingClientRect();
+      shouldClose =
+        evt.clientX < rect.left ||
+        evt.clientX > rect.right ||
+        evt.clientY < rect.top ||
+        evt.clientY > rect.bottom;
+    }
+
+    if (shouldClose) {
+      if (css) {
+        document.head.removeChild(css);
+      }
+
       dialog.close();
+      dialog.remove();
     }
   };
 

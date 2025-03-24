@@ -117,7 +117,7 @@ If the observed data wasn’t available, I placed the bodies at their aphelion a
 
   const dispalyCanvasLegend = document.createElement("div");
   dispalyCanvasLegend.className = "panel panel-left-bottom";
-  dispalyCanvasLegend.style.cssText = `font-size: 12px; width: fit-content; height: fit-content; min-height: 60px;`;
+  dispalyCanvasLegend.style.cssText = `font-size: 12px; height: fit-content; min-height: 60px;`;
   document.querySelector("#SectionPgAppWrap").appendChild(dispalyCanvasLegend);
 
   dispalyCanvasLegend.onclick = (event) => {

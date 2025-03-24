@@ -374,6 +374,8 @@
   /* Extra-large screens (e.g., 4K displays) */
   @media screen and (max-width: 1200px) {
     $after-virtual-size: 36px;
+    max-width: 100vw !important;
+    max-height: 100vh !important;
 
     &:not(.keep)::after {
       content: "↙";
