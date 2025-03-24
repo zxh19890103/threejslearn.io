@@ -13,7 +13,7 @@
 
 <body>
   <div class="BG"></div>
-  <div class="Content">
+  <div class="Content" onclick="checkPanelClick(event)">
     <div class="Menu" id="Menu" onclick="if(event.target.dataset.toggle) {this.classList.toggle('inview')}">
       {% include menu.html %}
       <div class="MenuButtons panel keep fixed white shadow">
@@ -37,7 +37,7 @@
     <div id="SectionPgAppWrap" class="PgAppWrap Section">
       <div id="PgApp" class="PgApp"></div>
       <div id="PgAppControls" class="PgAppControls panel panel-right-top rounded"></div>
-      <div id="PgAppScaleBar" class="PgAppScaleBar hidden panel thin panel-right-bottom rounded">
+      <div id="PgAppScaleBar" class="PgAppScaleBar hidden panel keep fixed thin panel-right-bottom rounded">
         <label>0km</label>
         <div></div>
       </div>
@@ -67,6 +67,14 @@
 
   <script src="/assets/jslibs/hls/hl.min.js"></script>
   <script>
+
+    function checkPanelClick(event) {
+      if (event.target.className.includes('panel')) {
+        // show!
+        event.target.classList.toggle('as-dialog');
+      } else { }
+    }
+
     fetch(`run.ts?t=${Date.now()}`)
       .then((r) => r.text())
       .then((code) => {

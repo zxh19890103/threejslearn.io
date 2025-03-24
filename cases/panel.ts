@@ -2,8 +2,14 @@ __usePanel__ = (cfg: UsePanelConfig) => {
   const lineHeight = 20;
 
   const container = document.querySelector("#SectionPgAppWrap");
+
+  const panelDiv = document.createElement("div");
+  panelDiv.className = `panel panel-${cfg.placement}`;
+  panelDiv.style.cssText = `padding: 0; width: fit-content; height: fit-content;`;
+
   const canvas = document.createElement("canvas");
-  canvas.className = `panel panel-${cfg.placement}`;
+
+  panelDiv.appendChild(canvas);
 
   canvas.style.cssText = `
   padding: 0;
@@ -19,8 +25,6 @@ __usePanel__ = (cfg: UsePanelConfig) => {
   canvas.width = cW;
   canvas.height = cH;
 
-  container.appendChild(canvas);
-
   const context = canvas.getContext("2d");
 
   context.font = `28px Nunito`;
@@ -28,6 +32,8 @@ __usePanel__ = (cfg: UsePanelConfig) => {
   context.textBaseline = "middle";
 
   context.fillStyle = "#fff";
+
+  container.appendChild(panelDiv);
 
   __usePanel_write__ = (ln: number, str: string) => {
     context.clearRect(0, actLh * ln, cW, actLh);

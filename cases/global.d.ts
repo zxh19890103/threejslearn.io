@@ -162,7 +162,7 @@ let __updateTHREEJs__after__: () => void;
 const __updateTHREEJs__invoke__: Record<string, (val: any) => void>;
 const __updateTHREEJs__only__: Record<
   string,
-  (val: any) => Promise<unknown> | boolean | void
+  (val?: any) => Promise<unknown> | boolean | void
 >;
 const __updateTHREEJs__many__: Record<
   string,

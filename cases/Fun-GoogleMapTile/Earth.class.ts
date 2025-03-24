@@ -46,8 +46,6 @@ export class Earth extends THREE.Mesh<
   EarthEventMap
 > {
   private tilesToFadeIn: EarthTile[] = [];
-  private tilesToKeep: EarthTile[] = [];
-  private tilesToFadeOut: EarthTile[] = [];
 
   private inputByUI = false;
 
@@ -96,7 +94,13 @@ export class Earth extends THREE.Mesh<
       }
     }
 
-    this.add(this.Core, this.tilesUIGroup, this.LatLines, this.LonLines);
+    this.add(
+      this.Core,
+      this.tileMeshesGroup,
+      this.tileGridlinesGroup,
+      this.LatLines,
+      this.LonLines
+    );
 
     {
       const raycaster = new THREE.Raycaster();
@@ -253,20 +257,13 @@ export class Earth extends THREE.Mesh<
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          console.log("緯度:", position.coords.latitude);
-          console.log("經度:", position.coords.longitude);
-
           const lat = position.coords.latitude;
           const lng = position.coords.longitude;
 
           this.setMarker("locate", { lat, lng }, 0x0eff91);
           this.flyTo(position.coords.latitude, position.coords.longitude);
-
-          console.log("準確度:", position.coords.accuracy, "公尺");
         },
-        (error) => {
-          console.error("獲取定位失敗:", error.message);
-        }
+        (error) => {}
       );
     } else {
       console.error("瀏覽器不支持 Geolocation API");
@@ -486,17 +483,9 @@ export class Earth extends THREE.Mesh<
         }
 
         if (!tile) {
-          tile = new EarthTile(
-            this,
-            this.tilesUIGroup,
-            this.tilesCache,
-            x,
-            y,
-            this.zoom
-          );
+          tile = new EarthTile(this, x, y, this.zoom);
         }
 
-        this.tilesCache.set(cacheKey, tile);
         tiles.push(tile);
       }
     }
@@ -656,7 +645,8 @@ export class Earth extends THREE.Mesh<
   }
 
   readonly tilesCache: Map<string, EarthTile> = new Map();
-  readonly tilesUIGroup = new THREE.Group();
+  readonly tileMeshesGroup = new THREE.Group();
+  readonly tileGridlinesGroup = new THREE.Group();
 
   /**
    * unit: s

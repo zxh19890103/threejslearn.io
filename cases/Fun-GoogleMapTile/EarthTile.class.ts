@@ -22,10 +22,12 @@ export class EarthTile {
   grid: THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial>;
   mesh: THREE.Mesh<THREE.BufferGeometry, THREE.MeshPhongMaterial>;
 
+  private readonly gridlinesGroup: THREE.Group;
+  private readonly meshsGroup: THREE.Group;
+  private readonly cache: Map<string, EarthTile>;
+
   constructor(
     readonly earth: Earth,
-    readonly uiGroup: THREE.Group,
-    readonly cache: Map<string, EarthTile>,
     readonly x: number,
     readonly y: number,
     readonly z: number
@@ -33,6 +35,10 @@ export class EarthTile {
     this.cacheKey = getTileCacheKey(x, y, z);
 
     this.stateMgr = new EarthTileStateManager(this);
+
+    this.gridlinesGroup = this.earth.tileGridlinesGroup;
+    this.meshsGroup = this.earth.tileMeshesGroup;
+    this.cache = this.earth.tilesCache;
 
     this.cache.set(this.cacheKey, this);
 
@@ -292,9 +298,9 @@ export class EarthTile {
         return true;
       }
       case EarthTileState.removed: {
-        this.uiGroup.add(this.grid);
+        this.gridlinesGroup.add(this.grid);
         if (this.mesh) {
-          this.uiGroup.add(this.mesh);
+          this.meshsGroup.add(this.mesh);
         }
         this.stateMgr.state = EarthTileState.added;
         return true;
@@ -345,7 +351,7 @@ export class EarthTile {
         break;
       }
       case EarthTileState.texture: {
-        this.uiGroup.add(this.grid);
+        this.earth.tileGridlinesGroup.add(this.grid);
 
         if (this.loadTexPhase === "ready") {
           this.loadTex((_, tex) => {
@@ -359,7 +365,7 @@ export class EarthTile {
                 mat.needsUpdate = true;
 
                 this.processTex(tex);
-                this.uiGroup.add(this.mesh);
+                this.earth.tileMeshesGroup.add(this.mesh);
                 this.stateMgr.state = EarthTileState.added;
               } else {
                 this.stateMgr.state = EarthTileState.settled;
@@ -427,13 +433,14 @@ export class EarthTile {
             mat.opacity = 0;
             mat.depthTest = true;
 
-            this.uiGroup.remove(this.mesh, this.grid);
+            this.meshsGroup.remove(this.mesh);
+            this.gridlinesGroup.remove(this.grid);
             this.stateMgr.state = EarthTileState.removed;
           }
 
           mat.needsUpdate = true;
         } else {
-          this.uiGroup.remove(this.grid);
+          this.gridlinesGroup.remove(this.grid);
           this.stateMgr.state = EarthTileState.removed;
         }
         break;
@@ -483,7 +490,7 @@ export class EarthTile {
     const mat = this.mesh.material;
     if (mat.map) mat.map.dispose();
 
-    texture.minFilter = THREE.NearestMipMapNearestFilter; // 或 THREE.NearestFilter
+    texture.minFilter = THREE.NearestFilter; // 或 THREE.NearestFilter
     texture.magFilter = THREE.NearestFilter; // 避免模糊
     texture.anisotropy = this.earth.renderer$.capabilities.getMaxAnisotropy(); // 提升細節
 

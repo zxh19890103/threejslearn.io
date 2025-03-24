@@ -108,14 +108,11 @@ This project may seem simple at first glance, but it involves a lot of GIS and W
     const near = Math.pow(2, 23 - _zoom);
     camera.near = near;
     camera.far = dist + earthConfig.R * 2;
-    // console.log("near:", camera.near, camera.far * 1e-3);
     camera.updateProjectionMatrix();
 
     zoom = _zoom;
     __renderControls__({ zoom });
   });
-
-  // __3__.crs(earth, earthConfig.R * 1.8);
 
   __usePanel__({
     width: 500,
@@ -207,6 +204,16 @@ This project may seem simple at first glance, but it involves a lot of GIS and W
     earth.setTileUrl(value);
   };
 
+  __updateTHREEJs__only__.showLonLines = () => {
+    earth.LonLines.visible = showLonLines;
+  };
+  __updateTHREEJs__only__.showLonLines();
+
+  __updateTHREEJs__only__.showTileGrids = () => {
+    earth.tileGridlinesGroup.visible = showTileGrids;
+  };
+  __updateTHREEJs__only__.showTileGrids();
+
   __add_nextframe_fn__((s, c, r, dt) => {
     earth.checkCenterLoop();
     earth.checkZoomLoop();
@@ -246,6 +253,8 @@ let zoom = 4;
 let lyrs: GoogleLyrs = "m";
 let tileScale: GoogleTileScale = 1;
 let useSunLight = false;
+let showLonLines = false;
+let showTileGrids = false;
 let tileSource = __default_tileurl__;
 
 const tileSourceOptions = [
@@ -283,6 +292,9 @@ __defineControl__("tileSource", "enum", tileSource, {
   label: "tiles provider",
   options: [...tileSourceOptions],
 });
+
+__defineControl__("showTileGrids", "bit", showTileGrids, {});
+__defineControl__("showLonLines", "bit", showLonLines, {});
 
 __defineControl__("locate", "btn", "1");
 
