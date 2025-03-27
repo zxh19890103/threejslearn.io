@@ -289,7 +289,7 @@ Units:
     Planet.Lines = new THREE.Line(
       new THREE.BufferGeometry(),
       new THREE.LineBasicMaterial({
-        linewidth: 4,
+        linewidth: 1,
         vertexColors: true,
         transparent: true,
         linecap: "round",

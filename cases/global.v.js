@@ -1,8 +1,6 @@
 // @ts-nocheck
 var __main__ = null;
-var __dev__ = (clsN) => {
-  document.querySelector(".Content")?.classList.toggle(clsN ?? "dev");
-};
+var __dev__ = () => {};
 var __info__ = null;
 var __contact__ = null;
 var __renderers__ = [];

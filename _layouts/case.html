@@ -14,23 +14,20 @@
 <body>
   <div class="BG"></div>
   <div class="Content" onclick="checkPanelClick(event)">
-    <div class="Menu" id="Menu" onclick="if(event.target.dataset.toggle) {this.classList.toggle('inview')}">
+    <div class="Menu" id="Menu">
       {% include menu.html %}
-      <div class="MenuButtons panel keep fixed white shadow">
-        <a href="javascript:void(0);" onclick="__dev__()" class="MenuButton Callapse">
-          <img src="/assets/images/icon-right.svg">
-        </a>
-        <a href="javascript:void(0);" onclick="__dev__()" class="MenuButton Expand">
-          <img src="/assets/images/icon-left.svg">
-        </a>
-        <a href="javascript:void(0);" onclick="__dev__('nopanel')" class="MenuButton">
-          <img src="/assets/images/icon-immerse.svg">
-        </a>
+      <div class="MenuButtons panel keep thin fixed white shadow">
         <a href="/" class="MenuButton">
           <img src="/assets/images/icon-home.svg">
         </a>
-        <a href="javascript:void(0);" data-toggle="1" class="MenuButton Toggle">
-          <img style="pointer-events: none;" src="/assets/images/icon-list.svg">
+        <a href="javascript:void(0);" onclick="__dev__('html')" class="MenuButton toggle-html">
+          <img src="/assets/images/icon-html.svg">
+        </a>
+        <a href="javascript:void(0);" onclick="__dev__('nopanel')" class="MenuButton toggle-nopanel">
+          <img src="/assets/images/icon-immerse.svg">
+        </a>
+        <a href="javascript:void(0);" onclick="__dev__('menu')" class="MenuButton toggle-menu">
+          <img src="/assets/images/icon-list.svg">
         </a>
       </div>
     </div>

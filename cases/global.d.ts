@@ -85,6 +85,7 @@ type UsePanelConfig = {
     | "left-bottom";
   width: number;
   lines: number;
+  nokeep?: boolean;
 };
 
 let __usePanel__: (cfg: UsePanelConfig) => void;

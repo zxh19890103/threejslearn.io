@@ -13,6 +13,11 @@ title: Fun-EarthMap
 <h3>📝 Git logs</h3>
 <div class="RuntsGitLogs">
 <pre>
+commit 481e0f96f177a1b291263938f98f99983ade1169
+Author: singhi <zhangxinghai79@gmail.com>
+Date:   Sat Mar 22 18:00:58 2025 +0800
+
+    earth map with google tiles.
 
 </pre>
 </div>

@@ -6,11 +6,14 @@ __usePanel__ = (cfg: UsePanelConfig) => {
   const container = document.querySelector("#SectionPgAppWrap");
 
   const panelDiv = document.createElement("div");
-  panelDiv.className = `panel panel-${cfg.placement}`;
+  panelDiv.className = `panel ${cfg.nokeep ? "" : "keep"} panel-${
+    cfg.placement
+  }`;
   panelDiv.style.cssText = `
   padding: 3px 0; 
+  box-sizing: content-box;
   width: ${width}px; 
-  height: ${height + 6}px; `;
+  height: ${height}px; `;
 
   const canvas = document.createElement("canvas");
 

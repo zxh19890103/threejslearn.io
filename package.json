@@ -13,7 +13,7 @@
     "postcc": "npm run gen",
     "gen": "node scripts/Gen",
     "predev": "npm run gen",
-    "dev": "jekyll serve --incremental --livereload --verbose & tsc --watch",
+    "dev": "jekyll serve --incremental --livereload --verbose --host 0.0.0.0 & tsc --watch",
     "prebuild": "npm run gen",
     "build": "jekyll build & tsc"
   },

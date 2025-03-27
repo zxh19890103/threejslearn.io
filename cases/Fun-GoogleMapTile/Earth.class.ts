@@ -126,6 +126,7 @@ export class Earth extends THREE.Mesh<
 
       let clickCount = 0;
       let isMoved = false;
+      let isUpCalled = false;
 
       const pMove = (event) => {
         isMoved = true;
@@ -154,22 +155,34 @@ export class Earth extends THREE.Mesh<
           pClick(event);
         } else if (clickCount === 2) {
           pDblClick(event);
+          console.log("dblclicked");
         }
 
         clickCount = 0;
         isMoved = false;
+        isUpCalled = false;
 
+        console.log("unlistened");
         domElement.removeEventListener("pointermove", pMove);
         domElement.removeEventListener("pointerup", pUp);
-        domElement.removeEventListener("pointerleave", pUp);
+        domElement.removeEventListener("pointerleave", pLeave);
       };
 
       let timeoutForReleaseEventListeners = -1;
 
-      const pUp = (event) => {
+      const pLeave = (event) => {
+        if (isUpCalled) return;
+        isUpCalled = true;
+        clickCount = 0;
+        releaseEventListeners(event);
+      };
+
+      const pUp = (event: PointerEvent) => {
+        if (isUpCalled) return;
+        isUpCalled = true;
+
         if (isMoved) {
           clickCount = 0;
-          // console.log("it's not a click action!");
           releaseEventListeners(event);
         } else {
           clickCount += 1;
@@ -183,9 +196,10 @@ export class Earth extends THREE.Mesh<
 
       const pDown = () => {
         if (clickCount === 0) {
+          console.log("listened");
           domElement.addEventListener("pointermove", pMove);
           domElement.addEventListener("pointerup", pUp);
-          domElement.addEventListener("pointerleave", pUp);
+          domElement.addEventListener("pointerleave", pLeave);
         } else {
           clearTimeout(timeoutForReleaseEventListeners);
         }

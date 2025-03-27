@@ -132,6 +132,7 @@ const $cDOM = (c: Control): HTMLDivElement => {
     const helptrigger = document.createElement("div");
     helptrigger.style.cssText = `width: 16px;
       height: 16px;
+      flex-shrink: 0;
       background-color: white;
       color: rgb(0, 0, 0);
       border-radius: 50%;

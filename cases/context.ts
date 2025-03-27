@@ -157,6 +157,9 @@ const bootstrap = () => {
       __main__(scene, camera, renderer);
       __updateTHREEJs__?.(null, null);
       __updateControlsDOM__?.();
+      __dev__ = (clsN: string) => {
+        document.querySelector(".Content")?.classList.toggle(clsN ?? "html");
+      };
     } else {
       setTimeout(check, 30);
     }
