@@ -15,7 +15,7 @@ $lg-screen-width: 1024px;
   display: block;
   color: #000;
   font-size: 1rem;
-  background-color: #fff;
+  background-color: rgba(255, 255, 255, 0.92);
   border-radius: 50%;
   border: 3px solid transparent;
   transition: color 0.1s linear;
@@ -32,6 +32,41 @@ $lg-screen-width: 1024px;
   flex-direction: row;
   flex-wrap: nowrap;
 
+  $toggles: "vr", "html", "menu", "nopanel";
+
+  .button-exit-vr {
+    cursor: pointer;
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 3rem;
+    height: 3rem;
+    line-height: 3rem;
+    text-align: center;
+    border-radius: 50%;
+    border: 1px solid #000;
+    background-color: #fff;
+  }
+
+  @each $toggle in $toggles {
+    &.#{$toggle} {
+      .toggle-#{$toggle} img {
+        border-color: skyblue;
+      }
+    }
+  }
+
+  &.vr {
+    .button-exit-vr {
+      display: block;
+    }
+
+    .panel {
+      display: none !important;
+    }
+  }
+
   &.html {
     .Explain {
       display: block;
@@ -41,23 +76,9 @@ $lg-screen-width: 1024px;
       flex: 0 0 auto;
       width: 50%;
     }
-
-    .toggle-html img {
-      border-color: skyblue;
-    }
-  }
-
-  &.nopanel {
-    .toggle-nopanel img {
-      border-color: skyblue;
-    }
   }
 
   &.menu {
-    .toggle-menu img {
-      border-color: skyblue;
-    }
-
     .Menu {
       top: 0;
     }
@@ -219,6 +240,7 @@ $lg-screen-width: 1024px;
   overflow: auto;
   padding: 1rem 2rem;
   box-sizing: border-box;
+  box-shadow: -1px 0 1px 0px rgba($color: #000000, $alpha: 0.2);
   background-color: white;
 
   @media screen and (max-width: $lg-screen-width) {
@@ -256,6 +278,7 @@ $lg-screen-width: 1024px;
   height: 100%;
   background-color: rgba(255, 255, 255, 0.98);
   color: black;
+  box-shadow: -1px 0 1px 0 rgba($color: #000000, $alpha: 0.1);
   transition: top 0.2s linear;
   font-size: 1rem;
 
@@ -355,6 +378,10 @@ $lg-screen-width: 1024px;
 
   &.fixed {
     position: fixed;
+  }
+
+  &.keep {
+    z-index: 99;
   }
 
   &.thin {

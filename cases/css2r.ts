@@ -10,14 +10,16 @@ export const __useCSS2Renderer__ = () => {
   const PgAppDiv = document.querySelector("#PgApp") as HTMLDivElement;
 
   __css2drenderer__ = new CSS2DRenderer({});
-  __css2drenderer__.setSize(PgAppDiv.clientWidth, PgAppDiv.clientHeight);
 
   __renderers__.push(__css2drenderer__);
 
   __css2drenderer__.domElement.style.position = "absolute";
   __css2drenderer__.domElement.style.top = "0px";
   __css2drenderer__.domElement.style.pointerEvents = "none";
+
   PgAppDiv.appendChild(__css2drenderer__.domElement);
+
+  return __css2drenderer__;
 };
 
 type CreateCss2dObjectForOptions = {

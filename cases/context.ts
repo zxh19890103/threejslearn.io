@@ -14,6 +14,27 @@ let renderer: THREE.WebGLRenderer;
 
 const tweenGroup = new tween.Group();
 
+const createCamera = () => {
+  const cam = new THREE.PerspectiveCamera(
+    __config__.camFov,
+    1 / 1,
+    __config__.camNear,
+    __config__.camFar
+  );
+
+  cam.position.set(...__config__.camPos);
+  cam.lookAt(0, 0, 0);
+  return cam;
+};
+
+const setCameraAspect = (camera: THREE.PerspectiveCamera) => {
+  const { width, height } = __viewport__;
+  const vW = isVrMode ? width / 2 : width;
+  const vH = height;
+  camera.aspect = vW / vH;
+  camera.updateProjectionMatrix();
+};
+
 const setup = () => {
   const element = document.querySelector("#PgApp")!;
 
@@ -21,14 +42,7 @@ const setup = () => {
   scene = new THREE.Scene();
 
   // Create a camera (Field of view, aspect ratio, near and far clipping plane)
-  camera = new THREE.PerspectiveCamera(
-    __config__.camFov,
-    1 / 1,
-    __config__.camNear,
-    __config__.camFar
-  );
-
-  camera.position.set(...__config__.camPos);
+  camera = createCamera();
 
   // Create a WebGLRenderer and attach it to the DOM
   renderer = new THREE.WebGLRenderer({ alpha: false, antialias: true });
@@ -41,19 +55,18 @@ const setup = () => {
   const whenClientViewResized = () => {
     const vW = element.clientWidth;
     const vH = element.clientHeight;
-
     __viewport__.width = vW;
     __viewport__.height = vH;
 
-    camera.aspect = vW / vH;
-    camera.updateProjectionMatrix();
+    setCameraAspect(camera);
 
     for (const r of __renderers__) r.setSize(vW, vH);
   };
 
   whenClientViewResized();
 
-  renderer.setClearColor(0x0d0f0e);
+  // 0x0d0f0e
+  renderer.setClearColor(__config__.background);
 
   const cameraCtrls = new OrbitControls(camera, renderer.domElement);
 
@@ -110,7 +123,10 @@ const setup = () => {
     tweenGroup.update();
 
     // Render the scene from the perspective of the camera
-    for (const k in __renderers__) __renderers__[k].render(scene, camera);
+    for (const k in __renderers__) {
+      const renderer = __renderers__[k] as THREE.WebGLRenderer;
+      renderer.render(scene, camera);
+    }
 
     stats.end();
   };
@@ -394,6 +410,14 @@ __contact__ = () => {
   document.querySelector("#Menu .MenuButtons").appendChild(button);
 };
 
+__fail__ = () => {
+  createDialog({
+    title: "Failed!",
+    width: 520,
+    content: `This is a failed project! 🙈`,
+  });
+};
+
 __relativeURL__ = (path: string) => {
   if (path.startsWith("/")) return path;
 
@@ -430,3 +454,60 @@ __createAnimation__ = (
 
   return t;
 };
+
+let isVrMode = false;
+__enter_vr__ = (event) => {
+  isVrMode = !isVrMode;
+
+  if (isVrMode) {
+    // turn on
+    document.querySelector(".Content").classList.add("vr");
+    enterFullscreen();
+  } else {
+    // turn off
+    document.querySelector(".Content").classList.remove("vr");
+    exitFullscreen();
+  }
+
+  setCameraAspect(camera);
+};
+
+// Function to trigger fullscreen mode on an element
+function enterFullscreen() {
+  const element = document.documentElement as any; // You can also use any other element like 'body' or 'canvas'
+
+  // Check if the Fullscreen API is supported and request fullscreen
+  if (element.requestFullscreen) {
+    element.requestFullscreen();
+  } else if (element.mozRequestFullScreen) {
+    // Firefox
+    element.mozRequestFullScreen();
+  } else if (element.webkitRequestFullscreen) {
+    // Chrome, Safari and Opera
+    element.webkitRequestFullscreen();
+  } else if (element.msRequestFullscreen) {
+    // IE/Edge
+    element.msRequestFullscreen();
+  } else {
+    console.log("Fullscreen API is not supported.");
+  }
+}
+
+// Function to exit fullscreen
+function exitFullscreen() {
+  const doc = document as any;
+  if (doc.exitFullscreen) {
+    doc.exitFullscreen();
+  } else if (doc.mozCancelFullScreen) {
+    // Firefox
+    doc.mozCancelFullScreen();
+  } else if (doc.webkitExitFullscreen) {
+    // Chrome, Safari, Opera
+    doc.webkitExitFullscreen();
+  } else if (doc.msExitFullscreen) {
+    // IE/Edge
+    doc.msExitFullscreen();
+  } else {
+    console.log("Fullscreen exit is not supported.");
+  }
+}

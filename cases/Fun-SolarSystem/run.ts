@@ -4,10 +4,7 @@
 
 import * as THREE from "three";
 import { mergeAttributes } from "three/addons/utils/BufferGeometryUtils.js";
-import {
-  CSS2DObject,
-  CSS2DRenderer,
-} from "three/addons/renderers/CSS2DRenderer.js";
+import { CSS2DObject } from "three/addons/renderers/CSS2DRenderer.js";
 import {
   BODY_BOOTSTRAP_STATE,
   BOOTSTRAP_STATE,
@@ -36,6 +33,7 @@ import {
   shouldSaveTrajectoryPosition,
   type MovingBody,
 } from "../Fun-EarthSatellites/gravity.js";
+import { __useCSS2Renderer__ } from "cases/css2r.js";
 
 //#region reactive
 __dev__();
@@ -103,17 +101,7 @@ If the observed data wasn’t available, I placed the bodies at their aphelion a
 `
   );
 
-  const PgAppDiv = renderer.domElement.parentElement as HTMLDivElement;
-
-  const css2drenderer = new CSS2DRenderer({});
-  css2drenderer.setSize(PgAppDiv.clientWidth, PgAppDiv.clientHeight);
-
-  __renderers__.push(css2drenderer);
-
-  css2drenderer.domElement.style.position = "absolute";
-  css2drenderer.domElement.style.top = "0px";
-  css2drenderer.domElement.style.pointerEvents = "none";
-  PgAppDiv.appendChild(css2drenderer.domElement);
+  const css2drenderer = __useCSS2Renderer__();
 
   const dispalyCanvasLegend = document.createElement("div");
   dispalyCanvasLegend.className = "panel panel-left-bottom";
@@ -427,8 +415,6 @@ Units:
       );
       __usePanel_write__(2, `screen date: ${_t_.toLocaleDateString()}`);
     }
-
-    css2drenderer.render(world, camera);
   });
 
   const _t_ = new Date();

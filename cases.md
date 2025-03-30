@@ -12,6 +12,7 @@ title: Cases
 - [Fun-FluidSimulation](/cases/Fun-FluidSimulation)
 - [Fun-GoogleMapTile](/cases/Fun-GoogleMapTile)
 - [Fun-SolarSystem](/cases/Fun-SolarSystem)
+- [Fun-SPHDensity](/cases/Fun-SPHDensity)
 - [Fun-SuperMerio](/cases/Fun-SuperMerio)
 - [Fun-Water](/cases/Fun-Water)
 - [Geometry-Circle](/cases/Geometry-Circle)

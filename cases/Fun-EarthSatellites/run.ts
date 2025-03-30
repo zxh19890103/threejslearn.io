@@ -41,7 +41,7 @@ __config__.camPos = [0, 0, 39];
 __main__ = (
   world: THREE.Scene,
   mainCam: THREE.PerspectiveCamera,
-  r_: THREE.WebGLRenderer
+  renderer: THREE.WebGLRenderer
 ) => {
   // your code
   __contact__();
@@ -265,7 +265,7 @@ VX= 5.909382360925806E-01 VY=-7.093990580913949E-01 VZ= 1.885182644823649E-01
   sunLight.position.set(AU, 0, 0);
   world.add(sunLight);
 
-  const raycast = useRayCast(mainCam);
+  const raycast = useRayCast(mainCam, renderer);
 
   createCss2dObjectFor(sunLight, "sun", {
     offset: 0,

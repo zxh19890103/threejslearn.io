@@ -71,6 +71,7 @@ type Config = {
   camFar: number;
   camNear: number;
   camPos: Vec3;
+  background: number;
 };
 
 type UsePanelConfig = {
@@ -100,6 +101,7 @@ const __renderers__: THREE.Renderer[];
 let __config__: Config;
 let __main__: MainFunc;
 let __dev__: (clsN?: string) => void;
+let __enter_vr__: (event: MouseEvent) => void;
 let __onControlsDOMChanged__iter__: (
   evalExp: string,
   k: string,
@@ -146,6 +148,7 @@ let __relativeURL__: (path: string) => string;
 
 let __info__: (md: string) => void;
 let __contact__: () => void;
+let __fail__: () => void;
 let __updateCameraControls__: (rotateSpeed: number, zoomSpeed: number) => void;
 
 interface CameraControls {

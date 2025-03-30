@@ -1,0 +1,332 @@
+
+const __main__2 = (
+  world: THREE.Scene,
+  camera: THREE.PerspectiveCamera,
+  renderer: THREE.WebGLRenderer
+) => {
+  __usePanel__({
+    width: 300,
+    lines: 4,
+    placement: "top",
+  });
+
+  __updateTHREEJs__only__.enableGrid = (val) => __3__.grid(val);
+  __updateTHREEJs__only__.enableAxes = (val) => __3__.axes(val);
+
+  const __v3__ = new THREE.Vector3();
+
+  const N = 200;
+  const h = 1;
+  const rhomin = 0.001;
+  const rho0 = 1;
+  const down: Vec3 = vec3.normalize([0, -1, 0]);
+  const box = new THREE.Box3();
+
+  /**
+   * the larger k is, the higher the pressure will be.
+   */
+  let k = 0.5;
+  /**
+   * the larger mu is, the higher the viscosity will be.
+   */
+  let mu = 2e-1;
+  /**
+   * the gravity!
+   */
+  let g = 9.81 * 0.1;
+  let dt = 0.016;
+
+  __onControlsDOMChanged__iter__ = (exp) => eval(exp);
+
+  __defineControl__("rotate", "btn", "R");
+
+  __defineControl__("k", "range", k, {
+    label: "k",
+    ...__defineControl__.rfloat(0.1, 1),
+  });
+
+  __defineControl__("mu", "range", mu, {
+    label: "mu",
+    ...__defineControl__.rfloat(0.01, 1),
+  });
+
+  __defineControl__("g", "range", g, {
+    label: "g",
+    ...__defineControl__.rfloat(0.1, 9.81),
+  });
+
+  __defineControl__("dt", "range", dt, {
+    label: "dt",
+    ...__defineControl__.rfloat(0.0016, 0.016),
+  });
+
+  const boundaryBox = new THREE.LineSegments(
+    new THREE.EdgesGeometry(new THREE.BoxGeometry(4, 2, 2)),
+    new THREE.LineBasicMaterial({ color: 0x000000 })
+  );
+
+  box.setFromObject(boundaryBox);
+
+  boundaryBox.rotateZ(45 * __3__.deg2rad);
+  world.add(boundaryBox);
+
+  const radPerFrame = 15 * __3__.deg2rad;
+  const deltaRotation = new THREE.Quaternion().setFromAxisAngle(
+    __3__.aZ,
+    radPerFrame
+  );
+
+  const rotateBox = () => {
+    Particles.forEach((i) => {
+      __v3__.set(...i.r);
+      boundaryBox.worldToLocal(__v3__);
+
+      const dV = new THREE.Vector3().crossVectors(
+        { x: 0, y: 0, z: radPerFrame },
+        { x: __v3__.x, y: __v3__.y, z: __v3__.z }
+      );
+
+      __v3__.applyQuaternion(deltaRotation);
+
+      boundaryBox.localToWorld(__v3__);
+      boundaryBox.localToWorld(dV);
+
+      vec3.copy(i.r, __v3__.toArray());
+      vec3.add(i.v, dV.toArray());
+    });
+
+    boundaryBox.applyQuaternion(deltaRotation);
+  };
+
+  __updateTHREEJs__invoke__.rotate = () => {
+    rotateBox();
+  };
+
+  const createParticle = (): Particle => {
+    const pos = __v3__.set(
+      Math.random() * 1,
+      Math.random() * 1,
+      Math.random() * 1
+    );
+
+    boundaryBox.localToWorld(pos);
+
+    return {
+      mass: 1 + Math.random() * 0.3,
+      rho: 0,
+      p: 0,
+      r: pos.toArray(),
+      v: [0, 0, 0],
+      a: [0, 0, 0],
+      velocity: 0,
+      pressure: [0, 0, 0],
+      viscosity: [0, 0, 0],
+    };
+  };
+
+  const Particles = Array(N)
+    .fill(0)
+    .map(() => {
+      return createParticle();
+    });
+
+  const computeDensity = () => {
+    for (const i of Particles) {
+      let rho = 0;
+
+      for (const j of Particles) {
+        if (i === j) continue;
+        rho += j.mass * Poly6Kernel(vec3.R(i.r, j.r), h);
+      }
+
+      i.rho = rho;
+      i.p = k * (rho - rho0);
+    }
+  };
+
+  const damping = 0.7;
+
+  const nextPosition = new THREE.Vector3();
+  const nextVelocity = new THREE.Vector3();
+  const currentVelocity = new THREE.Vector3();
+  const currentPosition = new THREE.Vector3();
+
+  const resolveCollisions = (i: Particle, p: Vec3, v: Vec3) => {
+    currentVelocity.set(...i.v);
+    currentPosition.set(...i.r);
+    boundaryBox.worldToLocal(currentVelocity);
+    boundaryBox.worldToLocal(currentPosition);
+
+    nextPosition.set(...p);
+    nextVelocity.set(...v);
+    boundaryBox.worldToLocal(nextPosition);
+    boundaryBox.worldToLocal(nextVelocity);
+
+    const { max, min } = box;
+    const { x, y, z } = nextPosition;
+
+    if (x <= min.x || x >= max.x) {
+      currentVelocity.x = -nextVelocity.x * damping;
+    } else {
+      currentPosition.x = x;
+      currentVelocity.x = nextVelocity.x;
+    }
+
+    if (y <= min.y || y >= max.y) {
+      currentVelocity.y = -nextVelocity.y * damping;
+    } else {
+      currentPosition.y = y;
+      currentVelocity.y = nextVelocity.y;
+    }
+
+    if (z <= min.z || z >= max.z) {
+      currentVelocity.z = -nextVelocity.z * damping;
+    } else {
+      currentPosition.z = z;
+      currentVelocity.z = nextVelocity.z;
+    }
+
+    boundaryBox.localToWorld(currentPosition);
+    boundaryBox.localToWorld(currentVelocity);
+
+    vec3.copy(i.r, currentPosition.toArray());
+    vec3.copy(i.v, currentVelocity.toArray());
+  };
+
+  function injectTurbulence(strength: number, center: Vec3, radius: number) {
+    for (const i of Particles) {
+      // Inject random turbulence in all directions
+      if (vec3.R(center, i.r) <= radius) {
+        const tx = (Math.random() - 0.5) * strength;
+        const ty = (Math.random() - 0.5) * strength;
+        const tz = (Math.random() - 0.5) * strength;
+        // Optionally, add decay over time or apply turbulence in localized regions
+        vec3.add(i.v, [tx, ty, tz]);
+      }
+    }
+  }
+
+  const computeAcceleration = () => {
+    for (const i of Particles) {
+      i.pressure = [0, 0, 0];
+      i.viscosity = [0, 0, 0];
+      i.a = vec3.setLength(vec3.clone(down), g);
+
+      if (i.rho < rhomin) continue;
+
+      for (const j of Particles) {
+        if (i === j) continue;
+        if (j.rho < rhomin) continue;
+
+        const r = vec3.R(i.r, j.r);
+
+        const influence0 = vec3.setLength(
+          vec3.dR(i.r, j.r),
+          (i.p / Math.pow(i.rho, 2) + j.p / Math.pow(j.rho, 2)) *
+            SpikyKernelGradient(r, h) *
+            j.mass
+        );
+        vec3.add(i.pressure, influence0);
+
+        const influence1 = vec3.multiplyScalar(
+          vec3.dR(i.v, j.v),
+          (mu * W_viscosity(r, h) * j.mass) / j.rho
+        );
+
+        vec3.add(i.viscosity, influence1);
+      }
+
+      vec3.add(i.a, i.pressure);
+      vec3.add(i.a, i.viscosity);
+    }
+  };
+
+  const move = () => {
+    const p: Vec3 = [0, 0, 0];
+    const v: Vec3 = [0, 0, 0];
+    const dtSq_half = 0.5 * Math.pow(dt, 2);
+
+    for (const i of Particles) {
+      const a = i.a;
+
+      v[0] = i.v[0] + a[0] * dt;
+      v[1] = i.v[1] + a[1] * dt;
+      v[2] = i.v[2] + a[2] * dt;
+
+      p[0] = i.r[0] + i.v[0] * dt + a[0] * dtSq_half;
+      p[1] = i.r[1] + i.v[1] * dt + a[1] * dtSq_half;
+      p[2] = i.r[2] + i.v[2] * dt + a[2] * dtSq_half;
+
+      resolveCollisions(i, p, v);
+      i.velocity = vec3.length(i.v);
+    }
+  };
+
+  const ptsCloud = createPtsCloud([], 0x000000);
+  world.add(ptsCloud.thing);
+
+  const pressureForces = createVector3([], 0.1);
+  // world.add(pressureForces.thing);
+
+  const __color__ = new THREE.Color();
+  const generateColorByVelocity = (i: Particle) => {
+    const r = Math.min(1, i.velocity);
+    const b = 1 - r;
+    return [r, 0, b];
+  };
+
+  const updateUI = () => {
+    ptsCloud.update(
+      Particles.flatMap((i) => i.r),
+      Particles.flatMap((i) => generateColorByVelocity(i))
+    );
+
+    const vectors = Particles.map((i) => {
+      return [
+        {
+          o: i.r,
+          dir: i.pressure,
+          color: 0xfe1090,
+        },
+        {
+          o: i.r,
+          dir: i.v,
+          color: 0x0100f2,
+        },
+        {
+          o: i.r,
+          dir: i.viscosity,
+          color: 0x01fe09,
+        },
+      ];
+    });
+  };
+
+  let added = false;
+  __updateTHREEJs__invoke__.move = () => {
+    if (added) return;
+    __add_nextframe_fn__(() => {
+      iter();
+    });
+    added = true;
+  };
+
+  const iter = () => {
+    computeDensity();
+    computeAcceleration();
+    move();
+    updateUI();
+  };
+};
+
+type Particle = {
+  mass: number;
+  rho: number;
+  r: Vec3;
+  v: Vec3;
+  velocity: number;
+  p: number;
+  a: Vec3;
+  pressure: Vec3;
+  viscosity: Vec3;
+};

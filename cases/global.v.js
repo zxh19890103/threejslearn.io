@@ -1,6 +1,8 @@
 // @ts-nocheck
 var __main__ = null;
 var __dev__ = () => {};
+var __enter_vr__ = () => {};
+var __fail__ = () => {};
 var __info__ = null;
 var __contact__ = null;
 var __renderers__ = [];
@@ -22,6 +24,7 @@ var __config__ = {
   camNear: 0.1,
   camFar: Number.MAX_SAFE_INTEGER,
   camPos: [0, 0, 10],
+  background: 0x000000,
 };
 
 var __viewport__ = {

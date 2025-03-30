@@ -2,11 +2,14 @@ import * as THREE from "three";
 
 let raycaster: THREE.Raycaster;
 let camera: THREE.PerspectiveCamera;
-let domElement: HTMLDivElement;
+let domElement: HTMLCanvasElement;
 
-export const useRayCast = (_camera: THREE.PerspectiveCamera) => {
+export const useRayCast = (
+  _camera: THREE.PerspectiveCamera,
+  _renderer: THREE.WebGLRenderer
+) => {
   camera = _camera;
-  domElement = document.querySelector("#PgApp");
+  domElement = _renderer.domElement as HTMLCanvasElement;
   raycaster = new THREE.Raycaster();
 
   const mouse = new THREE.Vector2();

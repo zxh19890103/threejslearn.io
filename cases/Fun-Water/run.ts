@@ -32,6 +32,7 @@ __main__ = (
 ) => {
   // your code
 
+  __fail__();
   __updateTHREEJs__only__.enableGrid = (val) => __3__.grid(val);
   __updateTHREEJs__only__.enableAxes = (val) => __3__.axes(val);
 
