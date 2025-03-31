@@ -23,7 +23,7 @@ __updateControlsDOM__ = () => {
 //#endregion
 
 __config__.camPos = [0, 3, 7];
-__config__.background = 0xffffff;
+// __config__.background = 0x000000;
 
 __main__ = (
   world: THREE.Scene,
@@ -57,37 +57,47 @@ __main__ = (
   };
 
   __updateTHREEJs__invoke__.rotate = () => {
-    fluid.boundary.rotate([0, 1, 1], 10);
-    fluid.particles.forEach((i) => {
-      fluid.boundary.moveChild(i);
+    fluid.boundary.rotate([0, 0, 1], 6);
+    fluid.each((r: Vec3, v: Vec3) => {
+      fluid.boundary.affectAfterRotation(r, v);
     });
   };
 
-  const fluid = new ParticleCloud();
-
-  /**
-   * @todo wrong way
-   */
-  fluid.buildBoundary([1, 0, 1], 4, 3, 3);
-
-  const iter = () => {
-    fluid.computeRho();
-    fluid.computeAcc();
-    fluid.move();
-
-    fluid.render();
+  __updateTHREEJs__invoke__.move = () => {
+    fluid.boundary.move([0, -0.3, 0]);
+    fluid.each((r: Vec3, v: Vec3) => {
+      fluid.boundary.affectAfterMove(r, v);
+    });
   };
 
-  world.add(
-    fluid.cloud,
-    fluid.boundary.edge,
-    new THREE.Box3Helper(fluid.boundary.model, 0xfe9100)
-  );
+  __3__.dirLight(0xffffff, 2);
+  __3__.ambLight(0xffffff, 0.6);
 
-  // fluid.boundary.edge.updateMatrixWorld();
-  // fluid.boundary.edge.updateMatrix();
-  // fluid.boundary.edge.updateWorldMatrix(true, true);
+  const fluid = new ParticleCloud();
+  fluid.buildBoundary([0, 0, 0], 10, 10, 10);
+
+  const iter = () => {
+    // console.time("computeRho");
+    fluid.computeRhoV2();
+    // console.timeEnd("computeRho");
+    // fluid.computeForces();
+    // console.time("computeForcesV2");
+    fluid.computeForcesV2();
+    // console.timeEnd("computeForcesV2");
+    // fluid.move();
+    // console.time("moveV2");
+    fluid.moveV2();
+    // console.timeEnd("moveV2");
+
+    // fluid.render();
+    // fluid.renderV2();
+    fluid.renderMesh();
+    // fluid.renderMarchingCubes();
+  };
+
+  world.add(fluid.mesh, fluid.boundary.mesh);
 };
 
 __defineControl__("start", "btn", "1-");
 __defineControl__("rotate", "btn", "2-");
+__defineControl__("move", "btn", "3-");

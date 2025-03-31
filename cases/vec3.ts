@@ -69,6 +69,7 @@ const length = (v: Vec3) => {
 /**
  * the diff vec3
  * returns a new one
+ *
  * @param v1 from
  * @param v2 to
  */
@@ -171,7 +172,7 @@ export const chain = () => {
   return vec3;
 };
 
-const toVLike = (v: Vec3) => {
+const toV3Like = (v: Vec3) => {
   return {
     x: v[0],
     y: v[1],
@@ -179,9 +180,18 @@ const toVLike = (v: Vec3) => {
   };
 };
 
+const divideScalar = (v: Vec3, scalar: number) => {
+  v[0] /= scalar;
+  v[1] /= scalar;
+  v[2] /= scalar;
+
+  return v;
+};
+
 export const vec3 = {
+  divideScalar,
   chain,
-  toVLike,
+  toV3Like,
   isZero,
   zero,
   copy,

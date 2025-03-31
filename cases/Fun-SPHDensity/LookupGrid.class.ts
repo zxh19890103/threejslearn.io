@@ -1,18 +1,18 @@
 import * as THREE from "three";
+import { Boundary } from "./boundary.js";
+import { vec3 } from "cases/vec3.js";
 
 const { floor, abs } = Math;
 
 export class LookUpGrid3D {
-  readonly center: THREE.Vector3;
   private unit: number = 0;
-  private min: THREE.Vector3;
-  private max: THREE.Vector3;
 
-  constructor(readonly box: THREE.Box3, unit: number) {
-    this.center = new THREE.Vector3();
-    box.getCenter(this.center);
-    this.min = new THREE.Vector3().copy(box.min);
-    this.max = new THREE.Vector3().copy(box.max);
+  readonly min: Vec3;
+  readonly max: Vec3;
+
+  constructor(readonly b: Boundary, unit: number) {
+    this.min = b.min;
+    this.max = b.max;
     this.unit = unit;
   }
 
@@ -21,9 +21,9 @@ export class LookUpGrid3D {
   }
 
   private getGridIndex(i: Vec3): Vec3 {
-    const ix = floor((i[0] - this.min.x) / this.unit);
-    const iy = floor((i[1] - this.min.y) / this.unit);
-    const iz = floor((i[2] - this.min.z) / this.unit);
+    const ix = floor((i[0] - this.min[0]) / this.unit);
+    const iy = floor((i[1] - this.min[1]) / this.unit);
+    const iz = floor((i[2] - this.min[2]) / this.unit);
     return [ix, iy, iz];
   }
 

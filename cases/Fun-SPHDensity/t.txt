@@ -330,3 +330,240 @@ type Particle = {
   pressure: Vec3;
   viscosity: Vec3;
 };
+
+
+============
+
+  computeForces() {
+    const g = vec3.setLength(vec3.clone(config.down), config.variables.g);
+
+    let n = 0;
+    // console.time("computeForces");
+
+    for (const i of this.particles) {
+      i.force = vec3.multiplyScalar([...g], i.mass);
+      if (i.rho < config.rhomin) continue;
+
+      for (const ji of i.neighbours) {
+        const j = this.particles[ji];
+        if (j.rho < config.rhomin) continue;
+        if (Object.hasOwn(this.computationCache, `${i.$i}-${j.$i}`)) {
+          vec3.add(i.force, this.computationCache[`${i.$i}-${j.$i}`]);
+          continue;
+        }
+
+        const r = i.dist(j);
+
+        const pressure = vec3.setLength(
+          i.rTo(j),
+          i.mass *
+            (i.p_over_rhoSq + j.p_over_rhoSq) *
+            SpikyKernelGradient(r, config.h) *
+            j.mass
+        );
+
+        const viscosity = vec3.multiplyScalar(
+          i.dV(j),
+          config.variables.mu *
+            W_viscosity(r, config.h) *
+            i.mass_over_rho *
+            j.mass_over_rho
+        );
+
+        const twoforces: Vec3 = vec3.sum(pressure, viscosity);
+
+        vec3.add(i.force, twoforces);
+        this.computationCache[`${j.$i}-${i.$i}`] = vec3.negate(twoforces);
+
+        n++;
+      }
+    }
+
+    this.computationCache = {};
+
+    // console.log("computing times:", n, pow(config.N - 1, 2));
+    // console.timeEnd("computeForces");
+  }
+
+========
+
+
+
+  resolveCollisions(i: Particle, Pto: Vec3, Vto: Vec3) {
+    const Pi = i.position;
+    const Vi = i.velocity;
+
+    const { max, min } = this.boundary;
+
+    for (let dim = 0; dim < 3; dim++) {
+      if (Pto[dim] <= min[dim] || Pto[dim] >= max[dim]) {
+        Vi[dim] = -Vto[dim] * config.damping;
+      } else {
+        Pi[dim] = Pto[dim];
+        Vi[dim] = Vto[dim];
+      }
+    }
+  }
+
+
+  ====
+
+
+    move() {
+    const dt = config.variables.dt;
+
+    const pTo: Vec3 = [0, 0, 0];
+    const vTo: Vec3 = [0, 0, 0];
+    const dtSq_half = 0.5 * Math.pow(dt, 2);
+
+    for (const i of this.particles) {
+      const a: Vec3 = [
+        i.force[0] / i.mass,
+        i.force[1] / i.mass,
+        i.force[2] / i.mass,
+      ];
+
+      vTo[0] = i.velocity[0] + a[0] * dt;
+      vTo[1] = i.velocity[1] + a[1] * dt;
+      vTo[2] = i.velocity[2] + a[2] * dt;
+
+      pTo[0] = i.position[0] + i.velocity[0] * dt + a[0] * dtSq_half;
+      pTo[1] = i.position[1] + i.velocity[1] * dt + a[1] * dtSq_half;
+      pTo[2] = i.position[2] + i.velocity[2] * dt + a[2] * dtSq_half;
+
+      this.resolveCollisions(i, pTo, vTo);
+      i.velocityScalar = vec3.length(i.velocity);
+    }
+  }
+
+  ====
+
+
+  render() {
+    const colorAttrib = this.cloud.geometry.attributes.color;
+    const positionAttrib = this.cloud.geometry.attributes.position;
+    const count = positionAttrib.count;
+    const particles = this.particles;
+
+    let particle: Particle = null;
+    let position: Vec3 = [0, 0, 0];
+
+    for (let i = 0; i < count; i++) {
+      particle = particles[i];
+      position = [...particle.position];
+      this.boundary.localToWorld(position);
+      positionAttrib.setXYZ(i, position[0], position[1], position[2]);
+      colorAttrib.setXYZ(i, 1, 0, 1);
+    }
+
+    colorAttrib.needsUpdate = true;
+    positionAttrib.needsUpdate = true;
+  }
+
+
+===
+
+  computeRho() {
+    const lookupGrid = this.lookupGrid;
+
+    this.pMax = Number.NEGATIVE_INFINITY;
+    this.pMin = Number.POSITIVE_INFINITY;
+    this.rhoAvg = 0;
+
+    for (const i of this.particles) {
+      let rho = 0;
+
+      i.neighbours = [];
+
+      for (const j of this.particles) {
+        if (i === j) continue;
+
+        if (lookupGrid.isNeighbourhood(i.position, j.position)) {
+          i.neighbours.push(j.$i);
+          rho += j.mass * Poly6Kernel(i.dist(j), config.h);
+        }
+      }
+
+      i.rho = rho;
+      i.pressure = config.variables.k * (i.rho - config.rho0);
+
+      if (rho >= config.rhomin) {
+        i.p_over_rhoSq = i.pressure / pow(rho, 2);
+        i.mass_over_rho = i.mass / rho;
+      } else {
+        //
+      }
+
+      this.rhoAvg += rho;
+
+      if (this.pMax < i.pressure) this.pMax = i.pressure;
+      if (this.pMin > i.pressure) this.pMin = i.pressure;
+    }
+
+    this.rhoAvg /= config.N;
+
+    // console.timeEnd("computeRho");
+
+    __usePanel_write__(0, `avg rho: ${this.rhoAvg.toFixed(3)}`);
+    __usePanel_write__(1, `pmin: ${this.pMin.toFixed(3)}`);
+    __usePanel_write__(2, `pmax: ${this.pMax.toFixed(3)}`);
+  }
+
+  ===
+
+  class Particle {
+  neighbours: number[];
+  mass: number = 0;
+
+  velocity: Vec3 = [0, 0, 0];
+  position: Vec3 = [0, 0, 0];
+  force: Vec3 = [0, 0, 0];
+
+  rho: number = 0;
+  pressure: number = 0;
+  velocityScalar: number = 0;
+
+  p_over_rhoSq: number;
+  mass_over_rho: number;
+
+  constructor(readonly $i: number, position: Vec3, mass: number) {
+    vec3.copy(this.position, position);
+    this.mass = mass;
+  }
+
+  /**
+   * position `r(j) - r(this)`
+   */
+  rTo(j: Particle): Vec3 {
+    return [
+      j.position[0] - this.position[0],
+      j.position[1] - this.position[1],
+      j.position[2] - this.position[2],
+    ];
+  }
+
+  /**
+   * diff of velocity: `v(j) - v(this)`
+   */
+  dV(j: Particle): Vec3 {
+    return [
+      j.velocity[0] - this.velocity[0],
+      j.velocity[1] - this.velocity[1],
+      j.velocity[2] - this.velocity[2],
+    ];
+  }
+
+  dir(j: Particle): Vec3 {
+    const dx = j.position[0] - this.position[0];
+    const dy = j.position[1] - this.position[1];
+    const dz = j.position[2] - this.position[2];
+    const mag = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    return [dx / mag, dy / mag, dz / mag];
+  }
+
+  dist(j: Particle) {
+    const [x, y, z] = this.position;
+    const [x1, y1, z1] = j.position;
+    return Math.sqrt(pow(x - x1, 2) + pow(y - y1, 2) + pow(z - z1, 2));
+  }
+}
