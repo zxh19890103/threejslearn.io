@@ -12,6 +12,9 @@ let scene: THREE.Scene;
 let camera: THREE.PerspectiveCamera;
 let renderer: THREE.WebGLRenderer;
 
+let renderer_right: THREE.WebGLRenderer;
+
+const elementPgApp = document.querySelector("#PgApp")!;
 const tweenGroup = new tween.Group();
 
 const createCamera = () => {
@@ -29,15 +32,25 @@ const createCamera = () => {
 
 const setCameraAspect = (camera: THREE.PerspectiveCamera) => {
   const { width, height } = __viewport__;
-  const vW = isVrMode ? width / 2 : width;
-  const vH = height;
-  camera.aspect = vW / vH;
+  camera.aspect = width / height;
   camera.updateProjectionMatrix();
 };
 
-const setup = () => {
-  const element = document.querySelector("#PgApp")!;
+const whenClientViewResized = () => {
+  const vW = isVrMode ? elementPgApp.clientWidth / 2 : elementPgApp.clientWidth;
+  const vH = elementPgApp.clientHeight;
 
+  __viewport__.width = vW;
+  __viewport__.height = vH;
+
+  setCameraAspect(camera);
+
+  for (const r of __renderers__.active) {
+    r.setSize(vW, vH);
+  }
+};
+
+const setup = () => {
   // Create the scene
   scene = new THREE.Scene();
 
@@ -48,25 +61,15 @@ const setup = () => {
   renderer = new THREE.WebGLRenderer({ alpha: false, antialias: true });
   renderer.setPixelRatio(window.devicePixelRatio); // 避免模糊
 
-  __renderers__.push(renderer);
+  renderer_right = new THREE.WebGLRenderer({ alpha: false, antialias: true });
+  renderer_right.setPixelRatio(window.devicePixelRatio); // 避免模糊
 
-  element.appendChild(renderer.domElement);
+  __renderers__.push(renderer, renderer_right);
 
-  const whenClientViewResized = () => {
-    const vW = element.clientWidth;
-    const vH = element.clientHeight;
-    __viewport__.width = vW;
-    __viewport__.height = vH;
-
-    setCameraAspect(camera);
-
-    for (const r of __renderers__) r.setSize(vW, vH);
-  };
+  elementPgApp.appendChild(renderer.domElement);
+  // elementPgApp.appendChild(renderer_right.domElement);
 
   whenClientViewResized();
-
-  // 0x0d0f0e
-  renderer.setClearColor(__config__.background);
 
   const cameraCtrls = new OrbitControls(camera, renderer.domElement);
 
@@ -101,7 +104,7 @@ const setup = () => {
 
     stats.begin();
 
-    renderer.clearColor();
+    for (const r of __renderers__.active) r.clearColor?.();
 
     const delta = clock.getDelta();
     cameraCtrls.update(delta);
@@ -123,10 +126,7 @@ const setup = () => {
     tweenGroup.update();
 
     // Render the scene from the perspective of the camera
-    for (const k in __renderers__) {
-      const renderer = __renderers__[k] as THREE.WebGLRenderer;
-      renderer.render(scene, camera);
-    }
+    for (const r of __renderers__.active) r.render(scene, camera);
 
     stats.end();
   };
@@ -141,7 +141,7 @@ const setup = () => {
 
   const debounced_whenClientViewResized = debounce(whenClientViewResized);
 
-  new ResizeObserver(debounced_whenClientViewResized).observe(element, {
+  new ResizeObserver(debounced_whenClientViewResized).observe(elementPgApp, {
     box: "border-box",
   });
 
@@ -190,7 +190,7 @@ setTimeout(bootstrap);
  * __3__
  */
 {
-  const deaultLightDir = new THREE.Vector3(0, 0, 1);
+  const deaultLightDir: Vec3 = [0, 1, 0];
 
   const Utils = {
     ambLight: (
@@ -203,10 +203,14 @@ setTimeout(bootstrap);
     dirLight: (
       c: THREE.ColorRepresentation = 0xffffff,
       intensity: number = 0.6,
-      direction: THREE.Vector3 = deaultLightDir
+      direction: Vec3 = deaultLightDir
     ) => {
       const light = new THREE.DirectionalLight(c, intensity);
-      light.position.copy(direction);
+
+      light.target.position.set(0, 0, 0);
+      light.position
+        .set(-direction[0], -direction[1], -direction[2])
+        .setLength(Number.MAX_SAFE_INTEGER);
 
       scene.add(light);
       return {
@@ -455,6 +459,20 @@ __createAnimation__ = (
   return t;
 };
 
+__renderers__.push = (...renderers: any[]) => {
+  Array.prototype.push.call(__renderers__, ...renderers);
+
+  renderers.forEach((renderer) => {
+    // 0x0d0f0e
+    renderer.setClearColor?.(__config__.background);
+  });
+
+  __renderers__.active = __renderers__.filter((r, i) => {
+    return isVrMode ? true : i % 2 === 0;
+  });
+  return renderers.length;
+};
+
 let isVrMode = false;
 __enter_vr__ = (event) => {
   isVrMode = !isVrMode;
@@ -463,13 +481,28 @@ __enter_vr__ = (event) => {
     // turn on
     document.querySelector(".Content").classList.add("vr");
     enterFullscreen();
+
+    __renderers__.active = __renderers__;
+    __renderers__.forEach((r) => {
+      elementPgApp.appendChild(r.domElement);
+    });
   } else {
     // turn off
     document.querySelector(".Content").classList.remove("vr");
     exitFullscreen();
+
+    __renderers__.active = __renderers__.filter((r, i) => {
+      if (i % 2 === 0) {
+        return true;
+      } else {
+        r.domElement.remove();
+        return false;
+      }
+    });
   }
 
   setCameraAspect(camera);
+  whenClientViewResized();
 };
 
 // Function to trigger fullscreen mode on an element
@@ -510,4 +543,8 @@ function exitFullscreen() {
   } else {
     console.log("Fullscreen exit is not supported.");
   }
+}
+
+function isTouchDevice() {
+  return "maxTouchPoints" in navigator && navigator.maxTouchPoints > 0;
 }

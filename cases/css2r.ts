@@ -5,19 +5,28 @@ import {
 import * as THREE from "three";
 
 export let __css2drenderer__: CSS2DRenderer = null;
+export let __css2drenderer_right__: CSS2DRenderer = null;
 
 export const __useCSS2Renderer__ = () => {
   const PgAppDiv = document.querySelector("#PgApp") as HTMLDivElement;
 
   __css2drenderer__ = new CSS2DRenderer({});
+  __css2drenderer_right__ = new CSS2DRenderer({});
 
-  __renderers__.push(__css2drenderer__);
+  __renderers__.push(__css2drenderer__, __css2drenderer_right__);
 
   __css2drenderer__.domElement.style.position = "absolute";
   __css2drenderer__.domElement.style.top = "0px";
+  __css2drenderer_right__.domElement.style.left = "0";
   __css2drenderer__.domElement.style.pointerEvents = "none";
 
+  __css2drenderer_right__.domElement.style.position = "absolute";
+  __css2drenderer_right__.domElement.style.top = "0px";
+  __css2drenderer_right__.domElement.style.left = "50%";
+  __css2drenderer_right__.domElement.style.pointerEvents = "none";
+
   PgAppDiv.appendChild(__css2drenderer__.domElement);
+  // PgAppDiv.appendChild(__css2drenderer_right__.domElement);
 
   return __css2drenderer__;
 };
@@ -48,7 +57,8 @@ export const createCss2dObject = (
   textElement.style.color = options.color;
   textElement.style.fontSize = `${options.fontsize}px`;
   textElement.innerText = text;
-  return new CSS2DObject(textElement);
+  const obj = new CSS2DObject(textElement);
+  return obj;
 };
 
 export const createCss2dObjectFor = (

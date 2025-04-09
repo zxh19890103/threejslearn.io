@@ -47,7 +47,7 @@ __main__ = (
   // earth.rotateX(Math.PI);
   world.add(earth);
 
-  __3__.dirLight(0xffffff, 1, new THREE.Vector3(0, 1, 0.4));
+  __3__.dirLight(0xffffff, 1, [0, 1, 0.4]);
 
   // __add_nextframe_fn__(() => {
   //   earth.rotation.y += 0.001;

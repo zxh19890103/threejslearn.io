@@ -3,15 +3,23 @@ layout: case
 title: Fun-SuperMerio
 ---
 
+<h2>
+💬 Explanation
+<a href="#SectionExplainContent" onclick="document.querySelector('#SectionExplainContent').classList.toggle('hidden')">-/+</a>
+</h2>
+<div markdown="1" id="SectionExplainContent">
 {% include_relative _explain.md %}
+</div>
 
-<h3>📃 Source Code</h3>
+<h2>📃 Source Code</h2>
 <div>
 <a href="https://github.com/zxh19890103/threejslearn.io/tree/main/cases/Fun-SuperMerio" target="_blank">Go!</a>
 </div>
 
-<h3>📝 Git logs</h3>
-<div class="RuntsGitLogs">
+<h2>📝 Git logs
+<a href="#SectionRuntsGitLogs" onclick="document.querySelector('#SectionRuntsGitLogs').classList.toggle('hidden')">-/+</a>
+</h2>
+<div id="SectionRuntsGitLogs" class="RuntsGitLogs">
 <pre>
 commit a44316bea870b6a72c640e02636a03aab003f7bf
 Author: singhi <zhangxinghai79@gmail.com>

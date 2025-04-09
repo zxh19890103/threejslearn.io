@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SPH Fluid Simulation (10k Particles)</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: #222;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    canvas {
+      border: 1px solid #555;
+      background-color: #000;
+    }
+
+    #info {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      color: white;
+      font-family: sans-serif;
+      font-size: 12px;
+      background-color: rgba(0, 0, 0, 0.5);
+      padding: 5px;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="sphCanvas"></canvas>
+  <div id="info">Initializing...</div>
+
+  <script>
+    const canvas = document.getElementById('sphCanvas');
+    const ctx = canvas.getContext('2d');
+    const infoDiv = document.getElementById('info');
+
+    // --- Simulation Parameters ---
+    const NUM_PARTICLES = 700;
+    const WIDTH = 600;
+    const HEIGHT = 500;
+    canvas.width = WIDTH;
+    canvas.height = HEIGHT;
+
+    const H = 16.0;         // Smoothing radius (kernel radius)
+    const H2 = H * H;
+    const H6 = Math.pow(H, 6);
+    const H9 = Math.pow(H, 9);
+
+    const REST_DENSITY = 1000.0; // Rest density (kg/m^3 - conceptual)
+    const GAS_CONSTANT = 2000.0; // Controls pressure stiffness
+    const VISCOSITY = 200.0;     // Viscosity coefficient
+    const PARTICLE_MASS = 0.02;  // Mass of each particle
+    const DT = 0.007;        // Time step (decrease for stability, increase for speed)
+    const GRAVITY_Y = 9.81 * 120; // Adjusted gravity
+    const BOUND_DAMPING = -0.5; // Velocity damping on boundary collision
+
+    // Precalculated kernel constants
+    const POLY6_COEFF = 315.0 / (64.0 * Math.PI * H9);
+    const SPIKY_GRAD_COEFF = -45.0 / (Math.PI * H6);
+    const VISC_LAP_COEFF = 45.0 / (Math.PI * H6);
+
+    // --- Particle Data Structure ---
+    // Using separate arrays for potentially better cache locality, though objects are simpler
+    const particles = [];
+    function createParticle(x, y) {
+      return {
+        x: x, y: y,         // Position
+        px: x, py: y,       // Previous position (for Verlet integration if used, or simple velocity calc)
+        vx: 0, vy: 0,         // Velocity
+        fx: 0, fy: 0,         // Force accumulator
+        density: 0,
+        pressure: 0,
+        neighbors: []       // Array to store indices of neighbors
+      };
+    }
+
+    // --- Spatial Grid ---
+    const grid = {};
+    const gridCellSize = H; // Cell size equal to smoothing radius is common
+    const gridWidth = Math.ceil(WIDTH / gridCellSize);
+    const gridHeight = Math.ceil(HEIGHT / gridCellSize);
+
+    function getGridCoords(x, y) {
+      return {
+        x: Math.max(0, Math.min(gridWidth - 1, Math.floor(x / gridCellSize))),
+        y: Math.max(0, Math.min(gridHeight - 1, Math.floor(y / gridCellSize)))
+      };
+    }
+
+    function getGridKey(gridX, gridY) {
+      return `${gridX},${gridY}`;
+    }
+
+    function buildSpatialGrid() {
+      // Clear grid
+      for (const key in grid) {
+        delete grid[key];
+      }
+      // Add particles to grid
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
+        const coords = getGridCoords(p.x, p.y);
+        const key = getGridKey(coords.x, coords.y);
+        if (!grid[key]) {
+          grid[key] = [];
+        }
+        grid[key].push(i); // Store particle *index*
+      }
+    }
+
+    function findNeighbors(particleIndex) {
+      const p = particles[particleIndex];
+      p.neighbors = []; // Clear previous neighbors
+      const centerCoords = getGridCoords(p.x, p.y);
+
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          const checkX = centerCoords.x + dx;
+          const checkY = centerCoords.y + dy;
+          const key = getGridKey(checkX, checkY);
+
+          if (grid[key]) {
+            for (const neighborIndex of grid[key]) {
+              if (neighborIndex === particleIndex) continue; // Don't compare with self
+
+              const n = particles[neighborIndex];
+              const diffX = p.x - n.x;
+              const diffY = p.y - n.y;
+              const distSq = diffX * diffX + diffY * diffY;
+
+              // If within smoothing radius, add as neighbor
+              if (distSq < H2) {
+                p.neighbors.push({ index: neighborIndex, distSq: distSq, dx: diffX, dy: diffY });
+              }
+            }
+          }
+        }
+      }
+    }
+
+
+    // --- SPH Kernels ---
+    function poly6Kernel(distSq) {
+      if (distSq >= H2) return 0.0;
+      const diff = H2 - distSq;
+      return POLY6_COEFF * diff * diff * diff;
+    }
+
+    function spikyKernelGradient(dist, diffX, diffY) {
+      if (dist === 0 || dist >= H) return { x: 0, y: 0 };
+      const factor = SPIKY_GRAD_COEFF * Math.pow(H - dist, 2) / dist;
+      return { x: diffX * factor, y: diffY * factor };
+    }
+
+    function viscosityKernelLaplacian(dist) {
+      if (dist >= H) return 0.0;
+      return VISC_LAP_COEFF * (H - dist);
+    }
+
+    // --- SPH Simulation Steps ---
+    function calculateDensityPressure() {
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
+        p.density = 0;
+        findNeighbors(i); // Find neighbors for this particle
+
+        // Include self-contribution to density
+        p.density += PARTICLE_MASS * poly6Kernel(0);
+
+        for (const neighborInfo of p.neighbors) {
+          p.density += PARTICLE_MASS * poly6Kernel(neighborInfo.distSq);
+        }
+
+        // Clamp density to avoid issues
+        p.density = Math.max(p.density, REST_DENSITY * 0.1); // Avoid division by zero or negative pressure
+
+        // Calculate pressure using Tait's equation (simplified)
+        p.pressure = GAS_CONSTANT * (p.density - REST_DENSITY);
+        p.pressure = Math.max(0, p.pressure); // Pressure should not be negative
+      }
+    }
+
+    function calculateForces() {
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
+        let pressureForceX = 0;
+        let pressureForceY = 0;
+        let viscosityForceX = 0;
+        let viscosityForceY = 0;
+
+        for (const neighborInfo of p.neighbors) {
+          const n = particles[neighborInfo.index];
+          const dist = Math.sqrt(neighborInfo.distSq);
+
+          // Pressure Force
+          const pressureTerm = PARTICLE_MASS * (p.pressure + n.pressure) / (2 * n.density); // Use neighbor density here
+          const grad = spikyKernelGradient(dist, neighborInfo.dx, neighborInfo.dy);
+          pressureForceX -= pressureTerm * grad.x;
+          pressureForceY -= pressureTerm * grad.y;
+
+          // Viscosity Force
+          const viscLap = viscosityKernelLaplacian(dist);
+          const velDiffX = n.vx - p.vx;
+          const velDiffY = n.vy - p.vy;
+          const viscosityTerm = VISCOSITY * PARTICLE_MASS / n.density * viscLap;
+          viscosityForceX += viscosityTerm * velDiffX;
+          viscosityForceY += viscosityTerm * velDiffY;
+        }
+
+        // Gravity Force
+        const gravityForceY = PARTICLE_MASS * GRAVITY_Y;
+
+        // Total Force
+        p.fx = pressureForceX + viscosityForceX;
+        p.fy = pressureForceY + viscosityForceY + gravityForceY;
+      }
+    }
+
+    function integrate() {
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
+
+        // Simple Euler Integration
+        // Calculate acceleration a = F/m (or F/rho using density for m)
+        const accX = p.fx / p.density; // Using density instead of mass m
+        const accY = p.fy / p.density;
+
+        // Update velocity
+        p.vx += accX * DT;
+        p.vy += accY * DT;
+
+        // Update position
+        p.x += p.vx * DT;
+        p.y += p.vy * DT;
+
+        // Boundary collisions
+        if (p.x < 0) {
+          p.x = 0;
+          p.vx *= BOUND_DAMPING;
+        } else if (p.x > WIDTH) {
+          p.x = WIDTH;
+          p.vx *= BOUND_DAMPING;
+        }
+        if (p.y < 0) {
+          p.y = 0;
+          p.vy *= BOUND_DAMPING;
+        } else if (p.y > HEIGHT) {
+          p.y = HEIGHT;
+          p.vy *= BOUND_DAMPING;
+        }
+      }
+    }
+
+    // --- Rendering ---
+    function drawParticles() {
+      ctx.clearRect(0, 0, WIDTH, HEIGHT);
+      ctx.fillStyle = 'rgba(100, 150, 255, 0.7)'; // Semi-transparent blue
+
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
+        ctx.beginPath();
+        // Draw slightly smaller circles for performance/visual clarity
+        ctx.arc(p.x, p.y, H * 0.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // --- Initialization ---
+    function initSimulation() {
+      console.log("Initializing " + NUM_PARTICLES + " particles...");
+      const particlesPerRow = Math.ceil(Math.sqrt(NUM_PARTICLES * (WIDTH / (HEIGHT * 0.5)))); // Adjust aspect ratio
+      const spacing = H * 0.7; // Initial spacing slightly less than H
+      const startX = WIDTH * 0.1;
+      const startY = HEIGHT * 0.1;
+      let count = 0;
+
+      for (let y = 0; count < NUM_PARTICLES; y++) {
+        for (let x = 0; x < particlesPerRow && count < NUM_PARTICLES; x++) {
+          const jitterX = (Math.random() - 0.5) * spacing * 0.1;
+          const jitterY = (Math.random() - 0.5) * spacing * 0.1;
+          const px = startX + x * spacing + jitterX;
+          const py = startY + y * spacing + jitterY;
+          // Ensure particles start within bounds slightly
+          if (px < WIDTH * 0.9 && py < HEIGHT * 0.5) {
+            particles.push(createParticle(px, py));
+            count++;
+          }
+        }
+      }
+      console.log("Actual particles created: " + particles.length);
+      if (particles.length === 0) {
+        console.error("Failed to create any particles. Check initialization logic and parameters.");
+        infoDiv.textContent = "Error: No particles created.";
+        return false; // Stop if no particles
+      }
+      return true; // Initialization successful
+    }
+
+    // --- Animation Loop ---
+    let lastTime = 0;
+    let frameCount = 0;
+    let fps = 0;
+
+    function animate(currentTime) {
+      const deltaTime = (currentTime - lastTime) / 1000.0 || 0.016; // Time since last frame in seconds
+      lastTime = currentTime;
+
+      // Calculate FPS (smoothed)
+      frameCount++;
+      if (frameCount % 10 === 0) { // Update FPS reading every 10 frames
+        fps = 1.0 / deltaTime;
+      }
+      infoDiv.textContent = `Particles: ${particles.length} | FPS: ${fps.toFixed(1)}`;
+
+
+      // --- Simulation Steps ---
+      buildSpatialGrid();
+      calculateDensityPressure();
+      calculateForces();
+      integrate();
+
+      // --- Rendering ---
+      drawParticles();
+
+      requestAnimationFrame(animate);
+    }
+
+    // --- Start ---
+    if (initSimulation()) {
+      console.log('in')
+      requestAnimationFrame(animate);
+    }
+
+  </script>
+</body>
+
+</html>

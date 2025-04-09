@@ -68,14 +68,15 @@
             <text x="-65" y="65" fill="blue">Z</text>
           </svg>
         </div>
-        <h2>🖥️ Code</h2>
-        <div class="language-ts highlighter-rouge rounded">
+        {{ content }}
+        <h2>🖥️ Code
+          <a href="#SectionTsCode" onclick="document.querySelector('#SectionTsCode').classList.toggle('hidden')">-/+</a>
+        </h2>
+        <div id="SectionTsCode" class="language-ts highlighter-rouge rounded">
           <div class="highlight">
             <pre class="highlight" id="TsCode">loading...</pre>
           </div>
         </div>
-        <h2>💬 Explanation</h2>
-        <div id="SectionExplainContent">{{ content }}</div>
       </div>
     </div>
   </div>

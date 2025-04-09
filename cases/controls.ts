@@ -57,7 +57,26 @@ const $onchange = (event: Event) => {
       break;
     }
     case "btn": {
-      __updateTHREEJs__invoke__[$key]?.(input.value);
+      if (__updateTHREEJs__invoke__[$key]) {
+        if ($meta4ctrl.perf) {
+          input.disabled = true;
+          input.style.cursor = "wait";
+          setTimeout(() => {
+            const label = `perf:${$key}`;
+            console.time(label);
+            __updateTHREEJs__invoke__[$key](input.value);
+            console.timeEnd(label);
+            input.disabled = false;
+            input.style.cursor = "pointer";
+            // 30ms the browser can have the style change applied.
+          }, 30);
+        } else {
+          __updateTHREEJs__invoke__[$key](input.value);
+        }
+      }
+      /**
+       * returns since the following code does nothing to do with button.
+       */
       return;
     }
     default: {
@@ -250,7 +269,7 @@ const $cDOM = (c: Control): HTMLDivElement => {
         if (c.valueType === "int") {
           text.innerText = value + "";
         } else {
-          text.innerText = value.toFixed(2);
+          text.innerText = value.toFixed(c.fixed);
         }
       };
 
@@ -270,7 +289,7 @@ const $cDOM = (c: Control): HTMLDivElement => {
       const input = document.createElement("input");
       input.name = c.name;
       input.type = "button";
-      input.value = "sig:" + c.value;
+      input.value = "🚀";
       input.$meta4ctrl = c;
       input.onclick = $onchange;
       div.appendChild(input);
@@ -329,7 +348,9 @@ __defineControl__ = (<T>(
     label: name,
     name,
     type,
+    fixed: 2,
     eval: true,
+    perf: false,
     ...extras,
     value: iniVal ?? null,
   };

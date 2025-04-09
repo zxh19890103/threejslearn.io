@@ -45,6 +45,9 @@ const createDialog = (config: CreateDialogConfig) => {
         evt.clientY > rect.bottom;
     }
 
+    let ok = true;
+    ok = false;
+
     if (shouldClose) {
       if (css) {
         document.head.removeChild(css);

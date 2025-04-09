@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Falling Ball with Damping (Three.js)</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+
+        // --- Scene Setup ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87ceeb); // Sky blue background
+
+        // --- Camera Setup ---
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 6, 15); // Position the camera
+        camera.lookAt(0, 0, 0);      // Look at the center of the scene
+
+        // --- Renderer Setup ---
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // --- Lighting ---
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); // Soft white light
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(5, 10, 7.5);
+        scene.add(directionalLight);
+
+        // --- Ball Object ---
+        const ballRadius = 0.5;
+        const ballGeometry = new THREE.SphereGeometry(ballRadius, 32, 32);
+        const ballMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 }); // Red color
+        const ball = new THREE.Mesh(ballGeometry, ballMaterial);
+        ball.position.set(0, 8, 0); // Initial position (high up)
+        scene.add(ball);
+
+        // --- Ground (invisible, for collision detection) ---
+        const groundLevel = 0; // Y position of the ground
+
+        // --- Physics Variables ---
+        const gravity = new THREE.Vector3(0, -0.02, 0); // Acceleration due to gravity per frame
+        const velocity = new THREE.Vector3(0, 0, 0);    // Initial velocity
+        const damping = 0.6;                            // Energy loss on bounce (0 to 1)
+        const epsilon = 0.05; // Small threshold to stop bouncing when velocity is very low
+
+        // --- Animation Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // 1. Apply Gravity
+            velocity.add(gravity);
+
+            // 2. Update Position
+            ball.position.add(velocity);
+
+            // 3. Collision Detection & Response (Ground)
+            // Check if the bottom of the ball hits or goes below the ground level
+            if (ball.position.y - ballRadius <= groundLevel) {
+                // Correct position to be exactly on the ground
+                ball.position.y = groundLevel + ballRadius;
+
+                // Reverse the y-velocity
+                velocity.y *= -1;
+
+                // Apply Damping
+                velocity.y *= damping;
+
+                // Stop bouncing if velocity is very small to prevent jittering
+                if (Math.abs(velocity.y) < epsilon) {
+                     velocity.y = 0;
+                     // Ensure it rests exactly on the ground if stopped
+                     ball.position.y = groundLevel + ballRadius;
+                }
+            }
+
+            // Render the scene
+            renderer.render(scene, camera);
+        }
+
+        // --- Handle Window Resize ---
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }, false);
+
+        // --- Start Animation ---
+        animate();
+
+    </script>
+</body>
+</html>

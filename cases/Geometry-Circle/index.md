@@ -3,15 +3,23 @@ layout: case
 title: Geometry-Circle
 ---
 
+<h2>
+💬 Explanation
+<a href="#SectionExplainContent" onclick="document.querySelector('#SectionExplainContent').classList.toggle('hidden')">-/+</a>
+</h2>
+<div markdown="1" id="SectionExplainContent">
 {% include_relative _explain.md %}
+</div>
 
-<h3>📃 Source Code</h3>
+<h2>📃 Source Code</h2>
 <div>
 <a href="https://github.com/zxh19890103/threejslearn.io/tree/main/cases/Geometry-Circle" target="_blank">Go!</a>
 </div>
 
-<h3>📝 Git logs</h3>
-<div class="RuntsGitLogs">
+<h2>📝 Git logs
+<a href="#SectionRuntsGitLogs" onclick="document.querySelector('#SectionRuntsGitLogs').classList.toggle('hidden')">-/+</a>
+</h2>
+<div id="SectionRuntsGitLogs" class="RuntsGitLogs">
 <pre>
 commit 33d53fe68795a68c699d0ff65686ae42807a1ff6
 Author: singhi <zhangxinghai79@gmail.com>

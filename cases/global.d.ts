@@ -19,13 +19,20 @@ interface Control<T extends ControlValueType = any> {
   $el?: HTMLDivElement;
   value?: T;
   valueType?: ControlValueType;
+  fixed?: number;
   options?: ControlOption<T>[];
   min?: number;
   max?: number;
   /**
-   * default: true
+   * @default true
    */
   eval?: boolean;
+  /** turn on performace monitor by calling console.time/
+   *
+   * only if the control is with type of `invoke`.
+   * @default false
+   */
+  perf?: boolean;
   help?: string;
   helpWidth?: number;
   type: ControlType;
@@ -96,7 +103,7 @@ let __add_nextframe_fn__: (fn: NextFrameFn, per?: number) => number;
 let __remove_nextframe_fn__: (id: number) => void;
 
 const JekyllEnv: "development" | "production";
-const __renderers__: THREE.Renderer[];
+const __renderers__: THREE.Renderer[] & { active: THREE.Renderer[] };
 
 let __config__: Config;
 let __main__: MainFunc;
@@ -178,7 +185,7 @@ type ThreeObjects = {
   dirLight: (
     c?: THREE.ColorRepresentation,
     intensity?: number,
-    direction?: THREE.Vector3
+    direction?: Vec3
   ) => { helper: (size: number, color: number) => void };
   ptLight: (
     c?: THREE.ColorRepresentation,
@@ -229,6 +236,7 @@ type ThreeObjects = {
   rad2deg: number;
 };
 
+type Dim = 1 | 2 | 3 | 4;
 type Vec2 = [number, number];
 type Vec2Like = { x: number; y: number };
 type Vec3 = [number, number, number];
@@ -297,4 +305,10 @@ namespace SunCalc {
 
   const getTimes: (dt: Date, lat: number, lon: number) => GetTimesRes;
   const getPosition: (dt: Date, lat: number, lon: number) => GetPositionRes;
+}
+
+declare class Noise {
+  constructor(seed: number): Noise;
+  perlin3(x: number, y: number, z: number): any;
+  simplex3(x: number, y: number, z: number): any;
 }

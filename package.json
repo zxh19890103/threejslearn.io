@@ -24,6 +24,7 @@
     "@types/big.js": "^6.2.2",
     "@types/three": "^0.173.0",
     "@types/tween.js": "^18.6.1",
+    "acorn": "^8.14.1",
     "katex": "^0.16.21"
   }
 }

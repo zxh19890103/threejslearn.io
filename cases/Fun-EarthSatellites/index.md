@@ -3,16 +3,30 @@ layout: case
 title: Fun-EarthSatellites
 ---
 
+<h2>
+💬 Explanation
+<a href="#SectionExplainContent" onclick="document.querySelector('#SectionExplainContent').classList.toggle('hidden')">-/+</a>
+</h2>
+<div markdown="1" id="SectionExplainContent">
 {% include_relative _explain.md %}
+</div>
 
-<h3>📃 Source Code</h3>
+<h2>📃 Source Code</h2>
 <div>
 <a href="https://github.com/zxh19890103/threejslearn.io/tree/main/cases/Fun-EarthSatellites" target="_blank">Go!</a>
 </div>
 
-<h3>📝 Git logs</h3>
-<div class="RuntsGitLogs">
+<h2>📝 Git logs
+<a href="#SectionRuntsGitLogs" onclick="document.querySelector('#SectionRuntsGitLogs').classList.toggle('hidden')">-/+</a>
+</h2>
+<div id="SectionRuntsGitLogs" class="RuntsGitLogs">
 <pre>
+commit 25196032cd3a07bf99ec63cba6d9067c68dd1b10
+Author: singhi <zhangxinghai79@gmail.com>
+Date:   Mon Mar 31 02:12:06 2025 +0800
+
+    ha
+
 commit 6d8b28511cbbf063b9a9fc0bb297154f2294cf8f
 Author: singhi <zhangxinghai79@gmail.com>
 Date:   Fri Mar 7 22:11:11 2025 +0800

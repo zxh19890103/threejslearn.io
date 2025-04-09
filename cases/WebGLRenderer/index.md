@@ -3,15 +3,23 @@ layout: case
 title: WebGLRenderer
 ---
 
+<h2>
+💬 Explanation
+<a href="#SectionExplainContent" onclick="document.querySelector('#SectionExplainContent').classList.toggle('hidden')">-/+</a>
+</h2>
+<div markdown="1" id="SectionExplainContent">
 {% include_relative _explain.md %}
+</div>
 
-<h3>📃 Source Code</h3>
+<h2>📃 Source Code</h2>
 <div>
 <a href="https://github.com/zxh19890103/threejslearn.io/tree/main/cases/WebGLRenderer" target="_blank">Go!</a>
 </div>
 
-<h3>📝 Git logs</h3>
-<div class="RuntsGitLogs">
+<h2>📝 Git logs
+<a href="#SectionRuntsGitLogs" onclick="document.querySelector('#SectionRuntsGitLogs').classList.toggle('hidden')">-/+</a>
+</h2>
+<div id="SectionRuntsGitLogs" class="RuntsGitLogs">
 <pre>
 commit 279899ae436571f92a6af2b6a9c819d029aaad06
 Author: sea <zhangxinghai19890103@hotmail.com>

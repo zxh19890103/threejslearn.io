@@ -14,8 +14,15 @@ export class Boundary {
   readonly edge: THREE.LineSegments;
   readonly model: THREE.Box3;
 
+  readonly bmin: Vec3;
+  readonly bmax: Vec3;
+
+  readonly emin: Vec3;
+  readonly emax: Vec3;
+
   readonly min: Vec3;
   readonly max: Vec3;
+
   readonly down: Vec3 = [0, -1, 0];
 
   private quaternionInvert: THREE.Quaternion = new THREE.Quaternion();
@@ -27,25 +34,30 @@ export class Boundary {
       new THREE.BoxGeometry(args.width, args.height, args.depth),
       new THREE.MeshStandardMaterial({
         color: 0x01fe90,
+        visible: false,
         transparent: true,
-        opacity: 0.6, // 調整透明度
+        opacity: 0.2, // 調整透明度
         depthWrite: false,
       })
     );
 
     const edge = new THREE.LineSegments(
       new THREE.EdgesGeometry(mesh.geometry),
-      new THREE.LineBasicMaterial({ color: 0xffffff })
+      new THREE.LineBasicMaterial({ visible: true, color: 0x000000 })
     );
 
+    // set before the mesh moves, so the box is static in the local state.
     box.setFromObject(mesh);
 
     mesh.position.set(...args.center);
 
-    box.expandByScalar(-config.ballradius);
-
     this.max = box.max.toArray();
     this.min = box.min.toArray();
+
+    box.expandByScalar(-config.ballradius);
+
+    this.bmax = box.max.toArray();
+    this.bmin = box.min.toArray();
 
     this.edge = edge;
     this.mesh = mesh;
@@ -141,23 +153,58 @@ export class Boundary {
     localPosition[2] = this.vector3.z;
   }
 
-  getRandomWorldPosition(): Vec3 {
-    const { min, max } = this;
-    const local: Vec3 = [
-      min[0] + (max[0] - min[0]) * Math.random(),
-      min[1] + (max[1] - min[1]) * Math.random(),
-      min[2] + (max[2] - min[2]) * Math.random(),
-    ];
-    this.localToWorld(local);
-    return local;
+  arrange(
+    each: (i: number, x: number, y: number, z: number) => void,
+    n: number,
+    gap: number,
+    size: Vec3
+  ) {
+    const [width, height, depth] = size;
+    const dV = vec3.normalize(size);
+    const vol = dV[0] + dV[1] + dV[2];
+
+    const nX = Math.ceil(Math.pow(n, dV[0] / vol));
+    const nY = Math.ceil(Math.pow(n, dV[1] / vol));
+    const nZ = Math.ceil(Math.pow(n, dV[2] / vol));
+
+    const gapX = Math.min(gap, width / nX);
+    const gapY = Math.min(gap, height / nY);
+    const gapZ = Math.min(gap, depth / nZ);
+
+    const tx = (-gapX * nX) / 2;
+    const ty = -(gapY * nY) / 2;
+    const tz = (-gapZ * nZ) / 2;
+
+    console.log(nX, nY, nZ);
+    console.log(gapX, gapY, gapZ, gap);
+
+    let i = 0;
+    let px = 0;
+    let py = 0;
+    let pz = 0;
+
+    for (let x = 0; x < nX; x++) {
+      for (let y = 0; y < nY; y++) {
+        for (let z = 0; z < nZ; z++) {
+          if (i === n) return;
+
+          px = tx + (x + 0.5) * gapX;
+          py = ty + (y + 0.5) * gapY;
+          pz = tz + (z + 0.5) * gapZ;
+
+          each(i, px, py, pz);
+
+          i++;
+        }
+      }
+    }
   }
 
-  getRandomLocalPosition(): Vec3 {
-    const { min, max } = this;
-    return [
-      0.3 * (min[0] + (max[0] - min[0]) * Math.random()),
-      0.3 * (min[1] + (max[1] - min[1]) * Math.random()),
-      0.3 * (min[2] + (max[2] - min[2]) * Math.random()),
-    ];
+  getRandomLocalPosition(P: Vec3): Vec3 {
+    const { bmin: min, bmax: max } = this;
+    P[0] = min[0] + (max[0] - min[0]) * Math.random();
+    P[1] = min[1] + (max[1] - min[1]) * Math.random();
+    P[2] = min[2] + (max[2] - min[2]) * Math.random();
+    return P;
   }
 }

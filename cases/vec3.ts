@@ -120,6 +120,13 @@ const add = (v1: Vec3, v2: Vec3): Vec3 => {
   return v1;
 };
 
+const addScalar = (v: Vec3, scalar: number) => {
+  v[0] += scalar;
+  v[1] += scalar;
+  v[2] += scalar;
+  return v;
+};
+
 /**
  * create a new one
  */
@@ -188,8 +195,16 @@ const divideScalar = (v: Vec3, scalar: number) => {
   return v;
 };
 
+const ceil = (v: Vec3) => {
+  v[0] = Math.ceil(v[0]);
+  v[1] = Math.ceil(v[1]);
+  v[2] = Math.ceil(v[2]);
+  return v;
+};
+
 export const vec3 = {
   divideScalar,
+  ceil,
   chain,
   toV3Like,
   isZero,
@@ -199,6 +214,7 @@ export const vec3 = {
   normalize,
   lengthSq,
   add,
+  addScalar,
   multiply,
   sum,
   sub,
