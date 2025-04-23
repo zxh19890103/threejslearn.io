@@ -21,12 +21,6 @@ export class ParticleCloud {
   readonly vArray = new Float32ArrayVec3(config.N);
   /** particle's force */
   readonly fArray = new Float32ArrayVec3(config.N);
-  /**
-   * grid key (coordinates) for each particle
-   */
-  readonly keyArray = new Float32ArrayVec3(config.N);
-
-  readonly sharedArray = new Float32ArrayVec3(32);
 
   cloud: THREE.Points;
   mesh: THREE.InstancedMesh<THREE.SphereGeometry, THREE.MeshPhongMaterial>;
@@ -135,6 +129,11 @@ export class ParticleCloud {
     }
   }
 
+  buildLookupGrid() {
+    this.lookupGrid.buildKeyArray(this.rArray);
+    this.lookupGrid.buildGrid();
+  }
+
   renderBalls() {
     const N = config.N;
     const { pow } = Math;
@@ -155,7 +154,7 @@ export class ParticleCloud {
       const r = alpha;
       const b = 1 - alpha;
 
-      color.setRGB(r, 0, b);
+      color.setRGB(r, b, 0);
       mesh.setColorAt(i, color);
     }
 
@@ -202,54 +201,21 @@ export class ParticleCloud {
   private pMin: number = -1;
   private rhoAvg = 0;
   private velocityMax: number = 0;
-  private sharingGridKey: Vec3 = [0, 0, 0];
   private computeRhoForPi: Vec3 = [0, 0, 0];
 
-  buildKeyArray = () => {
-    const { N } = config;
-    const { rArray, lookupGrid, keyArray } = this;
-
-    const min: Vec3 = [Infinity, Infinity, Infinity];
-    const max: Vec3 = [-Infinity, -Infinity, -Infinity];
-
-    rArray.iter((i, x, y, z) => {
-      if (min[0] > x) min[0] = x;
-      if (min[1] > y) min[1] = y;
-      if (min[2] > z) min[2] = z;
-
-      if (max[0] < x) max[0] = x;
-      if (max[1] < y) max[1] = y;
-      if (max[2] < z) max[2] = z;
-    });
-
-    vec3.addScalar(min, -config.h);
-    vec3.addScalar(max, config.h);
-
-    lookupGrid.setSpace(min, max);
-
-    const pi: Vec3 = [0, 0, 0];
-    const ki: Vec3 = [0, 0, 0];
-
-    for (let i = 0; i < N; i += 1) {
-      rArray.get(i, pi);
-      lookupGrid.getGridKey(pi, ki);
-      keyArray.set(i, ...ki);
-    }
-  };
-
   findNeighbors = () => {
+    const lookupGrid = this.lookupGrid;
     for (let i = 0; i < config.N; i++) {
-      this.lookupGrid.getPossibleNeighbors(i, this.keyArray);
+      lookupGrid.getPossibleNeighborsOfPartice(i);
     }
   };
 
   computeRhoFor = (P: Vec3) => {
-    const { lookupGrid, sharingGridKey: sharingGridkey } = this;
+    const { lookupGrid } = this;
 
     let rho = 0;
 
-    lookupGrid.getGridKey(P, sharingGridkey);
-    const size = lookupGrid.getPossibleNeighborsByK2(sharingGridkey);
+    const size = lookupGrid.getPossibleNeighborsByPosition(P);
 
     for (let k = 0; k < size; k++) {
       const i = lookupGrid.neighbors[k];
@@ -272,7 +238,6 @@ export class ParticleCloud {
       p_over_rhoSqArray,
       mass_over_rhoArray,
       lookupGrid,
-      keyArray,
       rArray,
     } = this;
 
@@ -285,10 +250,10 @@ export class ParticleCloud {
 
     for (i = 0; i < N; i += 1) {
       rho = 0;
-      keyArray.get(i, this.sharingGridKey);
+      let offset = i * lookupGrid.neighborsInOneDimensions[0];
+      const size = lookupGrid.neighborsInOne[offset];
 
-      const offset = i * N;
-      const size = lookupGrid.neighborsInOne[offset + N - 1];
+      offset++;
 
       for (let k = 0; k < size; k += 1) {
         const j = lookupGrid.neighborsInOne[offset + k];
@@ -325,47 +290,36 @@ export class ParticleCloud {
   computeForce = () => {
     const { N } = config;
 
-    const gravity = vec3.multiplyScalar(
-      [...this.boundary.down],
-      config.variables.g
-    );
-
     const {
       rArray,
       vArray,
       fArray,
       lookupGrid,
       massArray,
-      sharedArray,
       p_over_rhoSqArray,
       mass_over_rhoArray,
     } = this;
 
-    sharedArray.reset();
-    const G$ = sharedArray.alloc();
-    const Pi$ = sharedArray.alloc();
-    const Vi$ = sharedArray.alloc();
-    const Fi$ = sharedArray.alloc();
+    const Pi: Vec3 = [0, 0, 0];
+    const Pj: Vec3 = [0, 0, 0];
+    const dPij: Vec3 = [0, 0, 0];
+    const Vi: Vec3 = [0, 0, 0];
+    const Vj: Vec3 = [0, 0, 0];
+    const dVij: Vec3 = [0, 0, 0];
 
-    const Pj$ = sharedArray.alloc();
-    const dPij$ = sharedArray.alloc();
-    const Vj$ = sharedArray.alloc();
-    const dVij$ = sharedArray.alloc();
-    const Fij0$ = sharedArray.alloc();
-    const Fij1$ = sharedArray.alloc();
-
-    sharedArray.set(G$, ...gravity);
+    const Fi: Vec3 = [0, 0, 0];
 
     let scalar = 0;
 
     for (let i = 0; i < N; i += 1) {
-      sharedArray.zero(Fi$);
+      vec3.zero(Fi);
 
-      sharedArray.assign(Pi$, i, rArray);
-      sharedArray.assign(Vi$, i, vArray);
+      rArray.get(i, Pi);
+      vArray.get(i, Vi);
 
-      const offset = i * N;
-      const size = lookupGrid.neighborsInOne[offset + N - 1];
+      let offset = i * lookupGrid.neighborsInOneDimensions[0];
+      const size = lookupGrid.neighborsInOne[offset];
+      offset++;
 
       for (let k = 0; k < size; k++) {
         const j = lookupGrid.neighborsInOne[offset + k];
@@ -374,11 +328,11 @@ export class ParticleCloud {
         const r = rArray.r(i, j);
         if (r >= config.h) continue;
 
-        sharedArray.assign(Pj$, j, rArray);
-        sharedArray.assign(Vj$, j, vArray);
+        rArray.get(j, Pj);
+        vArray.get(j, Vj);
 
-        sharedArray.dir(Pi$, Pj$, dPij$);
-        sharedArray.dir(Vi$, Vj$, dVij$);
+        rArray.dir(i, j).give(dPij);
+        vArray.dir(i, j).give(dVij);
 
         scalar =
           (massArray[i] *
@@ -387,7 +341,8 @@ export class ParticleCloud {
             massArray[j]) /
           r;
 
-        sharedArray.mutiplyScalar(dPij$, scalar, Fij0$);
+        vec3.multiplyScalar(dPij, scalar);
+        vec3.add(Fi, dPij);
 
         scalar =
           config.variables.mu *
@@ -395,31 +350,19 @@ export class ParticleCloud {
           mass_over_rhoArray[i] *
           mass_over_rhoArray[j];
 
-        sharedArray.mutiplyScalar(dVij$, scalar, Fij1$);
-
-        sharedArray.add(Fi$, Fij0$);
-        sharedArray.add(Fi$, Fij1$);
+        vec3.multiplyScalar(dVij, scalar);
+        vec3.add(Fi, dVij);
       }
 
-      sharedArray.add(Fi$, G$);
-      fArray.assign(i, Fi$, sharedArray);
+      fArray.setV3(i, Fi);
     }
   };
 
-  resolveCollisions = (
-    i: number,
-    p0: number,
-    v0: number,
-    p2: number,
-    v2: number
-  ) => {
-    const { sharedArray, rArray, vArray } = this;
-    const { bmax: max, bmin: min } = this.boundary;
+  obstacle: Obstacle;
 
-    const P0 = sharedArray.get(p0);
-    const V0 = sharedArray.get(v0);
-    const P2 = sharedArray.get(p2);
-    const V2 = sharedArray.get(v2);
+  resolveCollisions = (i: number, P0: Vec3, V0: Vec3, P2: Vec3, V2: Vec3) => {
+    const { rArray, vArray } = this;
+    const { bmax: max, bmin: min } = this.boundary;
 
     for (let dim = 0; dim < 3; dim += 1) {
       let x = P0[dim];
@@ -429,52 +372,59 @@ export class ParticleCloud {
       let _v = V2[dim];
 
       if (_x <= min[dim] || _x >= max[dim]) {
-        v = -v * config.damping;
+        vArray.setComponent(i, dim, -v * config.damping);
       } else {
-        x = _x;
-        v = _v;
+        rArray.setComponent(i, dim, _x);
+        vArray.setComponent(i, dim, _v);
       }
-
-      rArray.setComponent(i, dim, x);
-      vArray.setComponent(i, dim, v);
     }
   };
 
   move = () => {
-    const { rArray, fArray, vArray, sharedArray } = this;
+    const { rArray, fArray, vArray } = this;
     const { N } = config;
     const dt = config.variables.dt;
+
+    const gravity: Vec3 = vec3.multiplyScalar(
+      [...this.boundary.down],
+      config.variables.g
+    );
 
     const dtSq_half = 0.5 * pow(dt, 2);
 
     let velocityMax = Number.MIN_VALUE;
 
-    sharedArray.reset();
-    const A$ = sharedArray.alloc();
-    const P$ = sharedArray.alloc();
-    const Pto$ = sharedArray.alloc();
-    const V$ = sharedArray.alloc();
-    const Vto$ = sharedArray.alloc();
-    const T$ = sharedArray.alloc();
-    const T2$ = sharedArray.alloc();
+    const A: Vec3 = [0, 0, 0];
+    const P: Vec3 = [0, 0, 0];
+    const Pto: Vec3 = [0, 0, 0];
+    const V: Vec3 = [0, 0, 0];
+    const Vto: Vec3 = [0, 0, 0];
+    const T: Vec3 = [0, 0, 0];
+    const T2: Vec3 = [0, 0, 0];
 
     for (let i = 0; i < N; i += 1) {
       const m = this.rhoArray[i];
 
-      sharedArray.assign(A$, i, fArray);
-      sharedArray.divideScalar(A$, m);
+      fArray.mutiplyScalar(i, m, fArray._t).give(A);
 
-      sharedArray.assign(P$, i, rArray);
-      sharedArray.assign(V$, i, vArray);
+      vec3.add(A, gravity);
 
-      sharedArray.mutiplyScalar(V$, dt, T$);
-      sharedArray.mutiplyScalar(A$, dtSq_half, T2$);
-      sharedArray.sum(Pto$, P$, T$, T2$);
+      rArray.get(i, P);
+      vArray.get(i, V);
 
-      sharedArray.mutiplyScalar(A$, dt, T$);
-      sharedArray.add(V$, T$, Vto$);
+      vec3.multiplyScalar(vec3.copy(T, V), dt);
+      vec3.multiplyScalar(vec3.copy(T2, A), dtSq_half);
 
-      this.resolveCollisions(i, P$, V$, Pto$, Vto$);
+      Pto[0] = P[0] + T[0] + T2[0];
+      Pto[1] = P[1] + T[1] + T2[1];
+      Pto[2] = P[2] + T[2] + T2[2];
+
+      vec3.multiplyScalar(vec3.copy(T, A), dt);
+      Vto[0] = V[0] + T[0];
+      Vto[1] = V[1] + T[1];
+      Vto[2] = V[2] + T[2];
+
+      this.resolveCollisions(i, P, V, Pto, Vto);
 
       const velocityScalar = vArray.mag(i);
 
@@ -484,4 +434,59 @@ export class ParticleCloud {
     this.velocityMax = velocityMax;
     __usePanel_write__(4, `vmax: ${velocityMax.toFixed(3)}`);
   };
+}
+
+class Obstacle {
+  box: THREE.Box3;
+  sharing = new THREE.Vector3();
+
+  constructor(center: Vec3, size: number) {
+    this.box = new THREE.Box3().setFromCenterAndSize(
+      new THREE.Vector3(...center),
+      new THREE.Vector3(size, size, size)
+    );
+  }
+
+  hitTest(p: Vec3, v: Vec3) {
+    const sharing = this.sharing;
+
+    sharing.set(...p);
+
+    if (this.box.containsPoint(sharing)) {
+      // 找出哪個面被撞（簡化：只判斷最近的）
+      const normal = this.getBoxSurfaceNormal(sharing);
+
+      sharing.set(...v);
+
+      const reflected = sharing
+        .clone()
+        .sub(normal.clone().multiplyScalar(2 * sharing.dot(normal)));
+
+      vec3.copy(v, reflected.toArray());
+    }
+  }
+
+  // 這個函式粗略猜測碰到哪個面（你可以根據需求更精細處理）
+  getBoxSurfaceNormal(point) {
+    const box = this.box;
+    const epsilon = 0.001;
+    if (Math.abs(point.x - box.min.x) < epsilon)
+      return new THREE.Vector3(-1, 0, 0);
+    if (Math.abs(point.x - box.max.x) < epsilon)
+      return new THREE.Vector3(1, 0, 0);
+    if (Math.abs(point.y - box.min.y) < epsilon)
+      return new THREE.Vector3(0, -1, 0);
+    if (Math.abs(point.y - box.max.y) < epsilon)
+      return new THREE.Vector3(0, 1, 0);
+    if (Math.abs(point.z - box.min.z) < epsilon)
+      return new THREE.Vector3(0, 0, -1);
+    if (Math.abs(point.z - box.max.z) < epsilon)
+      return new THREE.Vector3(0, 0, 1);
+
+    return new THREE.Vector3(0, 1, 0); // 預設
+  }
+}
+
+class ObstaclePlane {
+  constructor() {}
 }

@@ -3,24 +3,28 @@ layout: case
 title: Fun-SPH
 ---
 
-<h2>
-💬 Explanation
+<h2>Explanation
 <a href="#SectionExplainContent" onclick="document.querySelector('#SectionExplainContent').classList.toggle('hidden')">-/+</a>
 </h2>
 <div markdown="1" id="SectionExplainContent">
 {% include_relative _explain.md %}
 </div>
 
-<h2>📃 Source Code</h2>
+<h2>Source Code</h2>
 <div>
 <a href="https://github.com/zxh19890103/threejslearn.io/tree/main/cases/Fun-SPH" target="_blank">Go!</a>
 </div>
 
-<h2>📝 Git logs
+<h2>Git logs
 <a href="#SectionRuntsGitLogs" onclick="document.querySelector('#SectionRuntsGitLogs').classList.toggle('hidden')">-/+</a>
 </h2>
 <div id="SectionRuntsGitLogs" class="RuntsGitLogs">
 <pre>
+commit c80d8a58de65051ab590d8aac5d449bafeb5ae3d
+Author: singhi <zhangxinghai79@gmail.com>
+Date:   Wed Apr 9 18:46:52 2025 +0800
+
+    sph
 
 </pre>
 </div>

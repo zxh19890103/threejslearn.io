@@ -7,6 +7,7 @@ import { ParticleCloud } from "./sph2.js";
 import * as config from "./config.js";
 import { MarchingCubes } from "cases/Shared/MarchingCubes.class.js";
 import { vec3 } from "cases/vec3.js";
+import { computeProperBoxSize } from "./config.js";
 
 let enableGrid = false;
 let enableAxes = false;
@@ -103,17 +104,47 @@ Below are the links to the key parts:
     });
   };
 
+  __updateTHREEJs__invoke__.step = () => {
+    _iter();
+  };
+
   __updateTHREEJs__only__.renderAs = (val) => {
-    if (!val) {
-      renderAs = "ball";
+    renderAs = val ?? "ball";
+
+    __renderControls__({ renderAs });
+
+    fluid.boundary.mesh.remove(_shape);
+
+    if (renderAs === "surface") {
+      _iter = iter;
+      _shape = marchingCubes.surface;
+    } else if (renderAs === "point") {
+      _iter = iter3;
+      _shape = fluid.cloud;
+    } else {
+      _iter = iter2;
+      _shape = fluid.mesh;
     }
+
+    fluid.boundary.mesh.add(_shape);
+
+    if (added !== -1) {
+      __remove_nextframe_fn__(added);
+      added = __add_nextframe_fn__(_iter);
+    }
+  };
+
+  __updateTHREEJs__only__.obstacle = (val) => {
+    console.log(val);
   };
 
   __3__.dirLight(0xffffff, 2, [0, 0, -1]);
   __3__.ambLight(0xffffff, 0.6);
 
   const fluid = new ParticleCloud();
-  fluid.buildBoundary([0, 0, 0], 10);
+  const size = computeProperBoxSize();
+  console.log("size = ", size);
+  fluid.buildBoundary([0, 0, 0], size);
 
   const resolution = 2;
   const marchingCubes = new MarchingCubes({
@@ -128,8 +159,7 @@ Below are the links to the key parts:
 
   // surface
   const iter = () => {
-    fluid.buildKeyArray();
-    fluid.lookupGrid.buildGrid(fluid.keyArray);
+    fluid.buildLookupGrid();
 
     console.time("findNeighers");
     fluid.findNeighbors();
@@ -151,18 +181,18 @@ Below are the links to the key parts:
 
   // ball
   const iter2 = () => {
-    fluid.buildKeyArray();
-    // console.time("buildGrid");
-    fluid.lookupGrid.buildGrid(fluid.keyArray);
-    // console.timeEnd("buildGrid");
+    // Quick
+    // console.time("buildKeyArray");
+    fluid.buildLookupGrid();
+    // console.timeEnd("buildKeyArray");
     fluid.renderGrid();
 
-    // console.time("findNeighers");
+    // Quick
+    // console.time("findNeighbors");
     fluid.findNeighbors();
-    // console.timeEnd("findNeighers");
+    // console.timeEnd("findNeighbors");
 
     fluid.renderBalls();
-    // fluid.renderCloud();
 
     // console.time("computeRho");
     fluid.computeRho();
@@ -175,10 +205,7 @@ Below are the links to the key parts:
 
   // points
   const iter3 = () => {
-    fluid.buildKeyArray();
-    // console.time("buildGrid");
-    fluid.lookupGrid.buildGrid(fluid.keyArray);
-    // console.timeEnd("buildGrid");
+    fluid.buildLookupGrid();
     fluid.renderGrid();
 
     // console.time("findNeighers");
@@ -197,18 +224,15 @@ Below are the links to the key parts:
   };
 
   let _iter = iter2;
+  let _shape: THREE.Object3D = fluid.mesh;
 
-  fluid.boundary.mesh.add(
-    fluid.mesh,
-    fluid.cloud,
-    marchingCubes.surface,
-    fluid.lookupGridLines
-  );
+  fluid.boundary.mesh.add(fluid.mesh, fluid.lookupGridLines);
 
   world.add(fluid.boundary.mesh);
 };
 
 let renderAs = "ball";
+let obstacle: "ball" | "cube" = null;
 
 __defineControl__("renderAs", "enum", renderAs, {
   valueType: "string",
@@ -227,10 +251,17 @@ __defineControl__("renderAs", "enum", renderAs, {
     },
   ],
 });
+__defineControl__("obstacle", "enum", obstacle, {
+  valueType: "string",
+  options: [
+    { label: "ball", value: "ball" },
+    { label: "cube", value: "cube" },
+  ],
+});
 __defineControl__("start", "btn", "1-");
 __defineControl__("rotate", "btn", "2-");
 __defineControl__("move", "btn", "3-");
-// __defineControl__("march", "btn", "4-", { perf: true });
+__defineControl__("step", "btn", "4-", { perf: true });
 
 __defineControl__("config.variables.k", "range", config.variables.k, {
   label: "k",

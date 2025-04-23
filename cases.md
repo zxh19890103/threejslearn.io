@@ -13,6 +13,7 @@ title: Cases
 - [Fun-GoogleMapTile](/cases/Fun-GoogleMapTile)
 - [Fun-SolarSystem](/cases/Fun-SolarSystem)
 - [Fun-SPH](/cases/Fun-SPH)
+- [Fun-SPHSahder](/cases/Fun-SPHSahder)
 - [Fun-SuperMerio](/cases/Fun-SuperMerio)
 - [Fun-Water](/cases/Fun-Water)
 - [Geometry-Circle](/cases/Geometry-Circle)

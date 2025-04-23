@@ -34,9 +34,9 @@ export class Boundary {
       new THREE.BoxGeometry(args.width, args.height, args.depth),
       new THREE.MeshStandardMaterial({
         color: 0x01fe90,
-        visible: false,
+        visible: true,
         transparent: true,
-        opacity: 0.2, // 調整透明度
+        opacity: 0.1, // 調整透明度
         depthWrite: false,
       })
     );
@@ -175,8 +175,8 @@ export class Boundary {
     const ty = -(gapY * nY) / 2;
     const tz = (-gapZ * nZ) / 2;
 
-    console.log(nX, nY, nZ);
-    console.log(gapX, gapY, gapZ, gap);
+    console.log("Arrage", nX, nY, nZ);
+    console.log("Gap", gapX, gapY, gapZ, gap);
 
     let i = 0;
     let px = 0;

@@ -7,15 +7,16 @@ import { Vector3 } from "three";
 export class Float32ArrayVec3<Names extends string = string> {
   private readonly _data: Float32Array;
 
-  private readonly _t: number;
+  /**temp */
+  readonly _t: number;
 
-  private readonly a: number;
-  private readonly b: number;
-  private readonly c: number;
-  private readonly d: number;
-  private readonly e: number;
-  private readonly f: number;
-  private readonly g: number;
+  readonly a: number;
+  readonly b: number;
+  readonly c: number;
+  readonly d: number;
+  readonly e: number;
+  readonly f: number;
+  readonly g: number;
 
   private cursor = -1;
 
@@ -100,7 +101,7 @@ export class Float32ArrayVec3<Names extends string = string> {
     return this;
   }
 
-  setv3(i: number, value: Vec3) {
+  setV3(i: number, value: Vec3) {
     const _d = this._data;
     const offset = i * 3;
 
@@ -130,6 +131,10 @@ export class Float32ArrayVec3<Names extends string = string> {
   }
 
   distance(i: number, j: number): number {
+    if (j >= this.count || i >= this.count) {
+      // throw new Error("i or j got out of `count`");
+      console.log("a?", i, j);
+    }
     const r = Math.sqrt(this.distanceSq(i, j));
     if (this.epsilon <= 0) {
       return r;
@@ -458,10 +463,14 @@ export class Float32ArrayVec3<Names extends string = string> {
     return this;
   }
 
-  result(): Vec3 {
+  result(wt?: Vec3): Vec3 {
     const _d = this._data;
     const offset = this._t * 3;
-    return [_d[offset], _d[offset + 1], _d[offset + 2]];
+    const v = wt ?? [0, 0, 0];
+    v[0] = _d[offset];
+    v[1] = _d[offset + 1];
+    v[2] = _d[offset + 2];
+    return v;
   }
 
   resultAsVec3Like(): Vec3Like {
@@ -480,6 +489,7 @@ export class Float32ArrayVec3<Names extends string = string> {
 export interface Float32ArrayVec3 {
   /** @alias length */
   mag(i: number): number;
+  give(v: Vec3): Vec3;
   /** @alias distance */
   r(i: number, j: number): number;
   /** @alias distanceSq */
@@ -489,3 +499,4 @@ export interface Float32ArrayVec3 {
 Float32ArrayVec3.prototype.r = Float32ArrayVec3.prototype.distance;
 Float32ArrayVec3.prototype.mag = Float32ArrayVec3.prototype.length;
 Float32ArrayVec3.prototype.rSq = Float32ArrayVec3.prototype.distanceSq;
+Float32ArrayVec3.prototype.give = Float32ArrayVec3.prototype.result;

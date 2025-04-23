@@ -192,6 +192,10 @@ const divideScalar = (v: Vec3, scalar: number) => {
   v[1] /= scalar;
   v[2] /= scalar;
 
+  v[0] += 1e-6;
+  v[1] += 1e-6;
+  v[2] += 1e-6;
+
   return v;
 };
 
