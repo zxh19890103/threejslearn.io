@@ -36,77 +36,40 @@ __main__ = (
     // variables changed, run your code!
   };
 
+  const computingScene = new THREE.Scene();
+  const computingCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+  const rT0 = createRenderTarget();
+
   const initialPosData = generateInitialData();
   initialPosData.needsUpdate = true;
+  renderer.clear();
+  renderer.copyTextureToTexture(initialPosData, rT0.texture);
 
-  // 6. shader 顯示位置貼圖（將 RGB 當作顏色顯示）
-  const material = new THREE.ShaderMaterial({
+  const quadMat = new THREE.ShaderMaterial({
     uniforms: {
-      uTex: { value: initialPosData },
+      uPosition: { value: null },
     },
     vertexShader: `
-    precision highp float;
-    varying vec2 vUv;
-
-    void main() {
-      vUv = uv;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-    }
-  `,
+    
+    `,
     fragmentShader: `
-    precision highp float;
-    uniform sampler2D uTex;
-    varying vec2 vUv;
 
-    void main() {
-      vec4 color = texture2D(uTex, vUv);
-      gl_FragColor = color; // 將 [-1,1] 映射到 [0,1]
-    }
-  `,
+    `,
   });
 
-  if (
-    !renderer.capabilities.isWebGL2 &&
-    !renderer.extensions.has("OES_texture_float")
-  ) {
-    alert("Your browser does not support floating point textures.");
-  }
-
-  // 🌍 全屏 quad（用于 shader 更新）
-  // const quadGeo = new THREE.PlaneGeometry(2, 2);
-  const geometry = new THREE.BufferGeometry();
-
-  const positions = new Float32Array(PARTICLE_COUNT * 3);
-  const uvs = new Float32Array(PARTICLE_COUNT * 2);
-  const spacing = 0.01;
-
-  for (let i = 0; i < PARTICLE_COUNT; i++) {
-    const xi = i % WIDTH;
-    const zi = Math.floor(i / WIDTH);
-
-    const x = xi * spacing;
-    const y = 0;
-    const z = zi * spacing;
-
-    positions[i * 3 + 0] = x;
-    positions[i * 3 + 1] = 0;
-    positions[i * 3 + 2] = z;
-
-    const u = ((i % WIDTH) + 0.5) / WIDTH;
-    const v = (Math.floor(i / WIDTH) + 0.5) / WIDTH;
-
-    uvs[i * 2 + 0] = u;
-    uvs[i * 2 + 1] = v;
-  }
-
-  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
-
-  const posMesh = new THREE.Line(geometry, material);
-  world.add(posMesh);
+  const quadGeo = new THREE.PlaneGeometry(2, 2);
+  const quadMesh = new THREE.Mesh(quadGeo, quadMat);
+  computingScene.add(quadMesh);
 
   __add_nextframe_fn__(
-    (world, camera, renderer: THREE.WebGLRenderer, delta) => {}
+    (world, camera, renderer: THREE.WebGLRenderer, delta) => {
+      quadMat.uniforms.uPosition.value = rT0.texture;
+      renderer.setRenderTarget(rT0);
+      renderer.render(computingScene, computingCamera);
+
+      renderer.setRenderTarget(null);
+    }
   );
 };
 
