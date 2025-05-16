@@ -50,7 +50,7 @@ __main__ = (
     rho0: 1,
   };
 
-  BBOX.set(new THREE.Vector3(0, 0, 0), new THREE.Vector3(10, 10, 10));
+  BBOX.set(new THREE.Vector3(-2, -2, -2), new THREE.Vector3(2, 2, 2));
 
   const computingScene = new THREE.Scene();
   const computingCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -142,17 +142,17 @@ __main__ = (
 
       int neighborCount = texelFetch(uNeighbors, ivec2(0, particleIndex), 0).r;
 
-      for (int i = 1; i <= neighborCount; i++) {
-        int neighbor = getNeighbor(particleIndex, i);
-        vec2 neighborUv = index2uv(neighbor);
-        vec4 neighborCoord =  texture2D(uPosition, neighborUv);
-      }
+      // for (int i = 1; i <= neighborCount; i++) {
+      //   int neighbor = getNeighbor(particleIndex, i);
+      //   vec2 neighborUv = index2uv(neighbor);
+      //   vec4 neighborCoord =  texture2D(uPosition, neighborUv);
+      // }
 
-      velocity.x = randMinusOneToOne(vUv);
-      velocity.y = randMinusOneToOne(vUv + 0.1);
-      velocity.z = randMinusOneToOne(vUv + 0.3);
+      velocity.x =  randMinusOneToOne(vUv + 0.0);
+      velocity.y =  randMinusOneToOne(vUv + 0.1);
+      velocity.z =  randMinusOneToOne(vUv + 0.2);
 
-      gl_FragColor = velocity;
+      gl_FragColor = velocity * float(neighborCount);
     }
     `,
   });
@@ -210,7 +210,7 @@ __main__ = (
     uniform sampler2D uPosition;
 
     void main() {
-      gl_PointSize = 4.0;
+      gl_PointSize = 8.0;
       vec3 pos = texture2D(uPosition, uv).xyz;
       gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
     }
@@ -219,8 +219,7 @@ __main__ = (
     void main() {
       float dist = distance(gl_PointCoord, vec2(0.5));
       if (dist > 0.5) discard;
-
-      gl_FragColor = vec4(0.8, 0.1, 0.1, 0.56);
+      gl_FragColor = vec4(0.8, 0.1, 0.1, 0.96);
     }
     `,
   });
@@ -239,7 +238,7 @@ __main__ = (
 
   const particlePositions = generatePositions(TEX_SIZE, 4);
 
-  sphSearch.initialize(TEX_SIZE);
+  const lookUpGrid = new sphSearch.LookUpGrid3D(BBOX, TEX_SIZE, sphConfig.h);
 
   __add_nextframe_fn__(
     (world, camera, renderer: THREE.WebGLRenderer, delta) => {
@@ -254,13 +253,17 @@ __main__ = (
         particlePositions
       );
 
-      sphSearch.buildGrid(particlePositions, BBOX, sphConfig.h);
-      const neighbors = sphSearch.findNeighbors(particlePositions);
+      console.time("lookup");
+      lookUpGrid.buildKeyArray(particlePositions);
+      lookUpGrid.buildGrid();
+      lookUpGrid.findNeighbors();
+      console.timeEnd("lookup");
 
       quadMesh.material = updateVelocityMat;
       updateVelocityMat.uniforms.uTime.value = now;
       updateVelocityMat.uniforms.uDelta.value = delta;
-      updateVelocityMat.uniforms.uNeighbors.value = neighbors;
+      updateVelocityMat.uniforms.uNeighbors.value =
+        lookUpGrid.neighborsAsTexture;
       updateVelocityMat.uniforms.uPosition.value = pingPong.p0.texture;
       updateVelocityMat.uniforms.uVelocity.value = pingPong.v0.texture;
 
@@ -286,7 +289,7 @@ __main__ = (
 };
 
 const BBOX = new THREE.Box3();
-const TEX_SIZE = 900;
+const TEX_SIZE = 100;
 const PARTICLE_COUNT = TEX_SIZE * TEX_SIZE;
 
 // 🌈 初始化位置纹理数据
