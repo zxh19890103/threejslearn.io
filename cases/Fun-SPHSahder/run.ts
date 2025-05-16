@@ -3,6 +3,7 @@
  */
 
 import * as THREE from "three";
+import { buildGrid, findNeighbors } from "./search.js";
 
 let enableGrid = false;
 let enableAxes = false;
@@ -22,7 +23,7 @@ __updateControlsDOM__ = () => {
 __onControlsDOMChanged__iter__ = (exp) => eval(exp);
 //#endregion
 
-// __config__.background = 0xffffff;
+__config__.background = 0xffffff;
 
 __main__ = (
   world: THREE.Scene,
@@ -36,6 +37,17 @@ __main__ = (
 
   __updateTHREEJs__ = (k: string, val: any) => {
     // variables changed, run your code!
+  };
+
+  const sphConfig = {
+    /** smooth radius */
+    h: 2,
+    /** coeff for pressure force. */
+    k: 1,
+    /** coeff for viscosity*/
+    mu: 1,
+    /** rest density */
+    rho0: 1,
   };
 
   const computingScene = new THREE.Scene();
@@ -56,18 +68,20 @@ __main__ = (
   const initialPosTex = generateInitialPositions();
   initialPosTex.needsUpdate = true;
 
-  const initialVelTex = generateInitialVelocities();
-  initialVelTex.needsUpdate = true;
-
   renderer.clear();
   renderer.initTexture(initialPosTex);
   renderer.initRenderTarget(pingPong.p0);
   renderer.copyTextureToTexture(initialPosTex, pingPong.p0.texture);
 
-  const quadMat = new THREE.ShaderMaterial({
+  const updateVelocityMat = new THREE.ShaderMaterial({
     uniforms: {
       uPosition: { value: null },
-      uVelocity: { value: initialVelTex },
+      uNeighbors: { value: null },
+      uVelocity: { value: null },
+      uH: { value: sphConfig.h },
+      uK: { value: sphConfig.k },
+      uMu: { value: sphConfig.mu },
+      uRho0: { value: sphConfig.rho0 },
       uTime: { value: null },
       uDelta: { value: null },
     },
@@ -92,7 +106,46 @@ __main__ = (
       vec4 coords = texture2D(uPosition, vUv);
       vec4 velocity = texture2D(uVelocity, vUv);
 
-      coords += velocity * uDelta;
+      gl_FragColor = velocity;
+    }
+    `,
+  });
+
+  const updateGridIndexMat = new THREE.ShaderMaterial({});
+
+  const updatePosMat = new THREE.ShaderMaterial({
+    uniforms: {
+      uPosition: { value: null },
+      uVelocity: { value: null },
+      uH: { value: sphConfig.h },
+      uK: { value: sphConfig.k },
+      uMu: { value: sphConfig.mu },
+      uRho0: { value: sphConfig.rho0 },
+      uTime: { value: null },
+      uDelta: { value: null },
+    },
+    vertexShader: `
+    varying vec2 vUv;
+
+    void main() {
+      vUv = uv;
+      gl_Position = vec4(position, 1.0);
+    }
+    `,
+    fragmentShader: `
+    uniform sampler2D uPosition;
+    uniform sampler2D uVelocity;
+
+    uniform float uTime;
+    uniform float uDelta;
+
+    varying vec2 vUv;
+
+    void main() {
+      vec4 coords = texture2D(uPosition, vUv);
+      vec4 velocity = texture2D(uVelocity, vUv);
+
+      coords.xyz += velocity * uDelta;
 
       gl_FragColor = coords;
     }
@@ -100,7 +153,7 @@ __main__ = (
   });
 
   const quadGeo = new THREE.PlaneGeometry(2, 2);
-  const quadMesh = new THREE.Mesh(quadGeo, quadMat);
+  const quadMesh = new THREE.Mesh(quadGeo, updateVelocityMat);
   computingScene.add(quadMesh);
 
   const displayGeo = new THREE.BufferGeometry();
@@ -113,7 +166,7 @@ __main__ = (
     uniform sampler2D uPosition;
 
     void main() {
-      gl_PointSize = 1.0;
+      gl_PointSize = 12.0;
       vec3 pos = texture2D(uPosition, uv).xyz;
       gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
     }
@@ -128,7 +181,7 @@ __main__ = (
       float dist = distance(gl_PointCoord, vec2(0.5));
       if (dist > 0.5) discard;
 
-      gl_FragColor = vec4(0.3, 0.9, 0.1, 1.0);
+      gl_FragColor = vec4(0.8, 0.1, 0.1, 1.0);
     }
     `,
   });
@@ -145,26 +198,53 @@ __main__ = (
   const displayPts = new THREE.Points(displayGeo, displayMat);
   world.add(displayPts);
 
+  const particlePositions = generatePositions(TEX_SIZE);
+
   __add_nextframe_fn__(
     (world, camera, renderer: THREE.WebGLRenderer, delta) => {
-      quadMat.uniforms.uTime.value = performance.now();
-      quadMat.uniforms.uDelta.value = delta;
-      quadMat.uniforms.uPosition.value = pingPong.p0.texture;
+      const now = performance.now();
+
+      renderer.readRenderTargetPixels(
+        pingPong.p0,
+        0,
+        0,
+        TEX_SIZE,
+        TEX_SIZE,
+        particlePositions
+      );
+
+      buildGrid(particlePositions, null, sphConfig.h);
+      const neighbors = findNeighbors(particlePositions);
+
+      quadMesh.material = updateVelocityMat;
+      updateVelocityMat.uniforms.uTime.value = now;
+      updateVelocityMat.uniforms.uDelta.value = delta;
+      updateVelocityMat.uniforms.uNeighbors.value = neighbors;
+      updateVelocityMat.uniforms.uPosition.value = pingPong.p0.texture;
+      updateVelocityMat.uniforms.uVelocity.value = pingPong.v0.texture;
+
+      renderer.setRenderTarget(pingPong.v1);
+      renderer.render(computingScene, computingCamera);
+      pingPong.swap("v");
+
+      quadMesh.material = updatePosMat;
+      updatePosMat.uniforms.uTime.value = now;
+      updatePosMat.uniforms.uDelta.value = delta;
+      updatePosMat.uniforms.uPosition.value = pingPong.p0.texture;
+      updatePosMat.uniforms.uVelocity.value = pingPong.v0.texture;
 
       renderer.setRenderTarget(pingPong.p1);
       renderer.render(computingScene, computingCamera);
+      pingPong.swap("p");
 
       renderer.setRenderTarget(null);
-
-      pingPong.swap("p");
-      pingPong.swap("v");
 
       displayMat.uniforms.uPosition.value = pingPong.p0.texture;
     }
   );
 };
 
-const TEX_SIZE = 1000;
+const TEX_SIZE = 100;
 const PARTICLE_COUNT = TEX_SIZE * TEX_SIZE;
 
 // 🌈 初始化位置纹理数据
@@ -179,31 +259,7 @@ function generateInitialPositions() {
     data[i * 4 + 0] = x;
     data[i * 4 + 1] = y;
     data[i * 4 + 2] = z;
-    data[i * 4 + 3] = 1.0;
-  }
-
-  return new THREE.DataTexture(
-    data,
-    TEX_SIZE,
-    TEX_SIZE,
-    THREE.RGBAFormat,
-    THREE.FloatType
-  );
-}
-
-// 🌈 初始化位置纹理数据
-function generateInitialVelocities() {
-  const data = new Float32Array(PARTICLE_COUNT * 4);
-
-  for (let i = 0; i < PARTICLE_COUNT; i++) {
-    const x = 2 * (Math.random() * 2 - 1);
-    const y = 2 * (Math.random() * 2 - 1);
-    const z = 2 * (Math.random() * 2 - 1);
-
-    data[i * 4 + 0] = x;
-    data[i * 4 + 1] = y;
-    data[i * 4 + 2] = z;
-    data[i * 4 + 3] = 1.0;
+    data[i * 4 + 3] = i;
   }
 
   return new THREE.DataTexture(
@@ -251,3 +307,6 @@ function generatePositions(texSize: number) {
   const count = texSize * texSize * 3;
   return new Float32Array(count).fill(0);
 }
+
+// read positions:  renderer.readRenderTargetPixels:
+// compute grid index and neighbors for each particle and write the data to datatexture, and then upload it to GPU?
