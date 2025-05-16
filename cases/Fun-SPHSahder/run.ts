@@ -22,7 +22,7 @@ __updateControlsDOM__ = () => {
 __onControlsDOMChanged__iter__ = (exp) => eval(exp);
 //#endregion
 
-__config__.background = 0xffffff;
+// __config__.background = 0xffffff;
 
 __main__ = (
   world: THREE.Scene,
@@ -41,20 +41,33 @@ __main__ = (
   const computingScene = new THREE.Scene();
   const computingCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
-  let rT0 = createRenderTarget();
-  let rT1 = createRenderTarget();
+  const pingPong = {
+    p0: createRenderTarget(),
+    p1: createRenderTarget(),
+    v0: createRenderTarget(),
+    v1: createRenderTarget(),
+    swap: (which: "v" | "p") => {
+      const [rt0, rt1] = [pingPong[which + "0"], pingPong[which + "1"]];
+      pingPong[which + "0"] = rt1;
+      pingPong[which + "1"] = rt0;
+    },
+  };
 
-  const initialPosTex = generateInitialData();
+  const initialPosTex = generateInitialPositions();
   initialPosTex.needsUpdate = true;
+
+  const initialVelTex = generateInitialVelocities();
+  initialVelTex.needsUpdate = true;
 
   renderer.clear();
   renderer.initTexture(initialPosTex);
-  renderer.initRenderTarget(rT0);
-  renderer.copyTextureToTexture(initialPosTex, rT0.texture);
+  renderer.initRenderTarget(pingPong.p0);
+  renderer.copyTextureToTexture(initialPosTex, pingPong.p0.texture);
 
   const quadMat = new THREE.ShaderMaterial({
     uniforms: {
       uPosition: { value: null },
+      uVelocity: { value: initialVelTex },
       uTime: { value: null },
       uDelta: { value: null },
     },
@@ -68,6 +81,8 @@ __main__ = (
     `,
     fragmentShader: `
     uniform sampler2D uPosition;
+    uniform sampler2D uVelocity;
+
     uniform float uTime;
     uniform float uDelta;
 
@@ -75,8 +90,9 @@ __main__ = (
 
     void main() {
       vec4 coords = texture2D(uPosition, vUv);
+      vec4 velocity = texture2D(uVelocity, vUv);
 
-      coords.y -= uDelta;
+      coords += velocity * uDelta;
 
       gl_FragColor = coords;
     }
@@ -97,7 +113,7 @@ __main__ = (
     uniform sampler2D uPosition;
 
     void main() {
-      gl_PointSize = 6.0;
+      gl_PointSize = 1.0;
       vec3 pos = texture2D(uPosition, uv).xyz;
       gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
     }
@@ -133,26 +149,26 @@ __main__ = (
     (world, camera, renderer: THREE.WebGLRenderer, delta) => {
       quadMat.uniforms.uTime.value = performance.now();
       quadMat.uniforms.uDelta.value = delta;
-      quadMat.uniforms.uPosition.value = rT0.texture;
+      quadMat.uniforms.uPosition.value = pingPong.p0.texture;
 
-      renderer.setRenderTarget(rT1);
+      renderer.setRenderTarget(pingPong.p1);
       renderer.render(computingScene, computingCamera);
+
       renderer.setRenderTarget(null);
 
-      let tmp = rT0;
-      rT0 = rT1;
-      rT1 = tmp;
+      pingPong.swap("p");
+      pingPong.swap("v");
 
-      displayMat.uniforms.uPosition.value = rT0.texture;
+      displayMat.uniforms.uPosition.value = pingPong.p0.texture;
     }
   );
 };
 
-const TEX_SIZE = 100;
+const TEX_SIZE = 1000;
 const PARTICLE_COUNT = TEX_SIZE * TEX_SIZE;
 
 // 🌈 初始化位置纹理数据
-function generateInitialData() {
+function generateInitialPositions() {
   const data = new Float32Array(PARTICLE_COUNT * 4);
 
   for (let i = 0; i < PARTICLE_COUNT; i++) {
@@ -174,6 +190,31 @@ function generateInitialData() {
     THREE.FloatType
   );
 }
+
+// 🌈 初始化位置纹理数据
+function generateInitialVelocities() {
+  const data = new Float32Array(PARTICLE_COUNT * 4);
+
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    const x = 2 * (Math.random() * 2 - 1);
+    const y = 2 * (Math.random() * 2 - 1);
+    const z = 2 * (Math.random() * 2 - 1);
+
+    data[i * 4 + 0] = x;
+    data[i * 4 + 1] = y;
+    data[i * 4 + 2] = z;
+    data[i * 4 + 3] = 1.0;
+  }
+
+  return new THREE.DataTexture(
+    data,
+    TEX_SIZE,
+    TEX_SIZE,
+    THREE.RGBAFormat,
+    THREE.FloatType
+  );
+}
+
 // 📦 创建位置和速度的 render target
 function createRenderTarget() {
   return new THREE.WebGLRenderTarget(TEX_SIZE, TEX_SIZE, {

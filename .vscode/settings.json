@@ -1,10 +1,10 @@
 {
   // "editor.fontFamily": "'Wawati SC' ,'Operator Mono Lig', 'Cascadia Code', Consolas, Menlo, Monaco, 'Courier New', monospace",
   // "editor.fontFamily": "Monaco, 'Operator Mono Lig', 'Cascadia Code', Consolas, Menlo, Monaco, 'Courier New', monospace",
-  // "editor.fontFamily": "'Cascadia Code', Consolas, Menlo, Monaco, 'Courier New', monospace",
-  "editor.fontFamily": "'Chalkboard SE', 'Yuppy SC', Consolas, Menlo, Monaco, 'Courier New', monospace",
+  "editor.fontFamily": "'Cascadia Code', Consolas, Menlo, Monaco, 'Courier New', monospace",
+  // "editor.fontFamily": "'Chalkboard SE', 'Yuppy SC', Consolas, Menlo, Monaco, 'Courier New', monospace",
   // "editor.fontFamily": "'Annai MN', Consolas, Menlo, Monaco, 'Courier New', monospace",
-  "editor.fontSize": 16,
+  "editor.fontSize": 24,
   // "editor.codeLensFontSize": 12,
   // "scm.inputFontSize": 12,
   // "editor.suggestFontSize": 12,
