@@ -1,21 +1,22 @@
 import * as THREE from "three";
 
 let outGridIndices: Float32Array;
-let neighbors: THREE.DataTexture;
+let outParticleNeighbors: THREE.DataTexture;
 
 export const initialize = (texSize: number) => {
-  const count = texSize * texSize * 4;
-  outGridIndices = new Float32Array(count);
+  outGridIndices = new Float32Array(texSize * texSize * 4);
 
-  const data = new Uint32Array((texSize + 1) * texSize);
+  const data = new Int32Array((texSize + 1) * texSize);
 
-  neighbors = new THREE.DataTexture(
+  outParticleNeighbors = new THREE.DataTexture(
     data,
     texSize,
     texSize,
     THREE.RedIntegerFormat,
-    THREE.UnsignedIntType
+    THREE.IntType
   );
+
+  outParticleNeighbors.needsUpdate = true;
 };
 
 export const buildGrid = (
@@ -69,6 +70,9 @@ export const buildGrid = (
   return outGridIndices;
 };
 
+/**
+ * for each row, the #1 column is the count of neighbors, following is the index of neighbors.
+ */
 export const findNeighbors = (particles: Float32Array): THREE.DataTexture => {
-  return neighbors;
+  return outParticleNeighbors;
 };

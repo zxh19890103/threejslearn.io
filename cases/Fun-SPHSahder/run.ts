@@ -3,7 +3,7 @@
  */
 
 import * as THREE from "three";
-import { buildGrid, findNeighbors } from "./search.js";
+import * as sphSearch from "./search.js";
 
 let enableGrid = false;
 let enableAxes = false;
@@ -50,6 +50,8 @@ __main__ = (
     rho0: 1,
   };
 
+  BBOX.set(new THREE.Vector3(0, 0, 0), new THREE.Vector3(10, 10, 10));
+
   const computingScene = new THREE.Scene();
   const computingCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
@@ -82,6 +84,7 @@ __main__ = (
       uK: { value: sphConfig.k },
       uMu: { value: sphConfig.mu },
       uRho0: { value: sphConfig.rho0 },
+      uTexSize: { value: TEX_SIZE },
       uTime: { value: null },
       uDelta: { value: null },
     },
@@ -96,22 +99,63 @@ __main__ = (
     fragmentShader: `
     uniform sampler2D uPosition;
     uniform sampler2D uVelocity;
+    uniform isampler2D uNeighbors;
 
+    uniform int uTexSize;
     uniform float uTime;
     uniform float uDelta;
 
     varying vec2 vUv;
 
+    float rand(vec2 co){
+      return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
+    }
+
+    float randMinusOneToOne(vec2 co) {
+      return rand(co) * 2.0 - 1.0;
+    }
+
+    int uv2index(vec2 uv) {
+      ivec2 pixelCoord = ivec2(floor(uv * vec2(uTexSize)));
+      int index = pixelCoord.y * uTexSize + pixelCoord.x;
+      return index;
+    }
+
+    vec2 index2uv(int index) {
+      int x = index %uTexSize;
+      int y = index / uTexSize;
+      vec2 uv = (vec2(x, y) + 0.5) / vec2(uTexSize);
+      return uv;
+    }
+
+    int getNeighbor(int particleIndex, int neighborSlot) {
+      ivec2 coord = ivec2(neighborSlot, particleIndex);
+      int neighborIndex = texelFetch(uNeighbors, coord, 0).r;
+      return neighborIndex;
+    }
+
     void main() {
       vec4 coords = texture2D(uPosition, vUv);
       vec4 velocity = texture2D(uVelocity, vUv);
+
+      int particleIndex = uv2index(vUv);
+
+      int neighborCount = texelFetch(uNeighbors, ivec2(0, particleIndex), 0).r;
+
+      for (int i = 1; i <= neighborCount; i++) {
+        int neighbor = getNeighbor(particleIndex, i);
+        vec2 neighborUv = index2uv(neighbor);
+        vec4 neighborCoord =  texture2D(uPosition, neighborUv);
+      }
+
+      velocity.x = randMinusOneToOne(vUv);
+      velocity.y = randMinusOneToOne(vUv + 0.1);
+      velocity.z = randMinusOneToOne(vUv + 0.3);
 
       gl_FragColor = velocity;
     }
     `,
   });
-
-  const updateGridIndexMat = new THREE.ShaderMaterial({});
 
   const updatePosMat = new THREE.ShaderMaterial({
     uniforms: {
@@ -145,7 +189,7 @@ __main__ = (
       vec4 coords = texture2D(uPosition, vUv);
       vec4 velocity = texture2D(uVelocity, vUv);
 
-      coords.xyz += velocity * uDelta;
+      coords.xyz += velocity.xyz * uDelta;
 
       gl_FragColor = coords;
     }
@@ -166,22 +210,17 @@ __main__ = (
     uniform sampler2D uPosition;
 
     void main() {
-      gl_PointSize = 12.0;
+      gl_PointSize = 4.0;
       vec3 pos = texture2D(uPosition, uv).xyz;
       gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
     }
     `,
     fragmentShader: `
-
-    float rand(vec2 co) {
-      return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453);
-    }
-
     void main() {
       float dist = distance(gl_PointCoord, vec2(0.5));
       if (dist > 0.5) discard;
 
-      gl_FragColor = vec4(0.8, 0.1, 0.1, 1.0);
+      gl_FragColor = vec4(0.8, 0.1, 0.1, 0.56);
     }
     `,
   });
@@ -198,7 +237,9 @@ __main__ = (
   const displayPts = new THREE.Points(displayGeo, displayMat);
   world.add(displayPts);
 
-  const particlePositions = generatePositions(TEX_SIZE);
+  const particlePositions = generatePositions(TEX_SIZE, 4);
+
+  sphSearch.initialize(TEX_SIZE);
 
   __add_nextframe_fn__(
     (world, camera, renderer: THREE.WebGLRenderer, delta) => {
@@ -213,8 +254,8 @@ __main__ = (
         particlePositions
       );
 
-      buildGrid(particlePositions, null, sphConfig.h);
-      const neighbors = findNeighbors(particlePositions);
+      sphSearch.buildGrid(particlePositions, BBOX, sphConfig.h);
+      const neighbors = sphSearch.findNeighbors(particlePositions);
 
       quadMesh.material = updateVelocityMat;
       updateVelocityMat.uniforms.uTime.value = now;
@@ -244,17 +285,23 @@ __main__ = (
   );
 };
 
-const TEX_SIZE = 100;
+const BBOX = new THREE.Box3();
+const TEX_SIZE = 900;
 const PARTICLE_COUNT = TEX_SIZE * TEX_SIZE;
 
 // 🌈 初始化位置纹理数据
 function generateInitialPositions() {
   const data = new Float32Array(PARTICLE_COUNT * 4);
 
+  const { min, max } = BBOX;
+
+  const size = new THREE.Vector3();
+  BBOX.getSize(size);
+
   for (let i = 0; i < PARTICLE_COUNT; i++) {
-    const x = Math.random() * 10 - 1;
-    const y = Math.random() * 10 - 1;
-    const z = Math.random() * 10 - 1;
+    const x = Math.random() * size.x + min.x;
+    const y = Math.random() * size.y + min.y;
+    const z = Math.random() * size.z + min.z;
 
     data[i * 4 + 0] = x;
     data[i * 4 + 1] = y;
@@ -303,8 +350,8 @@ function generateUVs(texSize: number) {
   return uvs;
 }
 
-function generatePositions(texSize: number) {
-  const count = texSize * texSize * 3;
+function generatePositions(texSize: number, dim = 3) {
+  const count = texSize * texSize * dim;
   return new Float32Array(count).fill(0);
 }
 
