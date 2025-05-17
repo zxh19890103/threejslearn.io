@@ -10,8 +10,6 @@ export class LookUpGrid3D {
   private max: Vec3;
 
   public readonly particlesCount: number;
-  public gridKeyArray: Int32Array;
-  public neighborsAsTexture: THREE.DataTexture;
 
   constructor(readonly b: THREE.Box3, readonly texSize: number, unit: number) {
     this.min = [...b.min] as Vec3;
@@ -20,63 +18,63 @@ export class LookUpGrid3D {
     this.unit = unit;
     this.particlesCount = texSize * texSize;
 
-    this.neighborsAsTexture = new THREE.DataTexture(
-      null,
-      texSize,
-      texSize,
-      THREE.RedIntegerFormat,
-      THREE.IntType
-    );
-
-    this.computeN();
-  }
-
-  getSpace() {
-    const { min, max } = this;
-    return [...min, ...max];
-  }
-
-  computeN() {
-    const { min, max, unit } = this;
-    const N = vec3.dR(min, max);
+    const N = vec3.dR(this.min, this.max);
 
     vec3.ceil(vec3.divideScalar(N, unit));
 
     this.N = N;
     const total = N[0] * N[1] * N[2];
 
-    if (this.GOffset) return;
-
     const half = Math.ceil(this.particlesCount);
     this.neighborsInOneDimensions = [half + 1, this.particlesCount];
 
     this.GOffset = new Int32Array(total * 3);
+    this.GOffsetTex = new THREE.DataTexture(
+      this.GOffset,
+      total,
+      1,
+      THREE.RGBFormat,
+      THREE.IntType
+    );
+    this.GOffsetTex.needsUpdate = true;
+
     this.GData = new Int32Array(this.particlesCount);
+    this.GDataTex = new THREE.DataTexture(
+      this.GData,
+      texSize,
+      texSize,
+      THREE.RedIntegerFormat,
+      THREE.IntType
+    );
+    this.GDataTex.needsUpdate = true;
 
-    this.neighbors = new Int32Array(half);
-    this.neighborsInOne = new Int32Array((half + 1) * this.particlesCount);
-
-    this.gridKeyArray = new Int32Array(this.particlesCount * 3).fill(-1);
-
-    this.neighborsAsTexture.image.data = this.neighbors;
-    this.neighborsAsTexture.needsUpdate = true;
-  }
-
-  setUnit(val: number) {
-    if (val === this.unit) return;
-    this.unit = val;
-    this.computeN();
+    this.GKey = new Int32Array(this.particlesCount * 3).fill(-1);
+    this.GKeyTex = new THREE.DataTexture(
+      this.GKey,
+      texSize,
+      texSize,
+      THREE.RGBFormat,
+      THREE.IntType
+    );
+    this.GKeyTex.needsUpdate = true;
   }
 
   /**
    * Array<[key, offset, count]>
    */
   GOffset: Int32Array;
+  public GOffsetTex: THREE.DataTexture;
   /**
    * the index of particles
-   * means no particle setting.
    */
   GData: Int32Array;
+  public GDataTex: THREE.DataTexture;
+
+  public GKey: Int32Array;
+  public GKeyTex: THREE.DataTexture;
+
+  public neighborsAsTexture: THREE.DataTexture;
+
   /**
    * current neighbors.
    */
@@ -102,27 +100,34 @@ export class LookUpGrid3D {
   }
 
   buildKeyArray(particles: Float32Array) {
-    const gridKeyArray = this.gridKeyArray;
+    const GKey = this.GKey;
     const key: Vec3 = [0, 0, 0];
 
+    let k = 0;
     let x = 0;
     let y = 0;
     let z = 0;
 
-    gridKeyArray.fill(-1);
+    GKey.fill(-1);
 
     for (let i = 0, L = particles.length; i < L; i += 4) {
+      x = particles[i];
+      y = particles[i + 1];
+      z = particles[i + 2];
+
       this.getGridKeyXYZ(key, x, y, z);
 
-      gridKeyArray[i] = key[0];
-      gridKeyArray[i + 1] = key[1];
-      gridKeyArray[i + 2] = key[2];
+      GKey[k++] = key[0];
+      GKey[k++] = key[1];
+      GKey[k++] = key[2];
     }
+
+    this.GKeyTex.needsUpdate = true;
   }
 
   buildGrid() {
     const [N0, N1, N2] = this.N;
-    const { GOffset, GData, gridKeyArray } = this;
+    const { GOffset, GData, GKey: gridKeyArray } = this;
 
     GOffset.fill(0);
 
@@ -158,6 +163,9 @@ export class LookUpGrid3D {
         }
       }
     }
+
+    this.GOffsetTex.needsUpdate = true;
+    this.GDataTex.needsUpdate = true;
   }
 
   indexOfGOffsetKey(key: number) {
@@ -171,7 +179,7 @@ export class LookUpGrid3D {
   }
 
   private getPossibleNeighborsOfPartice(particle: number = 0) {
-    const { GOffset, gridKeyArray } = this;
+    const { GOffset, GKey: gridKeyArray } = this;
     const start = 1 + particle * this.neighborsInOneDimensions[0];
 
     const gk: Vec3 = [0, 0, 0];

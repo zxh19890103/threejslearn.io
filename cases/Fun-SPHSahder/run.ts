@@ -25,7 +25,7 @@ __onControlsDOMChanged__iter__ = (exp) => eval(exp);
 
 __config__.background = 0xffffff;
 
-__main__ = (
+__main__ = async (
   world: THREE.Scene,
   camera: THREE.PerspectiveCamera,
   renderer: THREE.WebGLRenderer
@@ -75,11 +75,15 @@ __main__ = (
   renderer.initRenderTarget(pingPong.p0);
   renderer.copyTextureToTexture(initialPosTex, pingPong.p0.texture);
 
+  const updateVelocityMatShaderFrag = await httpGet("./velocity.frag");
+
   const updateVelocityMat = new THREE.ShaderMaterial({
     uniforms: {
       uPosition: { value: null },
-      uNeighbors: { value: null },
       uVelocity: { value: null },
+      uGridKeys: { value: null },
+      uGridData: { value: null },
+      uGridOffset: { value: null },
       uH: { value: sphConfig.h },
       uK: { value: sphConfig.k },
       uMu: { value: sphConfig.mu },
@@ -96,65 +100,7 @@ __main__ = (
       gl_Position = vec4(position, 1.0);
     }
     `,
-    fragmentShader: `
-    uniform sampler2D uPosition;
-    uniform sampler2D uVelocity;
-    uniform isampler2D uNeighbors;
-
-    uniform int uTexSize;
-    uniform float uTime;
-    uniform float uDelta;
-
-    varying vec2 vUv;
-
-    float rand(vec2 co){
-      return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
-    }
-
-    float randMinusOneToOne(vec2 co) {
-      return rand(co) * 2.0 - 1.0;
-    }
-
-    int uv2index(vec2 uv) {
-      ivec2 pixelCoord = ivec2(floor(uv * vec2(uTexSize)));
-      int index = pixelCoord.y * uTexSize + pixelCoord.x;
-      return index;
-    }
-
-    vec2 index2uv(int index) {
-      int x = index %uTexSize;
-      int y = index / uTexSize;
-      vec2 uv = (vec2(x, y) + 0.5) / vec2(uTexSize);
-      return uv;
-    }
-
-    int getNeighbor(int particleIndex, int neighborSlot) {
-      ivec2 coord = ivec2(neighborSlot, particleIndex);
-      int neighborIndex = texelFetch(uNeighbors, coord, 0).r;
-      return neighborIndex;
-    }
-
-    void main() {
-      vec4 coords = texture2D(uPosition, vUv);
-      vec4 velocity = texture2D(uVelocity, vUv);
-
-      int particleIndex = uv2index(vUv);
-
-      int neighborCount = texelFetch(uNeighbors, ivec2(0, particleIndex), 0).r;
-
-      // for (int i = 1; i <= neighborCount; i++) {
-      //   int neighbor = getNeighbor(particleIndex, i);
-      //   vec2 neighborUv = index2uv(neighbor);
-      //   vec4 neighborCoord =  texture2D(uPosition, neighborUv);
-      // }
-
-      velocity.x =  randMinusOneToOne(vUv + 0.0);
-      velocity.y =  randMinusOneToOne(vUv + 0.1);
-      velocity.z =  randMinusOneToOne(vUv + 0.2);
-
-      gl_FragColor = velocity * float(neighborCount);
-    }
-    `,
+    fragmentShader: updateVelocityMatShaderFrag,
   });
 
   const updatePosMat = new THREE.ShaderMaterial({
@@ -253,19 +199,20 @@ __main__ = (
         particlePositions
       );
 
-      console.time("lookup");
+      // console.time("lookup");
       lookUpGrid.buildKeyArray(particlePositions);
       lookUpGrid.buildGrid();
-      lookUpGrid.findNeighbors();
-      console.timeEnd("lookup");
+      // console.timeEnd("lookup");
 
       quadMesh.material = updateVelocityMat;
       updateVelocityMat.uniforms.uTime.value = now;
       updateVelocityMat.uniforms.uDelta.value = delta;
-      updateVelocityMat.uniforms.uNeighbors.value =
-        lookUpGrid.neighborsAsTexture;
       updateVelocityMat.uniforms.uPosition.value = pingPong.p0.texture;
       updateVelocityMat.uniforms.uVelocity.value = pingPong.v0.texture;
+
+      updateVelocityMat.uniforms.uGridKeys.value = lookUpGrid.GKeyTex;
+      updateVelocityMat.uniforms.uGridData.value = lookUpGrid.GDataTex;
+      updateVelocityMat.uniforms.uGridOffset.value = lookUpGrid.GOffsetTex;
 
       renderer.setRenderTarget(pingPong.v1);
       renderer.render(computingScene, computingCamera);
@@ -356,6 +303,10 @@ function generateUVs(texSize: number) {
 function generatePositions(texSize: number, dim = 3) {
   const count = texSize * texSize * dim;
   return new Float32Array(count).fill(0);
+}
+
+function httpGet(url: string) {
+  return fetch(url).then((r) => r.text());
 }
 
 // read positions:  renderer.readRenderTargetPixels:
