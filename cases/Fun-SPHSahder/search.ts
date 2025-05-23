@@ -5,37 +5,38 @@ const { floor } = Math;
 
 export class LookUpGrid3D {
   private unit: number = 0;
-  private N: Vec3 = [0, 0, 0];
   private min: Vec3;
   private max: Vec3;
 
+  public readonly grid: THREE.Vector3 = new THREE.Vector3();
   public readonly particlesCount: number;
 
-  constructor(readonly b: THREE.Box3, readonly texSize: number, unit: number) {
-    this.min = [...b.min] as Vec3;
-    this.max = [...b.max] as Vec3;
+  constructor(
+    readonly bbox: THREE.Box3,
+    readonly texSize: number,
+    unit: number
+  ) {
+    this.min = [...bbox.min] as Vec3;
+    this.max = [...bbox.max] as Vec3;
 
     this.unit = unit;
     this.particlesCount = texSize * texSize;
 
-    const N = vec3.dR(this.min, this.max);
+    const grid = vec3.dR(this.min, this.max);
+    vec3.ceil(vec3.divideScalar(grid, unit));
+    this.grid.set(...grid);
 
-    vec3.ceil(vec3.divideScalar(N, unit));
+    const total = grid[0] * grid[1] * grid[2];
 
-    this.N = N;
-    const total = N[0] * N[1] * N[2];
-
-    const half = Math.ceil(this.particlesCount);
-    this.neighborsInOneDimensions = [half + 1, this.particlesCount];
-
-    this.GOffset = new Int32Array(total * 3);
-    this.GOffsetTex = new THREE.DataTexture(
+    this.GOffset = new Int32Array(4 * total);
+    this.GOffsetTex = new THREE.Data3DTexture(
       this.GOffset,
-      total,
-      1,
-      THREE.RGBFormat,
-      THREE.IntType
+      grid[0],
+      grid[1],
+      grid[2]
     );
+    this.GOffsetTex.format = THREE.RGBAIntegerFormat;
+    this.GOffsetTex.type = THREE.IntType;
     this.GOffsetTex.needsUpdate = true;
 
     this.GData = new Int32Array(this.particlesCount);
@@ -48,22 +49,20 @@ export class LookUpGrid3D {
     );
     this.GDataTex.needsUpdate = true;
 
-    this.GKey = new Int32Array(this.particlesCount * 3).fill(-1);
+    this.GKey = new Int32Array(this.particlesCount * 4);
     this.GKeyTex = new THREE.DataTexture(
       this.GKey,
       texSize,
       texSize,
-      THREE.RGBFormat,
+      THREE.RGBAIntegerFormat,
       THREE.IntType
     );
     this.GKeyTex.needsUpdate = true;
   }
 
-  /**
-   * Array<[key, offset, count]>
-   */
   GOffset: Int32Array;
-  public GOffsetTex: THREE.DataTexture;
+  public GOffsetTex: THREE.Data3DTexture;
+
   /**
    * the index of particles
    */
@@ -72,26 +71,6 @@ export class LookUpGrid3D {
 
   public GKey: Int32Array;
   public GKeyTex: THREE.DataTexture;
-
-  public neighborsAsTexture: THREE.DataTexture;
-
-  /**
-   * current neighbors.
-   */
-  neighborsInOne: Int32Array;
-  /**
-   * 0 - how many neighbors in max for one particle
-   * 1 - rows for all particles.
-   */
-  neighborsInOneDimensions: Vec2 = [0, 0];
-  /**
-   * the count of neighbors
-   */
-  neighborsCount: number;
-  /**
-   * possible neighbors of particle `i`
-   */
-  neighbors: Int32Array;
 
   private getGridKeyXYZ(K: Vec3, x: number, y: number, z: number) {
     K[0] = floor((x - this.min[0]) / this.unit);
@@ -120,46 +99,39 @@ export class LookUpGrid3D {
       GKey[k++] = key[0];
       GKey[k++] = key[1];
       GKey[k++] = key[2];
+      k++;
     }
 
     this.GKeyTex.needsUpdate = true;
   }
 
   buildGrid() {
-    const [N0, N1, N2] = this.N;
-    const { GOffset, GData, GKey: gridKeyArray } = this;
+    const { x: N0, y: N1, z: N2 } = this.grid;
+    const { GData, GKey } = this;
 
-    GOffset.fill(0);
-
+    let k = 0;
     let cursor = 0;
-    let key = -1;
-    let o1 = 0;
 
-    for (let x = 0; x < N0; x += 1) {
-      for (let y = 0; y < N1; y += 1) {
-        for (let z = 0; z < N2; z += 1) {
-          key = cantorTri(x, y, z);
+    for (let x = 0; x <= N0; x += 1) {
+      for (let y = 0; y <= N1; y += 1) {
+        for (let z = 0; z <= N2; z += 1) {
+          const i4 = k * 4;
 
-          GOffset[o1] = key;
-          GOffset[o1 + 1] = cursor;
+          this.GOffset[i4] = cursor;
 
           let count = 0;
 
           for (let i = 0; i < this.particlesCount; i++) {
-            const o = i * 3;
+            const o = i * 4;
 
-            if (
-              gridKeyArray[o] === x &&
-              gridKeyArray[o + 1] === y &&
-              gridKeyArray[o + 2] === z
-            ) {
+            if (GKey[o] === x && GKey[o + 1] === y && GKey[o + 2] === z) {
               GData[cursor++] = i;
               count++;
             }
           }
 
-          GOffset[o1 + 2] = count;
-          o1 += 3;
+          this.GOffset[i4 + 1] = count;
+          k++;
         }
       }
     }
@@ -168,69 +140,54 @@ export class LookUpGrid3D {
     this.GDataTex.needsUpdate = true;
   }
 
-  indexOfGOffsetKey(key: number) {
-    for (let i = 0, s = this.GOffset.length; i < s; i += 3) {
-      if (this.GOffset[i] === key) {
-        if (this.GOffset[i + 2] === 0) return -1;
-        return i;
-      }
-    }
-    return -1;
+  print() {
+    console.log("[Grid] xyz", this.grid.toArray());
+    console.log("[Grid] unit", this.unit);
   }
 
-  private getPossibleNeighborsOfPartice(particle: number = 0) {
-    const { GOffset, GKey: gridKeyArray } = this;
-    const start = 1 + particle * this.neighborsInOneDimensions[0];
-
-    const gk: Vec3 = [0, 0, 0];
-
-    const o1 = particle * 3;
-    gk[0] = gridKeyArray[o1];
-    gk[1] = gridKeyArray[o1 + 1];
-    gk[2] = gridKeyArray[o1 + 2];
-
-    let gkx = 0;
-    let gky = 0;
-    let gkz = 0;
-
-    let cursor = 0;
-
-    for (let x = -1; x <= 1; x += 1) {
-      for (let y = -1; y <= 1; y += 1) {
-        for (let z = -1; z <= 1; z += 1) {
-          gkx = gk[0] + x;
-          gky = gk[1] + y;
-          gkz = gk[2] + z;
-
-          if (gkx < 0 || gky < 0 || gkz < 0) continue;
-
-          const key = cantorTri(gkx, gky, gkz);
-          const i = this.indexOfGOffsetKey(key);
-
-          if (i === -1) continue;
-
-          const offset = GOffset[i + 1];
-          const count = GOffset[i + 2];
-
-          for (let p = offset, s = offset + count; p < s; p++) {
-            this.neighborsInOne[start + cursor++] = this.GData[p];
-          }
-        }
-      }
-    }
-
-    this.neighborsInOne[start - 1] = cursor;
-    return cursor;
-  }
-
-  findNeighbors() {
-    for (let i = 0; i < this.particlesCount; i++) {
-      this.getPossibleNeighborsOfPartice(i);
-    }
+  visualize() {
+    const { x: n1, y: n2, z: n3 } = this.grid;
+    const lines = createGridLineSegments(n1, n2, n3, this.unit);
+    lines.position.add(new THREE.Vector3(...this.min));
+    return lines;
   }
 }
 
-function cantorTri(k1: number, k2: number, k3: number) {
-  const k4 = ((k1 + k2) * (k1 + k2 + 1)) / 2 + k2;
-  return ((k4 + k3) * (k4 + k3 + 1)) / 2 + k3;
+function createGridLineSegments(n1, n2, n3, spacing = 1) {
+  const positions = [];
+
+  for (let i = 0; i <= n1; i++) {
+    for (let j = 0; j <= n2; j++) {
+      for (let k = 0; k <= n3; k++) {
+        const x = i * spacing;
+        const y = j * spacing;
+        const z = k * spacing;
+
+        // Line in X direction
+        if (i < n1) {
+          positions.push(x, y, z);
+          positions.push(x + spacing, y, z);
+        }
+        // Line in Y direction
+        if (j < n2) {
+          positions.push(x, y, z);
+          positions.push(x, y + spacing, z);
+        }
+        // Line in Z direction
+        if (k < n3) {
+          positions.push(x, y, z);
+          positions.push(x, y, z + spacing);
+        }
+      }
+    }
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute(
+    "position",
+    new THREE.Float32BufferAttribute(positions, 3)
+  );
+
+  const material = new THREE.LineBasicMaterial({ color: 0xaaaaaa });
+  return new THREE.LineSegments(geometry, material);
 }

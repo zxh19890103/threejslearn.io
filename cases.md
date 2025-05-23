@@ -28,5 +28,7 @@ title: Cases
 - [Math-Vector3](/cases/Math-Vector3)
 - [Setup](/cases/Setup)
 - [Shared](/cases/Shared)
+- [Study-KernelFunctions](/cases/Study-KernelFunctions)
+- [Study-ShaderFormatTypeCombinations](/cases/Study-ShaderFormatTypeCombinations)
 - [UV](/cases/UV)
 - [WebGLRenderer](/cases/WebGLRenderer)

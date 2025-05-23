@@ -4,7 +4,7 @@
   // "editor.fontFamily": "'Cascadia Code', Consolas, Menlo, Monaco, 'Courier New', monospace",
   "editor.fontFamily": "'Chalkboard SE', 'Yuppy SC', Consolas, Menlo, Monaco, 'Courier New', monospace",
   // "editor.fontFamily": "'Annai MN', Consolas, Menlo, Monaco, 'Courier New', monospace",
-  "editor.fontSize": 23,
+  "editor.fontSize": 16,
   // "editor.codeLensFontSize": 12,
   // "scm.inputFontSize": 12,
   // "editor.suggestFontSize": 12,
@@ -19,7 +19,7 @@
   "editor.fontLigatures": true,
   "terminal.integrated.fontFamily": "monospace",
   "workbench.iconTheme": "vscode-icons",
-  "workbench.colorTheme": "Atom One Dark",
+  "workbench.colorTheme": "Visual Studio 2017 Light - C++",
   "editor.tabSize": 2,
   "typescript.tsdk": "node_modules/typescript/lib"
 }
