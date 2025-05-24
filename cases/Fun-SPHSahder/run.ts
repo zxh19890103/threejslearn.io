@@ -25,6 +25,20 @@ __onControlsDOMChanged__iter__ = (exp) => eval(exp);
 
 __config__.background = 0xffffff;
 
+const sphConfig = {
+  /** smooth radius */
+  h: 1.2,
+  /** coeff for pressure force. */
+  k: 60,
+  /** coeff for viscosity*/
+  mu: 50,
+  g: 9.81 * 0.1,
+  delta: 0.016,
+  /** rest density */
+  rho0: 2,
+  texSize: 50,
+};
+
 __main__ = async (
   world: THREE.Scene,
   camera: THREE.PerspectiveCamera,
@@ -39,28 +53,25 @@ __main__ = async (
     // variables changed, run your code!
   };
 
-  const sphConfig = {
-    /** smooth radius */
-    h: 2,
-    /** coeff for pressure force. */
-    k: 1,
-    /** coeff for viscosity*/
-    mu: 1,
-    /** rest density */
-    rho0: 1,
-  };
+  const lookUpGrid = new sphSearch.LookUpGrid3D(
+    BBOX,
+    sphConfig.texSize,
+    sphConfig.h
+  );
 
-  BBOX.set(new THREE.Vector3(-2, -2, -2), new THREE.Vector3(2, 2, 2));
+  lookUpGrid.print();
 
   const computingScene = new THREE.Scene();
   const computingCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
   const pingPong = {
-    p0: createRenderTarget(),
-    p1: createRenderTarget(),
-    v0: createRenderTarget(),
-    v1: createRenderTarget(),
-    swap: (which: "v" | "p") => {
+    p0: createQuadRenderTarget(),
+    p1: createQuadRenderTarget(),
+    v0: createQuadRenderTarget(),
+    v1: createQuadRenderTarget(),
+    rho0: createQuadRenderTarget(),
+    rho1: createQuadRenderTarget(),
+    swap: (which: "v" | "p" | "rho" | "nbr") => {
       const [rt0, rt1] = [pingPong[which + "0"], pingPong[which + "1"]];
       pingPong[which + "0"] = rt1;
       pingPong[which + "1"] = rt0;
@@ -75,25 +86,68 @@ __main__ = async (
   renderer.initRenderTarget(pingPong.p0);
   renderer.copyTextureToTexture(initialPosTex, pingPong.p0.texture);
 
-  const updateVelocityMatShaderFrag = await httpGet("./velocity.frag");
-
-  const updateVelocityMat = new THREE.ShaderMaterial({
+  /**
+   * compute rho & pressure for each particle.
+   */
+  const updateRhoMatShaderFrag = await httpGet("./rho.frag");
+  const updateRhoMat = new THREE.ShaderMaterial({
+    precision: "highp",
     uniforms: {
-      uPosition: { value: null },
-      uVelocity: { value: null },
-      uGridKeys: { value: null },
-      uGridData: { value: null },
-      uGridOffset: { value: null },
+      uPositionTex: { value: null },
+      uRhoTex: { value: null },
+      uGKeyTex: { value: null },
+      uGDataTex: { value: null },
+      uGOffsetTex: { value: null },
+      uMaxNeighborsPerParticle: { value: MAX_NEIGHBORS_PER_PARTICLE },
+      uParticlesCount: { value: PARTICLE_COUNT },
       uH: { value: sphConfig.h },
       uK: { value: sphConfig.k },
       uMu: { value: sphConfig.mu },
       uRho0: { value: sphConfig.rho0 },
-      uTexSize: { value: TEX_SIZE },
+      uDelta: { value: sphConfig.delta },
+      uTexSize: { value: sphConfig.texSize },
       uTime: { value: null },
-      uDelta: { value: null },
     },
     vertexShader: `
     varying vec2 vUv;
+
+    void main() {
+      vUv = uv;
+      gl_Position = vec4(position, 1.0);
+    }
+    `,
+    fragmentShader: updateRhoMatShaderFrag,
+  });
+
+  /**
+   * compute forces and next velocities for each particle
+   */
+  const updateVelocityMatShaderFrag = await httpGet("./velocity.frag");
+  const updateVelocityMat = new THREE.ShaderMaterial({
+    precision: "highp",
+    uniforms: {
+      uPositionTex: { value: null },
+      uVelocityTex: { value: null },
+      uRhoTex: { value: null },
+      uGKeyTex: { value: null },
+      uGDataTex: { value: null },
+      uGOffsetTex: { value: null },
+      uParticlesCount: { value: PARTICLE_COUNT },
+      uMaxNeighborsPerParticle: { value: MAX_NEIGHBORS_PER_PARTICLE },
+      uBMin: { value: BBOX.min },
+      uBMax: { value: BBOX.max },
+      uGridSize: { value: lookUpGrid.grid },
+      uH: { value: sphConfig.h },
+      uK: { value: sphConfig.k },
+      uMu: { value: sphConfig.mu },
+      uRho0: { value: sphConfig.rho0 },
+      uDelta: { value: sphConfig.delta },
+      uGravity: { value: sphConfig.g },
+      uTexSize: { value: sphConfig.texSize },
+      uTime: { value: null },
+    },
+    vertexShader: `
+    out vec2 vUv;
 
     void main() {
       vUv = uv;
@@ -103,16 +157,22 @@ __main__ = async (
     fragmentShader: updateVelocityMatShaderFrag,
   });
 
+  const updatePositionMatShaderFrag = await httpGet("./position.frag");
   const updatePosMat = new THREE.ShaderMaterial({
+    precision: "highp",
     uniforms: {
-      uPosition: { value: null },
-      uVelocity: { value: null },
+      uPositionTex: { value: null },
+      uVelocityTex: { value: null },
+      uRhoTex: { value: null },
+      uParticlesCount: { value: PARTICLE_COUNT },
       uH: { value: sphConfig.h },
       uK: { value: sphConfig.k },
       uMu: { value: sphConfig.mu },
       uRho0: { value: sphConfig.rho0 },
+      uDelta: { value: sphConfig.delta },
       uTime: { value: null },
-      uDelta: { value: null },
+      uBMin: { value: BBOX.min },
+      uBMax: { value: BBOX.max },
     },
     vertexShader: `
     varying vec2 vUv;
@@ -122,155 +182,267 @@ __main__ = async (
       gl_Position = vec4(position, 1.0);
     }
     `,
-    fragmentShader: `
-    uniform sampler2D uPosition;
-    uniform sampler2D uVelocity;
-
-    uniform float uTime;
-    uniform float uDelta;
-
-    varying vec2 vUv;
-
-    void main() {
-      vec4 coords = texture2D(uPosition, vUv);
-      vec4 velocity = texture2D(uVelocity, vUv);
-
-      coords.xyz += velocity.xyz * uDelta;
-
-      gl_FragColor = coords;
-    }
-    `,
+    fragmentShader: updatePositionMatShaderFrag,
   });
 
   const quadGeo = new THREE.PlaneGeometry(2, 2);
-  const quadMesh = new THREE.Mesh(quadGeo, updateVelocityMat);
+  const quadMesh = new THREE.Mesh<THREE.PlaneGeometry, any>(
+    quadGeo,
+    updateVelocityMat
+  );
   computingScene.add(quadMesh);
 
-  const displayGeo = new THREE.BufferGeometry();
-  const displayMat = new THREE.ShaderMaterial({
-    transparent: true,
-    uniforms: {
-      uPosition: { value: null },
-    },
-    vertexShader: `
-    uniform sampler2D uPosition;
+  let displayPositionMat: THREE.ShaderMaterial;
+  let displayRhoMat: THREE.ShaderMaterial;
 
-    void main() {
-      gl_PointSize = 8.0;
-      vec3 pos = texture2D(uPosition, uv).xyz;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-    }
+  const positions = generatePositions(sphConfig.texSize);
+  const uvs = generateUVs(sphConfig.texSize);
+
+  const displayPositionMatFragShader = await httpGet("./display.frag");
+  const displayPositionMatVertShader = await httpGet("./display.vert");
+
+  //#region display position
+  {
+    const displayGeo = new THREE.BufferGeometry();
+    displayPositionMat = new THREE.ShaderMaterial({
+      transparent: true,
+      precision: "highp",
+      uniforms: {
+        uPositionTex: { value: null },
+        uVelocityTex: { value: null },
+        uRhoTex: { value: null },
+        uTexSize: { value: sphConfig.texSize },
+      },
+      vertexShader: displayPositionMatVertShader,
+      fragmentShader: displayPositionMatFragShader,
+    });
+
+    displayGeo.setAttribute(
+      "position",
+      new THREE.BufferAttribute(positions, 3)
+    );
+    displayGeo.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
+
+    const displayPts = new THREE.Points(displayGeo, displayPositionMat);
+    displayPts.frustumCulled = false;
+    world.add(displayPts);
+  }
+  //#endregion
+
+  //#region  display rho
+  {
+    const displayGeo = new THREE.PlaneGeometry(2, 2);
+    displayRhoMat = new THREE.ShaderMaterial({
+      transparent: true,
+      uniforms: {
+        uPositionTex: { value: null },
+        uVelocityTex: { value: null },
+        uRhoTex: { value: null },
+        rhoMax: { value: 1.5 },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+      uniform float rhoMax;
+      uniform sampler2D uRhoTex;
+      varying vec2 vUv;
+
+      void main() {
+        vec4 rho = texture2D(uRhoTex, vUv);
+        float normalized = rho.x;
+        vec3 color = vec3(normalized); // or use heatmap(normalized)
+        gl_FragColor = vec4(color, 1.0);
+      }
     `,
-    fragmentShader: `
-    void main() {
-      float dist = distance(gl_PointCoord, vec2(0.5));
-      if (dist > 0.5) discard;
-      gl_FragColor = vec4(0.8, 0.1, 0.1, 0.96);
-    }
-    `,
-  });
+    });
+    // const mesh = new THREE.Mesh(displayGeo, displayRhoMat);
+    // world.add(mesh);
+  }
+  //#endregion
 
-  displayGeo.setAttribute(
-    "position",
-    new THREE.BufferAttribute(generatePositions(TEX_SIZE), 3)
-  );
-  displayGeo.setAttribute(
-    "uv",
-    new THREE.BufferAttribute(generateUVs(TEX_SIZE), 2)
-  );
+  const particlePositions = generatePositions(sphConfig.texSize, 4);
 
-  const displayPts = new THREE.Points(displayGeo, displayMat);
-  world.add(displayPts);
+  // console.log("---lookUpGrid.GOffset---");
+  // console.log(lookUpGrid.GOffset);
+  // console.log("---lookUpGrid.GKey---");
+  // console.log(lookUpGrid.GKey);
+  // console.log("---lookUpGrid.GData---");
+  // console.log(lookUpGrid.GData);
 
-  const particlePositions = generatePositions(TEX_SIZE, 4);
+  {
+    const size = new THREE.Vector3();
+    BBOX.getSize(size);
+    const boxGeo = new THREE.BoxGeometry(size.x, size.y, size.z);
+    const edge = new THREE.LineSegments(
+      new THREE.EdgesGeometry(boxGeo),
+      new THREE.LineBasicMaterial({ visible: true, color: 0x000000 })
+    );
+    world.add(edge);
+  }
 
-  const lookUpGrid = new sphSearch.LookUpGrid3D(BBOX, TEX_SIZE, sphConfig.h);
+  renderer.debug.checkShaderErrors = true;
 
-  __add_nextframe_fn__(
-    (world, camera, renderer: THREE.WebGLRenderer, delta) => {
-      const now = performance.now();
+  __updateTHREEJs__invoke__.step = () => {
+    // animate(world, camera, renderer, 0.0016);
+  };
 
-      renderer.readRenderTargetPixels(
-        pingPong.p0,
-        0,
-        0,
-        TEX_SIZE,
-        TEX_SIZE,
-        particlePositions
-      );
+  world.add(lookUpGrid.visualize());
 
-      // console.time("lookup");
-      lookUpGrid.buildKeyArray(particlePositions);
-      lookUpGrid.buildGrid();
-      // console.timeEnd("lookup");
+  const animate = (world, camera, renderer: THREE.WebGLRenderer) => {
+    const now = performance.now();
 
-      quadMesh.material = updateVelocityMat;
-      updateVelocityMat.uniforms.uTime.value = now;
-      updateVelocityMat.uniforms.uDelta.value = delta;
-      updateVelocityMat.uniforms.uPosition.value = pingPong.p0.texture;
-      updateVelocityMat.uniforms.uVelocity.value = pingPong.v0.texture;
+    // renderer.readRenderTargetPixels(
+    //   pingPong.p0,
+    //   0,
+    //   0,
+    //   sphConfig.texSize,
+    //   sphConfig.texSize,
+    //   particlePositions
+    // );
 
-      updateVelocityMat.uniforms.uGridKeys.value = lookUpGrid.GKeyTex;
-      updateVelocityMat.uniforms.uGridData.value = lookUpGrid.GDataTex;
-      updateVelocityMat.uniforms.uGridOffset.value = lookUpGrid.GOffsetTex;
+    // console.time("lookup");
+    // lookUpGrid.buildKeyArray(particlePositions);
+    // lookUpGrid.buildGrid();
+    // console.timeEnd("lookup");
 
-      renderer.setRenderTarget(pingPong.v1);
-      renderer.render(computingScene, computingCamera);
-      pingPong.swap("v");
+    //#region Rho & Pressure Pass
+    quadMesh.material = updateRhoMat;
+    updateRhoMat.uniforms.uTime.value = now;
+    updateRhoMat.uniforms.uPositionTex.value = pingPong.p0.texture;
+    updateRhoMat.uniforms.uRhoTex.value = pingPong.rho0.texture;
+    updateRhoMat.uniforms.uGKeyTex.value = lookUpGrid.GKeyTex;
+    updateRhoMat.uniforms.uGDataTex.value = lookUpGrid.GDataTex;
+    updateRhoMat.uniforms.uGOffsetTex.value = lookUpGrid.GOffsetTex;
 
-      quadMesh.material = updatePosMat;
-      updatePosMat.uniforms.uTime.value = now;
-      updatePosMat.uniforms.uDelta.value = delta;
-      updatePosMat.uniforms.uPosition.value = pingPong.p0.texture;
-      updatePosMat.uniforms.uVelocity.value = pingPong.v0.texture;
+    renderer.setRenderTarget(pingPong.rho1);
+    renderer.render(computingScene, computingCamera);
+    pingPong.swap("rho");
+    //#endregion
 
-      renderer.setRenderTarget(pingPong.p1);
-      renderer.render(computingScene, computingCamera);
-      pingPong.swap("p");
+    //#region Forces & Velocity Pass
+    quadMesh.material = updateVelocityMat;
+    updateVelocityMat.uniforms.uTime.value = now;
+    updateVelocityMat.uniforms.uPositionTex.value = pingPong.p0.texture;
+    updateVelocityMat.uniforms.uVelocityTex.value = pingPong.v0.texture;
+    updateVelocityMat.uniforms.uRhoTex.value = pingPong.rho0.texture;
+    updateVelocityMat.uniforms.uGKeyTex.value = lookUpGrid.GKeyTex;
+    updateVelocityMat.uniforms.uGDataTex.value = lookUpGrid.GDataTex;
+    updateVelocityMat.uniforms.uGOffsetTex.value = lookUpGrid.GOffsetTex;
 
-      renderer.setRenderTarget(null);
+    renderer.setRenderTarget(pingPong.v1);
+    renderer.render(computingScene, computingCamera);
+    pingPong.swap("v");
+    //#endregion
 
-      displayMat.uniforms.uPosition.value = pingPong.p0.texture;
-    }
-  );
+    //#region Position Pass
+    quadMesh.material = updatePosMat;
+    updatePosMat.uniforms.uTime.value = now;
+    updatePosMat.uniforms.uPositionTex.value = pingPong.p0.texture;
+    updatePosMat.uniforms.uVelocityTex.value = pingPong.v0.texture;
+
+    renderer.setRenderTarget(pingPong.p1);
+    renderer.render(computingScene, computingCamera);
+    pingPong.swap("p");
+    //#endregion
+
+    //#region  Display
+    renderer.setRenderTarget(null);
+
+    displayPositionMat.uniforms.uPositionTex.value = pingPong.p0.texture;
+    displayPositionMat.uniforms.uVelocityTex.value = pingPong.v0.texture;
+    displayPositionMat.uniforms.uRhoTex.value = pingPong.rho0.texture;
+    //#endregion
+  };
+
+  __add_nextframe_fn__(animate);
 };
 
-const BBOX = new THREE.Box3();
-const TEX_SIZE = 100;
-const PARTICLE_COUNT = TEX_SIZE * TEX_SIZE;
+__defineControl__("step", "btn", "fire");
+
+const BBOX = new THREE.Box3(
+  new THREE.Vector3(-2, -2, -2),
+  new THREE.Vector3(2, 2, 2)
+);
+const PARTICLE_COUNT = sphConfig.texSize * sphConfig.texSize;
+const MAX_NEIGHBORS_PER_PARTICLE = 256;
 
 // 🌈 初始化位置纹理数据
 function generateInitialPositions() {
-  const data = new Float32Array(PARTICLE_COUNT * 4);
+  const N = PARTICLE_COUNT;
+  const data = new Float32Array(N * 4);
 
-  const { min, max } = BBOX;
-
+  const min = BBOX.min;
   const size = new THREE.Vector3();
   BBOX.getSize(size);
 
-  for (let i = 0; i < PARTICLE_COUNT; i++) {
-    const x = Math.random() * size.x + min.x;
-    const y = Math.random() * size.y + min.y;
-    const z = Math.random() * size.z + min.z;
+  let volume = size.x * size.y * size.z;
+  let density = N / volume;
+  let idealSpacing = Math.pow(1 / density, 1.0 / 3.0);
 
-    data[i * 4 + 0] = x;
-    data[i * 4 + 1] = y;
-    data[i * 4 + 2] = z;
+  console.log("idealSpacing", idealSpacing);
+
+  const cols = Math.ceil(size.x / idealSpacing);
+  const rows = Math.ceil(size.y / idealSpacing);
+  const layers = Math.ceil(size.z / idealSpacing);
+
+  let i = 0;
+
+  for (let x = 0; x < cols; x++) {
+    for (let y = 0; y < rows; y++) {
+      for (let z = 0; z < layers; z++) {
+        if (i >= N) break;
+
+        data[i * 4 + 0] = min.x + x * idealSpacing * 1;
+        data[i * 4 + 1] = min.y + y * idealSpacing * 1;
+        data[i * 4 + 2] = min.z + z * idealSpacing * 1;
+        data[i * 4 + 3] = i;
+
+        i++;
+      }
+    }
+  }
+
+  return new THREE.DataTexture(
+    data,
+    sphConfig.texSize,
+    sphConfig.texSize,
+    THREE.RGBAFormat,
+    THREE.FloatType
+  );
+}
+
+function generateInitialPositions001() {
+  const N = PARTICLE_COUNT;
+  const data = new Float32Array(N * 4);
+
+  const min = BBOX.min;
+  const size = new THREE.Vector3();
+  BBOX.getSize(size);
+
+  for (let i = 0; i < N; i++) {
+    data[i * 4 + 0] = Math.random() * size.x + min.x; //  min.x + x * idealSpacing;
+    data[i * 4 + 1] = Math.random() * size.y + min.y; //  min.y + y * idealSpacing;
+    data[i * 4 + 2] = Math.random() * size.z + min.z; // min.z + z * idealSpacing;
     data[i * 4 + 3] = i;
   }
 
   return new THREE.DataTexture(
     data,
-    TEX_SIZE,
-    TEX_SIZE,
+    sphConfig.texSize,
+    sphConfig.texSize,
     THREE.RGBAFormat,
     THREE.FloatType
   );
 }
 
 // 📦 创建位置和速度的 render target
-function createRenderTarget() {
-  return new THREE.WebGLRenderTarget(TEX_SIZE, TEX_SIZE, {
+function createQuadRenderTarget(n = 1) {
+  return new THREE.WebGLRenderTarget(sphConfig.texSize, sphConfig.texSize, {
     wrapS: THREE.RepeatWrapping,
     wrapT: THREE.RepeatWrapping,
     minFilter: THREE.NearestFilter,
@@ -280,6 +452,7 @@ function createRenderTarget() {
     type: THREE.FloatType,
     depthBuffer: false,
     stencilBuffer: false,
+    count: n,
   });
 }
 
