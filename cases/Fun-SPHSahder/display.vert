@@ -4,7 +4,7 @@ uniform sampler2D uVelocityTex;
 flat out int particleId;
 
 void main() {
-  gl_PointSize = 6.0;
+  gl_PointSize = 16.0;
   vec4 particleCoord = texture2D(uPositionTex, uv);
   vec3 pos = particleCoord.xyz;
   particleId = int(particleCoord.w);

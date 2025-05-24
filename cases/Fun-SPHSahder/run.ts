@@ -29,14 +29,15 @@ const sphConfig = {
   /** smooth radius */
   h: 1.2,
   /** coeff for pressure force. */
-  k: 60,
+  k: 50,
   /** coeff for viscosity*/
-  mu: 50,
-  g: 9.81 * 0.1,
+  mu: 60,
+  g: 9.81,
   delta: 0.016,
   /** rest density */
-  rho0: 2,
-  texSize: 50,
+  rho0: 1,
+  texSize: 70,
+  boxSize: 4,
 };
 
 __main__ = async (
@@ -365,8 +366,8 @@ __main__ = async (
 __defineControl__("step", "btn", "fire");
 
 const BBOX = new THREE.Box3(
-  new THREE.Vector3(-2, -2, -2),
-  new THREE.Vector3(2, 2, 2)
+  new THREE.Vector3(-sphConfig.boxSize, -sphConfig.boxSize, -sphConfig.boxSize),
+  new THREE.Vector3(sphConfig.boxSize, sphConfig.boxSize, sphConfig.boxSize)
 );
 const PARTICLE_COUNT = sphConfig.texSize * sphConfig.texSize;
 const MAX_NEIGHBORS_PER_PARTICLE = 256;
@@ -379,6 +380,7 @@ function generateInitialPositions() {
   const min = BBOX.min;
   const size = new THREE.Vector3();
   BBOX.getSize(size);
+  size.divideScalar(3);
 
   let volume = size.x * size.y * size.z;
   let density = N / volume;
@@ -405,30 +407,6 @@ function generateInitialPositions() {
         i++;
       }
     }
-  }
-
-  return new THREE.DataTexture(
-    data,
-    sphConfig.texSize,
-    sphConfig.texSize,
-    THREE.RGBAFormat,
-    THREE.FloatType
-  );
-}
-
-function generateInitialPositions001() {
-  const N = PARTICLE_COUNT;
-  const data = new Float32Array(N * 4);
-
-  const min = BBOX.min;
-  const size = new THREE.Vector3();
-  BBOX.getSize(size);
-
-  for (let i = 0; i < N; i++) {
-    data[i * 4 + 0] = Math.random() * size.x + min.x; //  min.x + x * idealSpacing;
-    data[i * 4 + 1] = Math.random() * size.y + min.y; //  min.y + y * idealSpacing;
-    data[i * 4 + 2] = Math.random() * size.z + min.z; // min.z + z * idealSpacing;
-    data[i * 4 + 3] = i;
   }
 
   return new THREE.DataTexture(

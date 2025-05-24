@@ -162,6 +162,38 @@ vec3 calcViscosityForce(
   return dir * scalar;
 }
 
+const float margin = 0.01;
+const float uBoundaryStiffness = 140.0;
+
+void computeBoundaryRepulsion(vec3 position, vec3 force) {
+  // X axis
+  if(position.x < uBMin.x + margin) {
+    float dist = uBMin.x + margin - position.x;
+    force.x += uBoundaryStiffness * dist;
+  } else if(position.x > uBMax.x - margin) {
+    float dist = position.x - (uBMax.x - margin);
+    force.x -= uBoundaryStiffness * dist;
+  }
+
+  // // Y axis
+  if(position.y < uBMin.y + margin) {
+    float dist = uBMin.y + margin - position.y;
+    force.y += uBoundaryStiffness * dist;
+  } else if(position.y > uBMax.y - margin) {
+    float dist = position.y - (uBMax.y - margin);
+    force.y -= uBoundaryStiffness * dist;
+  }
+
+  // // Z axis
+  if(position.z < uBMin.z + margin) {
+    float dist = uBMin.z + margin - position.z;
+    force.z += uBoundaryStiffness * dist;
+  } else if(position.z > uBMax.z - margin) {
+    float dist = position.z - (uBMax.z - margin);
+    force.z -= uBoundaryStiffness * dist;
+  }
+}
+
 void main() {
   vec4 coord = texture2D(uPositionTex, vUv);
   vec3 velocity = texture2D(uVelocityTex, vUv).xyz;
@@ -196,23 +228,21 @@ void main() {
   }
 
   vec3 acc = (pressureForce + viscosityForce) / rho.x + vec3(0.0, -uGravity, 0.0);
+  computeBoundaryRepulsion(particleCoord, acc);
+
   velocity += acc * uDelta;
 
-  // velocity.x = 3.0 * randMinusOneToOne(vUv + 0.1);
-  // velocity.y = 3.0 * randMinusOneToOne(vUv + 0.2);
-  // velocity.z = 3.0 * randMinusOneToOne(vUv + 0.3);
-
-  if(uBMin.x >= coord.x || uBMax.x <= coord.x) {
+  if(uBMin.x > coord.x || uBMax.x < coord.x) {
     velocity.x *= -0.7;
   } else {
   }
 
-  if(uBMin.y >= coord.y || uBMax.y <= coord.y) {
+  if(uBMin.y > coord.y || uBMax.y < coord.y) {
     velocity.y *= -0.7;
   } else {
   }
 
-  if(uBMin.z >= coord.z || uBMax.z <= coord.z) {
+  if(uBMin.z > coord.z || uBMax.z < coord.z) {
     velocity.z *= -0.7;
   } else {
   }

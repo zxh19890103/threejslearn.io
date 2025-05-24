@@ -12,9 +12,9 @@ void main() {
   int y = particleId / uTexSize;
 
   vec4 rho = texelFetch(uRhoTex, ivec2(x, y), 0);
-
+       
   float r = rho.x / 500.0;
   float b = 1.0 - r;
 
-  gl_FragColor = vec4(r, b, b, 1.0);
+  gl_FragColor = vec4(r, 0.3 * b, 0.7 * b, 1.0);
 }
