@@ -30,5 +30,6 @@ title: Cases
 - [Shared](/cases/Shared)
 - [Study-KernelFunctions](/cases/Study-KernelFunctions)
 - [Study-ShaderFormatTypeCombinations](/cases/Study-ShaderFormatTypeCombinations)
+- [Study-SPHGridLookup](/cases/Study-SPHGridLookup)
 - [UV](/cases/UV)
 - [WebGLRenderer](/cases/WebGLRenderer)

@@ -19,6 +19,13 @@ uniform float uRho0;
 
 varying vec2 vUv;
 
+vec3 getParticleCoord(int i) {
+  int x = i % uTexSize;
+  int y = i / uTexSize;
+  vec3 coord = texelFetch(uPositionTex, ivec2(x, y), 0).xyz;
+  return coord;
+}
+
 ivec3 getGridKey(int particleId) {
   int x = particleId % uTexSize;
   int y = particleId / uTexSize;
@@ -26,11 +33,13 @@ ivec3 getGridKey(int particleId) {
   return gk;
 }
 
-void fetchNeighbors(int particleId, out int neighbors[256], out int count) {
+void fetchNeighbors(int particleId, out int neighbors[256], out float distances[256], out int count) {
   ivec3 gk = getGridKey(particleId);
   count = 0;
 
   ivec3 gridSize = textureSize(uGOffsetTex, 0);
+  // vec4 coord = texelFetch(uPositionTex, )
+  vec3 coord = getParticleCoord(particleId);
 
   for(int dx = -1; dx <= 1; dx++) {
     for(int dy = -1; dy <= 1; dy++) {
@@ -51,8 +60,12 @@ void fetchNeighbors(int particleId, out int neighbors[256], out int count) {
           int x = index % uTexSize;
           int y = index / uTexSize;
           int neighbor = texelFetch(uGDataTex, ivec2(x, y), 0).r;
-          if(count < uMaxNeighborsPerParticle) {
-            neighbors[count++] = neighbor;
+          vec3 neighorCoord = getParticleCoord(neighbor);
+          float r = distance(coord, neighorCoord);
+          if(r < uH && count < uMaxNeighborsPerParticle) {
+            neighbors[count] = neighbor;
+            distances[count] = max(r, 0.01);
+            count++;
           }
         }
       }
@@ -77,30 +90,22 @@ void main() {
   vec3 coord = position.xyz;
   int particleIndex = int(position.w);
 
-  // int neighbors[256];
-  // int count;
+  float distances[256];
+  int neighbors[256];
+  int count;
 
-  // fetchNeighbors(particleIndex, neighbors, count);
+  fetchNeighbors(particleIndex, neighbors, distances, count);
 
   float rhoScalar = 0.0;
 
-  for(int i = 0; i < uParticlesCount; i++) {
-    if(i == particleIndex)
+  for(int i = 0; i < count; i++) {
+
+    int neighborIndex = neighbors[i];
+
+    if(neighborIndex == particleIndex)
       continue;
 
-    int x = i % uTexSize;
-    int y = i / uTexSize;
-    ivec2 xy = ivec2(x, y);
-
-    vec3 neighborCoord = texelFetch(uPositionTex, xy, 0).xyz;
-
-    float r = distance(neighborCoord, coord);
-    if(r >= uH)
-      continue;
-
-    r = max(r, 0.001);
-
-    rhoScalar += Poly6Kernel(r, uH);
+    rhoScalar += Poly6Kernel(distances[i], uH);
   }
 
   float pressure = uK * (rhoScalar - uRho0);

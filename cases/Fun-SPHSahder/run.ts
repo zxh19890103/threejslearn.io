@@ -36,7 +36,7 @@ const sphConfig = {
   delta: 0.016,
   /** rest density */
   rho0: 1,
-  texSize: 70,
+  texSize: 10,
   boxSize: 4,
 };
 
@@ -72,7 +72,7 @@ __main__ = async (
     v1: createQuadRenderTarget(),
     rho0: createQuadRenderTarget(),
     rho1: createQuadRenderTarget(),
-    swap: (which: "v" | "p" | "rho" | "nbr") => {
+    swap: (which: "v" | "p" | "rho") => {
       const [rt0, rt1] = [pingPong[which + "0"], pingPong[which + "1"]];
       pingPong[which + "0"] = rt1;
       pingPong[which + "1"] = rt0;
@@ -269,7 +269,7 @@ __main__ = async (
   const particlePositions = generatePositions(sphConfig.texSize, 4);
 
   // console.log("---lookUpGrid.GOffset---");
-  // console.log(lookUpGrid.GOffset);
+  console.log(lookUpGrid.GOffset);
   // console.log("---lookUpGrid.GKey---");
   // console.log(lookUpGrid.GKey);
   // console.log("---lookUpGrid.GData---");
@@ -297,18 +297,18 @@ __main__ = async (
   const animate = (world, camera, renderer: THREE.WebGLRenderer) => {
     const now = performance.now();
 
-    // renderer.readRenderTargetPixels(
-    //   pingPong.p0,
-    //   0,
-    //   0,
-    //   sphConfig.texSize,
-    //   sphConfig.texSize,
-    //   particlePositions
-    // );
+    renderer.readRenderTargetPixels(
+      pingPong.p0,
+      0,
+      0,
+      sphConfig.texSize,
+      sphConfig.texSize,
+      particlePositions
+    );
 
     // console.time("lookup");
-    // lookUpGrid.buildKeyArray(particlePositions);
-    // lookUpGrid.buildGrid();
+    lookUpGrid.buildKeyArray(particlePositions);
+    lookUpGrid.buildGrid();
     // console.timeEnd("lookup");
 
     //#region Rho & Pressure Pass

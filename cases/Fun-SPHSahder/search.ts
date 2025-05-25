@@ -112,9 +112,9 @@ export class LookUpGrid3D {
     let k = 0;
     let cursor = 0;
 
-    for (let x = 0; x <= N0; x += 1) {
-      for (let y = 0; y <= N1; y += 1) {
-        for (let z = 0; z <= N2; z += 1) {
+    for (let x = 0; x < N0; x += 1) {
+      for (let y = 0; y < N1; y += 1) {
+        for (let z = 0; z < N2; z += 1) {
           const i4 = k * 4;
 
           this.GOffset[i4] = cursor;
@@ -138,6 +138,37 @@ export class LookUpGrid3D {
 
     this.GOffsetTex.needsUpdate = true;
     this.GDataTex.needsUpdate = true;
+  }
+
+  eachGridCell(fn: (x: number, y: number, z: number, index: number) => void) {
+    const { x: N0, y: N1, z: N2 } = this.grid;
+    let i = 0;
+
+    for (let x = 0; x < N0; x++) {
+      for (let y = 0; y < N1; y++) {
+        for (let z = 0; z < N2; z++) {
+          fn(x, y, z, i++);
+        }
+      }
+    }
+  }
+
+  hl(x: number, y: number, z: number) {
+    const { x: N0, y: N1, z: N2 } = this.grid;
+    const index = z + y * N2 + x * N2 * N1;
+
+    const offset = this.GOffset[index * 4];
+    const count = this.GOffset[index * 4 + 1];
+
+    const particles: number[] = [];
+
+    for (let i = 0; i < count; i++) {
+      const k = offset + i;
+      const particle = this.GData[k];
+      particles.push(particle);
+    }
+
+    return particles;
   }
 
   print() {
