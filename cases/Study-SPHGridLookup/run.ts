@@ -71,6 +71,21 @@ __main__ = (
     grids.push([x, y, z]);
   });
 
+  const getParticlesByGridKey = (x: number, y: number, z: number): number[] => {
+    const index = z + y * texSize + x * texSize * texSize;
+    const offset = lookupGrid.GOffset[index * 4];
+    const count = lookupGrid.GOffset[index * 4 + 1];
+    const particles: number[] = [];
+
+    for (let i = 0; i < count; i++) {
+      const k = offset + i;
+      const particle = lookupGrid.GData[k];
+      particles.push(particle);
+    }
+
+    return particles;
+  };
+
   const getGridCell = (i: number): Vec3 => {
     const x = i % texSize;
     const y = Math.floor(i / texSize);

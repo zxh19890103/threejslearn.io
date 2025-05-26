@@ -14,7 +14,7 @@ void main() {
   vec4 velocity = texture2D(uVelocityTex, vUv);
 
   coord.xyz += velocity.xyz * uDelta;
-  coord.xyz = clamp(coord.xyz, uBMin, uBMax);
+  coord.xyz = clamp(coord.xyz, uBMin + 0.05, uBMax - 0.05);
 
   gl_FragColor = coord;
 }

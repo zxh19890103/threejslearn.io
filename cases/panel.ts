@@ -35,7 +35,8 @@ __usePanel__ = (cfg: UsePanelConfig) => {
 
   const context = canvas.getContext("2d");
 
-  context.font = `18px monospace`;
+  context.font = `24px monospace`;
+  // context.scale(dpr, dpr);
   context.letterSpacing = "-3px";
   context.textAlign = "left";
   context.textBaseline = "middle";

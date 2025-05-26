@@ -38,13 +38,13 @@ void fetchNeighbors(int particleId, out int neighbors[256], out float distances[
   count = 0;
 
   ivec3 gridSize = textureSize(uGOffsetTex, 0);
-  // vec4 coord = texelFetch(uPositionTex, )
   vec3 coord = getParticleCoord(particleId);
 
   for(int dx = -1; dx <= 1; dx++) {
     for(int dy = -1; dy <= 1; dy++) {
       for(int dz = -1; dz <= 1; dz++) {
         ivec3 neighborCell = gk + ivec3(dx, dy, dz);
+
         // 跳过越界格子
         if(any(lessThan(neighborCell, ivec3(0))) ||
           any(greaterThanEqual(neighborCell, gridSize))) {
@@ -90,22 +90,29 @@ void main() {
   vec3 coord = position.xyz;
   int particleIndex = int(position.w);
 
-  float distances[256];
-  int neighbors[256];
-  int count;
-
-  fetchNeighbors(particleIndex, neighbors, distances, count);
+  // float distances[256];
+  // int neighbors[256];
+  // int count;
+  // fetchNeighbors(particleIndex, neighbors, distances, count);
 
   float rhoScalar = 0.0;
 
-  for(int i = 0; i < count; i++) {
+  for(int i = 0; i < uParticlesCount; i++) {
 
-    int neighborIndex = neighbors[i];
+    int neighborIndex = i;
 
     if(neighborIndex == particleIndex)
       continue;
 
-    rhoScalar += Poly6Kernel(distances[i], uH);
+    vec3 neighborCoord = getParticleCoord(neighborIndex);
+
+    float r = distance(coord, neighborCoord);
+    r = max(r, 0.01); // 防止除以0
+
+    if(r >= uH)
+      continue;
+
+    rhoScalar += Poly6Kernel(r, uH);
   }
 
   float pressure = uK * (rhoScalar - uRho0);

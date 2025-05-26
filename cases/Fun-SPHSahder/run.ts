@@ -29,15 +29,15 @@ const sphConfig = {
   /** smooth radius */
   h: 1.2,
   /** coeff for pressure force. */
-  k: 50,
+  k: 70,
   /** coeff for viscosity*/
-  mu: 60,
+  mu: 70,
   g: 9.81,
   delta: 0.016,
   /** rest density */
   rho0: 1,
-  texSize: 10,
-  boxSize: 4,
+  texSize: 70,
+  boxSize: 3,
 };
 
 __main__ = async (
@@ -297,18 +297,18 @@ __main__ = async (
   const animate = (world, camera, renderer: THREE.WebGLRenderer) => {
     const now = performance.now();
 
-    renderer.readRenderTargetPixels(
-      pingPong.p0,
-      0,
-      0,
-      sphConfig.texSize,
-      sphConfig.texSize,
-      particlePositions
-    );
+    // renderer.readRenderTargetPixels(
+    //   pingPong.p0,
+    //   0,
+    //   0,
+    //   sphConfig.texSize,
+    //   sphConfig.texSize,
+    //   particlePositions
+    // );
 
     // console.time("lookup");
-    lookUpGrid.buildKeyArray(particlePositions);
-    lookUpGrid.buildGrid();
+    // lookUpGrid.buildKeyArray(particlePositions);
+    // lookUpGrid.buildGrid();
     // console.timeEnd("lookup");
 
     //#region Rho & Pressure Pass

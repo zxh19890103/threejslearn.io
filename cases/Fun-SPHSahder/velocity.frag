@@ -162,35 +162,45 @@ vec3 calcViscosityForce(
   return dir * scalar;
 }
 
-const float margin = 0.01;
-const float uBoundaryStiffness = 140.0;
+const float boundaryDistance = 0.05; // Distance within which repulsive force is applied
+const float boundaryForceStrength = 100.0; // Strength of the repulsive force
 
-void computeBoundaryRepulsion(vec3 position, vec3 force) {
-  // X axis
-  if(position.x < uBMin.x + margin) {
-    float dist = uBMin.x + margin - position.x;
-    force.x += uBoundaryStiffness * dist;
-  } else if(position.x > uBMax.x - margin) {
-    float dist = position.x - (uBMax.x - margin);
-    force.x -= uBoundaryStiffness * dist;
+// Helper function: Compute repulsive force magnitude based on distance
+float computeRepulsiveForce(float dist, float maxDist) {
+  if(dist >= maxDist)
+    return 0.0; // No force beyond max distance
+  float ratio = dist / maxDist;
+    // Quadratic decay for smooth force
+  return boundaryForceStrength * (1.0 - ratio) * (1.0 - ratio);
+}
+
+void computeBoundaryRepulsiveForce(vec3 pos, vec3 force) {
+    // Compute distances to each of the six faces
+  float distLeft = pos.x - uBMin.x;   // Distance to left face (x = minX)
+  float distRight = uBMax.x - pos.x;  // Distance to right face (x = maxX)
+  float distBottom = pos.y - uBMin.y; // Distance to bottom face (y = minY)
+  float distTop = uBMax.y - pos.y;    // Distance to top face (y = maxY)
+  float distBack = pos.z - uBMin.z;   // Distance to back face (z = minZ)
+  float distFront = uBMax.z - pos.z;  // Distance to front face (z = maxZ)
+
+    // Apply repulsive force if particle is close to a face
+  if(distLeft < boundaryDistance) {
+    force += vec3(computeRepulsiveForce(distLeft, boundaryDistance), 0.0, 0.0); // Push right
   }
-
-  // // Y axis
-  if(position.y < uBMin.y + margin) {
-    float dist = uBMin.y + margin - position.y;
-    force.y += uBoundaryStiffness * dist;
-  } else if(position.y > uBMax.y - margin) {
-    float dist = position.y - (uBMax.y - margin);
-    force.y -= uBoundaryStiffness * dist;
+  if(distRight < boundaryDistance) {
+    force += vec3(-computeRepulsiveForce(distRight, boundaryDistance), 0.0, 0.0); // Push left
   }
-
-  // // Z axis
-  if(position.z < uBMin.z + margin) {
-    float dist = uBMin.z + margin - position.z;
-    force.z += uBoundaryStiffness * dist;
-  } else if(position.z > uBMax.z - margin) {
-    float dist = position.z - (uBMax.z - margin);
-    force.z -= uBoundaryStiffness * dist;
+  if(distBottom < boundaryDistance) {
+    force += vec3(0.0, computeRepulsiveForce(distBottom, boundaryDistance), 0.0); // Push up
+  }
+  if(distTop < boundaryDistance) {
+    force += vec3(0.0, -computeRepulsiveForce(distTop, boundaryDistance), 0.0); // Push down
+  }
+  if(distBack < boundaryDistance) {
+    force += vec3(0.0, 0.0, computeRepulsiveForce(distBack, boundaryDistance)); // Push forward
+  }
+  if(distFront < boundaryDistance) {
+    force += vec3(0.0, 0.0, -computeRepulsiveForce(distFront, boundaryDistance)); // Push backward
   }
 }
 
@@ -221,29 +231,30 @@ void main() {
     if(r >= uH)
       continue;
 
-    r = max(r, 0.1);
+    r = max(r, 0.01);
 
     pressureForce += calcPressureForce(particleCoord, neighborCoord, rho.z, neighborRho.z, rho.x, neighborRho.x);
     viscosityForce += calcViscosityForce(particleCoord, neighborCoord, velocity, neighborVelocity, rho.x, neighborRho.x);
   }
 
-  vec3 acc = (pressureForce + viscosityForce) / rho.x + vec3(0.0, -uGravity, 0.0);
-  computeBoundaryRepulsion(particleCoord, acc);
+  vec3 acc = (pressureForce + viscosityForce) / rho.x;
+
+  acc.y -= uGravity; // Apply gravity
+
+  computeBoundaryRepulsiveForce(particleCoord, acc);
 
   velocity += acc * uDelta;
 
-  if(uBMin.x > coord.x || uBMax.x < coord.x) {
-    velocity.x *= -0.7;
+  if(uBMin.x + 0.01 > coord.x || uBMax.x - 0.01 < coord.x) {
+    velocity.x *= -0.6;
   } else {
   }
-
-  if(uBMin.y > coord.y || uBMax.y < coord.y) {
-    velocity.y *= -0.7;
+  if(uBMin.y + 0.01 > coord.y || uBMax.y - 0.01 < coord.y) {
+    velocity.y *= -0.6;
   } else {
   }
-
-  if(uBMin.z > coord.z || uBMax.z < coord.z) {
-    velocity.z *= -0.7;
+  if(uBMin.z + 0.01 > coord.z || uBMax.z - 0.01 < coord.z) {
+    velocity.z *= -0.6;
   } else {
   }
 

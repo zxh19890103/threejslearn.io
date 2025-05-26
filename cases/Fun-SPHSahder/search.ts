@@ -109,12 +109,12 @@ export class LookUpGrid3D {
     const { x: N0, y: N1, z: N2 } = this.grid;
     const { GData, GKey } = this;
 
-    let k = 0;
     let cursor = 0;
 
     for (let x = 0; x < N0; x += 1) {
       for (let y = 0; y < N1; y += 1) {
         for (let z = 0; z < N2; z += 1) {
+          const k = z + y * N2 + x * N2 * N1;
           const i4 = k * 4;
 
           this.GOffset[i4] = cursor;
@@ -131,7 +131,6 @@ export class LookUpGrid3D {
           }
 
           this.GOffset[i4 + 1] = count;
-          k++;
         }
       }
     }
