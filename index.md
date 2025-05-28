@@ -59,13 +59,13 @@ Comets.
 All Cases：<a href="/cases"><em>Cases</em></a></p>
 
 <p>
-<h4># My Skills</h4>
+<h4 id="skills"># My Skills</h4>
 Have a look: <a href="/skills"><em>Skills</em></a>
 </p>
 
 <p>
 
-<h4># About the Author</h4>
+<h4 id="about"># About the Author</h4>
 Hi, I’m Singhi, a Web3D developer from China.
 <br/>
 <br/>
@@ -83,7 +83,7 @@ If your company need this dev role, connect to me please.
 <br>
 Here is my CV: <a href="https://www.zhangxinghai.cn/cv" target="_blank">CV</a>.
 
-<h4># Contacts</h4>
+<h4 id="contact"># Contacts</h4>
 <ul style="text-transform: none">
 <li>
 Email (google mail only): <a href="mailto: zhangxinghai79@gmail.com">zhangxinghai79@gmail.com</a>
