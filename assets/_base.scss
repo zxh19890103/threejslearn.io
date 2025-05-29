@@ -139,3 +139,21 @@ hr {
 .rounded {
   border-radius: 3px 4px;
 }
+
+blockquote {
+  position: relative;
+  margin-inline-start: 40px;
+  margin-inline-end: 40px;
+  color: #333;
+
+  &::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: -40px;
+    transform: translate(0, -50%);
+    height: 68%;
+    width: 4px;
+    background-color: #ddd;
+  }
+}

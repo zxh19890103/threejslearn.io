@@ -101,11 +101,6 @@ Discord (welcome to join & connect):
 </li>
 
 <li>
-Wik (a framework to build warehouse monitor & layout):
-<a href="https://wik.zhangxinghai.cn/" target="_blank">https://wik.zhangxinghai.cn/</a>
-</li>
-
-<li>
 My Blog (posts that sharing my thoughts of developing over years.):
 <a href="https://www.zhangxinghai.cn/">https://www.zhangxinghai.cn/</a>
 </li>
