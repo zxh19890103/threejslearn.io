@@ -36,7 +36,7 @@ a {
 }
 
 ul {
-  text-transform: capitalize;
+  // text-transform: capitalize;
   list-style-type: square;
   padding: 0;
 
@@ -76,7 +76,7 @@ dialog {
     ul,
     ol {
       text-transform: none;
-      padding-left: 1em;
+      padding-left: 2em;
     }
   }
 

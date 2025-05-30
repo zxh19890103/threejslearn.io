@@ -252,6 +252,7 @@ $lg-screen-width: 1024px;
   box-sizing: border-box;
   box-shadow: -1px 0 1px 0px rgba($color: #000000, $alpha: 0.2);
   background-color: white;
+  color: #222;
 
   @media screen and (max-width: $lg-screen-width) {
     position: fixed;
@@ -261,7 +262,13 @@ $lg-screen-width: 1024px;
     height: 100vh !important;
   }
 
-  > h3 {
+  h2 {
+    font-size: 1.3rem;
+    font-weight: normal;
+    color: #000;
+  }
+
+  > h2 {
     margin: 0;
     font-size: 2rem;
     text-transform: capitalize;
