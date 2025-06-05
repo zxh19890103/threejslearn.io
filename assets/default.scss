@@ -91,6 +91,25 @@
   }
 }
 
+hr {
+  width: 38.2%;
+  margin: 2rem auto;
+  position: relative;
+  overflow: visible;
+
+  &::after {
+    content: '';
+    display: block;
+    position: absolute;
+    top: -3px;
+    left: 50%;
+    transform: translate(-3px, 0) rotate(45deg);
+    width: 6px;
+    height: 6px;
+    background-color: #ddd;
+  }
+}
+
 @media only screen and (max-width: 640px) {
   .Content {
     width: 100%;
