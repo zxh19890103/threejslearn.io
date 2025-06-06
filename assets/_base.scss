@@ -2,10 +2,9 @@ html {
   background-color: white;
   color: black;
   height: 100%;
-  font-size: 16px;
-  font-family: "Nunito", serif, "Microsoft JhengHei", "PingFang TC";
-  font-optical-sizing: auto;
+  font: 18px/1.6 "Nunito", serif, "Microsoft JhengHei", "PingFang TC";
   font-weight: 400;
+  font-optical-sizing: auto;
   font-style: normal;
 }
 
@@ -34,9 +33,11 @@ a {
 }
 
 ul {
-  // text-transform: capitalize;
   list-style-type: square;
   padding: 0;
+  padding-left: 1em;
+  list-style-position: inside;
+  font-size: 0.92em;
 
   li {
     margin: 0.4rem 0;

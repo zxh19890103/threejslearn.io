@@ -5,14 +5,15 @@
 <head>
   {% include head.html %}
   <link rel="stylesheet" href="/assets/jslibs/hls/style.min.css" />
-  <link rel="stylesheet" href="/assets/case.css?ts={{site.time | date: '%s'}}" />
-  <script src="/assets/jslibs/stats.min.js"></script>
-  <script src="/assets/jslibs/markdown.min.js"></script>
-  <script src="/assets/jslibs/suncalc.min.js"></script>
+  <link rel="stylesheet" href="/assets/course.css?ts={{site.time | date: '%s'}}" />
 
+  {% if page.math %}
   <link rel="stylesheet" href="/assets/jslibs/katex/katex.min.css">
   <script defer src="/assets/jslibs/katex/katex.min.js"></script>
   <script defer src="/assets/jslibs/katex/contrib/auto-render.min.js"></script>
+  {% endif %}
+
+  </script>
 </head>
 
 <body>
@@ -129,7 +130,7 @@
           "three/addons/": "/assets/jslibs/three/"
         }
       }
-    </script>
+  </script>
 
   <script type="module" src="/_cases/context.js?ts={{site.time | date: '%s'}}"></script>
   <script type="module" src="/_cases{{page.url | slice: 6, 100 }}run.js?ts={{site.time | date: '%s'}}"></script>

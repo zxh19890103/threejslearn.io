@@ -1,4 +1,4 @@
-<title>{{site.title}} | {{page.title}} | Threejs|Web3d|3D|WebXR|VR|AR|WebGL|WebGPU</title>
+<title>{{page.title}} | {{site.title}} | Threejs|Web3d|3D|WebXR|VR|AR|WebGL|WebGPU</title>
 <meta charSet="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="description" content="{{site.description}}" />
@@ -8,3 +8,11 @@
 <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">
 <link rel="manifest" href="/assets/site.webmanifest">
 <link href="/assets/fonts/face.css" rel="stylesheet">
+
+{% if page.twitter %}
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:site" content="@singhijohn89" />
+<meta name="twitter:title" content="{{ page.title }}" />
+<meta name="twitter:description" content="{{ page.short }}" />
+<meta name="twitter:image" content="{{ page.ximg ? page.ximg : '/assets/android-chrome-192x192.png' }}" />
+{% endif %}

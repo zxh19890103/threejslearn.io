@@ -5,6 +5,10 @@ title: About this person
 
 Hi, I’m Singhi (星海 in Chinese), a Web3D developer from China.
 
+![me in 2013](https://plants2019.oss-cn-shenzhen.aliyuncs.com/personalwebsite.plant/201304291724.jpg)
+<small>
+It's me in 2013, graduated from college in that year.</small>
+
 I created this website as part of my journey to master Three.js. While I have years of experience in Web3D development, I’ve found Three.js to be challenging, and I’m eager to truly understand each setting and its purpose.
 
 If you’re also a 3D developer, I’d love to connect with you. Let’s learn and grow together!

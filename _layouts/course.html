@@ -5,135 +5,23 @@
 <head>
   {% include head.html %}
   <link rel="stylesheet" href="/assets/jslibs/hls/style.min.css" />
-  <link rel="stylesheet" href="/assets/case.css?ts={{site.time | date: '%s'}}" />
-  <script src="/assets/jslibs/stats.min.js"></script>
-  <script src="/assets/jslibs/markdown.min.js"></script>
-  <script src="/assets/jslibs/suncalc.min.js"></script>
+  <link rel="stylesheet" href="/assets/course.css?ts={{site.time | date: '%s'}}" />
 
+  {% if page.math %}
   <link rel="stylesheet" href="/assets/jslibs/katex/katex.min.css">
   <script defer src="/assets/jslibs/katex/katex.min.js"></script>
   <script defer src="/assets/jslibs/katex/contrib/auto-render.min.js"></script>
-  </script>
+  {% endif %}
 </head>
 
 <body>
   <div class="BG"></div>
-  <div class="Content" onclick="checkPanelClick(event)">
-    <div class="Menu" id="Menu">
-      {% include menu.html %}
-      <div class="MenuButtons panel keep thin fixed white shadow">
-        <a href="/" class="MenuButton">
-          <img src="/assets/images/icon-home.svg">
-        </a>
-        <a href="javascript:void(0);" onclick="__dev__('html')" class="MenuButton toggle-html">
-          <img src="/assets/images/icon-html.svg">
-        </a>
-        <a href="javascript:void(0);" onclick="__dev__('nopanel')" class="MenuButton toggle-nopanel">
-          <img src="/assets/images/icon-eye.svg">
-        </a>
-        <a href="javascript:void(0);" onclick="__enter_vr__(event)" class="MenuButton toggle-vr">
-          <img src="/assets/images/icon-immerse.svg">
-        </a>
-        <a href="javascript:void(0);" onclick="__dev__('menu')" class="MenuButton toggle-menu">
-          <img src="/assets/images/icon-list.svg">
-        </a>
-      </div>
-      <a class="button-exit-vr" onclick="__enter_vr__(null)">Exit</a>
-    </div>
-    <div id="SectionPgAppWrap" class="PgAppWrap Section">
-      <div id="PgApp" class="PgApp"></div>
-      <div id="PgAppControls" class="PgAppControls panel panel-right-top rounded"></div>
-      <div id="PgAppScaleBar" class="PgAppScaleBar hidden panel keep fixed thin panel-right-bottom rounded">
-        <label>0km</label>
-        <div></div>
-      </div>
-    </div>
-    <div id="SectionExplain" class="Explain Section">
-      <h2 class="underline">
-        <img src="/assets/images/threejs.svg" style="width: 60px" />
-        {{page.title}}
-      </h2>
-      <div>
-        <h2>Axes</h2>
-        <div>
-          <svg width="120" height="120" viewBox="-100 -100 200 200" xmlns="http://www.w3.org/2000/svg">
-            <!-- X Axis (Red) -->
-            <line x1="0" y1="0" x2="80" y2="0" stroke="orange" stroke-width="2" />
-            <text x="85" y="5" fill="red">X</text>
-            <!-- Y Axis (Green) -->
-            <line x1="0" y1="0" x2="0" y2="-80" stroke="green" stroke-width="2" />
-            <text x="-10" y="-85" fill="green">Y</text>
-            <!-- Z Axis (Blue, Diagonal) -->
-            <line x1="0" y1="0" x2="-60" y2="60" stroke="blue" stroke-width="2" />
-            <text x="-65" y="65" fill="blue">Z</text>
-          </svg>
-        </div>
-        {{ content }}
-        <h2>Code(TS)
-          <a href="#SectionTsCode" onclick="document.querySelector('#SectionTsCode').classList.toggle('hidden')">-/+</a>
-        </h2>
-        <div id="SectionTsCode" class="language-ts highlighter-rouge rounded">
-          <div class="highlight">
-            <pre class="highlight" id="TsCode">loading...</pre>
-          </div>
-        </div>
-      </div>
+  <div class="Content">
+    <h2 class="PageTitle">{{page.title}}</h2>
+    <div class="PageContent">
+      {{content}}
     </div>
   </div>
-
-  <script src="/assets/jslibs/hls/hl.min.js"></script>
-  <script>
-
-    document.addEventListener("DOMContentLoaded", function () {
-      const container = document.querySelector('#SectionExplainContent');
-
-      renderMathInElement(container, {
-        delimiters: [
-          { left: "$$", right: "$$", display: true },  // Block math
-          { left: "$", right: "$", display: false }    // Inline math
-        ],
-        throwOnError: false
-      });
-
-      container.querySelectorAll("pre code.language-math").forEach((block) => {
-        const tex = block.textContent.trim();
-        const wrapper = document.createElement("div");
-        katex.render(tex, wrapper, { displayMode: true, throwOnError: false });
-        block.replaceWith(wrapper);
-      });
-    });
-
-    function checkPanelClick(event) {
-      if (event.target.className.includes('panel')) {
-        // show!
-        event.target.classList.toggle('as-dialog');
-      } else { }
-    }
-
-    fetch(`run.ts?t=${Date.now()}`)
-      .then((r) => r.text())
-      .then((code) => {
-        const highlightedCode = hljs.highlight(code, { language: "ts" });
-        document.querySelector("#TsCode").innerHTML = highlightedCode.value;
-      });
-
-    var JekyllEnv = "{{jekyll.environment}}";
-  </script>
-  <script src="/cases/global.v.js?ts={{site.time | date: '%s'}}"></script>
-
-  <script type="importmap">
-      {
-        "imports": {
-          "cases/": "/_cases/",
-          "@tweenjs/tween.js": "/assets/jslibs/tween.min.js",
-          "three": "/assets/jslibs/three/three.module.min.js",
-          "three/addons/": "/assets/jslibs/three/"
-        }
-      }
-    </script>
-
-  <script type="module" src="/_cases/context.js?ts={{site.time | date: '%s'}}"></script>
-  <script type="module" src="/_cases{{page.url | slice: 6, 100 }}run.js?ts={{site.time | date: '%s'}}"></script>
 </body>
 
 </html>

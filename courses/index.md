@@ -1,5 +1,8 @@
 ---
 layout: default
+title: THREEJS Courses
 ---
 
-courses index!
+- [Motivation](/courses/motivation/);
+- [Basic of THREEJs](/courses/basic/);
+- [Advance of THREEJs](/courses/advance/);
