@@ -13,17 +13,6 @@ webrick:
 sass:
   style: compressed
 
-collections:
-  courses/motivation:
-    output: true
-    sort_by: "sort"
-  courses/basic:
-    output: true
-    sort_by: "sort"
-  courses/advance:
-    output: true
-    sort_by: "sort"
-
 include:
   - cases/**/*.md
   - cases/*.js

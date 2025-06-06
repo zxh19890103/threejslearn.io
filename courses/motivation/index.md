@@ -3,10 +3,7 @@ layout: default
 title: THREEJs Courses / Motivation
 ---
 
-
-{% for article in site.motivation %}
-  {{article.url}}
-{% endfor %}
+{{site.static_files[200].path}}
 
 哈哈哈
 
