@@ -4,24 +4,223 @@
 
 <head>
   {% include head.html %}
-  <link rel="stylesheet" href="/assets/jslibs/hls/style.min.css" />
-  <link rel="stylesheet" href="/assets/course.css?ts={{site.time | date: '%s'}}" />
 
   {% if page.math %}
   <link rel="stylesheet" href="/assets/jslibs/katex/katex.min.css">
   <script defer src="/assets/jslibs/katex/katex.min.js"></script>
   <script defer src="/assets/jslibs/katex/contrib/auto-render.min.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      const container = document.querySelector('.BookContent');
+
+      renderMathInElement(container, {
+        delimiters: [
+          { left: "$$", right: "$$", display: true },  // Block math
+          { left: "$", right: "$", display: false }    // Inline math
+        ],
+        throwOnError: false
+      });
+
+      container.querySelectorAll("pre code.language-math").forEach((block) => {
+        const tex = block.textContent.trim();
+        const wrapper = document.createElement("div");
+        katex.render(tex, wrapper, { displayMode: true, throwOnError: false });
+        block.replaceWith(wrapper);
+      });
+    });
+  </script>
+
   {% endif %}
+
+  <link rel="stylesheet" href="/assets/course.css?ts={{site.time | date: '%s'}}" />
 </head>
 
 <body>
   <div class="BG"></div>
   <div class="Content">
-    <h2 class="PageTitle">{{page.title}}</h2>
-    <div class="PageContent">
+    <div class="BookTitle">
+      <h2>
+        {{page.title}}
+      </h2>
+    </div>
+    <div class="BookMeta"
+      style="display: flex; align-items: center; justify-content: flex-start; gap: 1.5rem; flex-wrap: wrap;">
+      <div style="display: flex; gap: 0.6em; align-items: center;">
+        <a href="../">🔙</a>
+        <a rel="noopener noreferrer" target="_blank"
+          href="https://zxh1989.oss-cn-qingdao.aliyuncs.com/20181105/151627_71615.jpg">𝕍</a>
+        <a rel="noopener noreferrer"
+          href="https://x.com/intent/tweet?url=https%3A//threelearning.zhangxinghai.cn{{ page.url }}"
+          target="_blank">𝕏</a>
+      </div>
+      <div style="display: flex; gap: 0.6em; align-items: center;">
+        <span class="BookProgress" style="color: orange;">
+          狀態：{{page.progress}} <em class="typewriter">...</em>
+        </span>
+        <span class="BookAuthor">
+          作者：
+          {% if page.author %}
+          <a href="https://www.zhangxinghai.cn">{{page.author}}</a>
+          {% else %}
+          unknown
+          {% endif %}
+        </span>
+        <span class="BookDate">
+          創作日期：{{page.date | date: "%m/%d, %Y"}}
+        </span>
+
+        {% assign words = page.content | number_of_words %}{% assign
+        minutes_float = words | divided_by:200.0 %} {% assign minutes =
+        minutes_float | ceil %}
+
+        <span>閱讀時間：{{ minutes }} 分鐘</span>
+      </div>
+
+    </div>
+
+    {% if page.banner %}
+    <div class="BookBanner">
+      <img class="BookBannerImg" src="{{page.banner.img}}" alt="{{page.banner.caption}}" />
+      <p class="BookBannerCaption">
+        {{page.banner.caption}}
+      </p>
+    </div>
+    {% endif %}
+
+    <div class="BookContent" id="BookContent" style="margin-top: 5rem;">
       {{content}}
     </div>
+
+    <div class="BookSide BookChapters">
+      <div class="IN">
+        <h2>課程大綱</h2>
+        {% for part in site.data.courseoutline.course.parts %}
+        <h3>{{ part.title }}</h3>
+        <ul>
+          {% for chapter in part.chapters %}
+          <li class="{% if chapter.active %}active{% else %}normal{% endif %}">
+            <a href="/courses/{{part.level}}/{{ chapter.filename }}">{{ chapter.title }}</a>
+          </li>
+          {% endfor %}
+        </ul>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="BookSide BookChapterMenu">
+      <div class="IN">
+        <script>
+          let h2h3_highlighted = () => { };
+
+          {
+            const bookContent = document.querySelector("#BookContent")
+            const h2h3 = bookContent.querySelectorAll("h2, h3")
+
+            document.writeln("<h2>目錄</h2>")
+            document.writeln("<ul id='Book__Chapter_Menu__List'>")
+            h2h3.forEach((el, n) => {
+              const text = el.textContent
+              const id = el.id || text.replace(/\s+/g, "-").toLowerCase()
+              document.writeln(
+                `<li class="${el.tagName}"><a data-index="${n}" href="#${id}">${text}</a></li>`
+              )
+            })
+            document.writeln("</ul>")
+
+            setTimeout(() => {
+              const Book__Chapter_Menu__List = document.querySelector("#Book__Chapter_Menu__List");
+
+              Book__Chapter_Menu__List.addEventListener('click', (evt) => {
+                if (evt.target.tagName === 'A') {
+                  const n = + evt.target.getAttribute("data-index");
+                  h2h3_highlighted(n);
+                }
+              });
+
+              const listitems = Book__Chapter_Menu__List.querySelectorAll("#Book__Chapter_Menu__List li")
+
+              h2h3_highlighted = (n) => {
+                listitems.forEach((li, i) => {
+                  if (i === n) {
+                    li.classList.add("highlighted")
+                  } else {
+                    li.classList.remove("highlighted")
+                  }
+                })
+              }
+            }, 0);
+          }
+        </script>
+
+      </div>
+    </div>
   </div>
+
+  <script>
+    {
+      class HeadingTracker extends EventTarget {
+        #bookContent = document.querySelector('#BookContent');
+
+        constructor() {
+          super();
+          this.headings = Array.from(
+            this.#bookContent.querySelectorAll('h2, h3')
+          );
+          this.visibleHeadings = new Set();
+          this.currentHeading = null;
+          this._initObserver();
+        }
+
+        _initObserver() {
+          const observer = new IntersectionObserver(
+            (entries) => {
+              entries.forEach((entry) => {
+                const heading = entry.target;
+                if (entry.isIntersecting) {
+                  this.visibleHeadings.add(heading);
+                } else {
+                  this.visibleHeadings.delete(heading);
+                }
+              });
+
+              const sorted = Array.from(this.visibleHeadings).sort(
+                (a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top
+              );
+
+              const topHeading = sorted[0];
+              if (topHeading && topHeading !== this.currentHeading) {
+                this.currentHeading = topHeading;
+                this.dispatchEvent(
+                  new CustomEvent('headingchange', {
+                    detail: {
+                      index: this.headings.indexOf(topHeading),
+                      element: topHeading,
+                      tag: topHeading.tagName.toLowerCase(),
+                      text: topHeading.textContent.trim(),
+                    },
+                  })
+                );
+              }
+            },
+            {
+              rootMargin: '-20% 0px -60% 0px', // 控制觸發範圍
+              threshold: 0.1,
+            }
+          );
+
+          this.headings.forEach((h) => observer.observe(h));
+        }
+      }
+
+      const tracker = new HeadingTracker();
+
+      tracker.addEventListener('headingchange', (e) => {
+        const { tag, text, index } = e.detail;
+        h2h3_highlighted(index);
+        console.log(`目前閱讀到：${tag} - ${text}`);
+      });
+    }
+  </script>
+
 </body>
 
 </html>

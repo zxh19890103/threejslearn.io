@@ -2,10 +2,14 @@ html {
   background-color: white;
   color: black;
   height: 100%;
-  font: 18px/1.6 "Nunito", serif, "Microsoft JhengHei", "PingFang TC";
+  font: 18px/1.6 "Nunito", "PingFang TC", "Microsoft JhengHei";
   font-weight: 400;
   font-optical-sizing: auto;
   font-style: normal;
+  -ms-overflow-style: -ms-autohiding-scrollbar;
+  -webkit-tap-highlight-color: transparent;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeSpeed;
 }
 
 body {
@@ -21,11 +25,16 @@ body {
 a {
   color: #010d13;
   text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  text-decoration-color: #07364e;
+  transition: text-underline-offset 0.1s ease-in-out, color 0.1s ease-in-out;
 
   &:hover {
-    color: lighten($color: #010d13, $amount: 30);
-    text-decoration: underline;
+    color: lighten($color: #010d13, $amount: 50);
+    text-underline-offset: 1px;
   }
+
   &:visited {
     color: lighten($color: #010d13, $amount: 20);
     font-style: italic;

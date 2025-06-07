@@ -16,6 +16,7 @@ sass:
 include:
   - cases/**/*.md
   - cases/*.js
+  - courses/**/*.md
 
 keep_files:
   - _cases

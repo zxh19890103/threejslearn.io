@@ -293,11 +293,12 @@ $lg-screen-width: 1024px;
   right: 0;
   width: 100%;
   height: 100%;
+  overflow: auto;
   background-color: rgba(255, 255, 255, 0.98);
   color: black;
   box-shadow: -1px 0 1px 0 rgba($color: #000000, $alpha: 0.1);
   transition: top 0.2s linear;
-  font-size: 1rem;
+  font-size: 0.8em;
 
   @media (min-width: $lg-screen-width) {
     width: 50%;
