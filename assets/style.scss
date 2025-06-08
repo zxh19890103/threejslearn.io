@@ -10,5 +10,42 @@
   background-color: #fdfdf9;
 }
 
+.BookProgress {
+  $color-todo: #747571;
+  $color-doing: #9a6e31;
+  $color-done: #2f5e2f;
+
+  &.current::after {
+    content: "✔︎";
+  }
+
+  &-todo {
+    cursor: not-allowed;
+    color: $color-todo;
+
+    a {
+      color: $color-todo;
+      text-decoration-color: $color-todo;
+      pointer-events: none;
+    }
+  }
+
+  &-doing {
+    color: $color-doing;
+    a {
+      text-decoration-color: $color-doing;
+      color: $color-doing;
+    }
+  }
+
+  &-done {
+    color: $color-done;
+    a {
+      text-decoration-color: $color-done;
+      color: $color-done;
+    }
+  }
+}
+
 @import "./skills.scss";
 @import "../_sass/cases.scss";

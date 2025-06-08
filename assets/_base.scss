@@ -2,7 +2,7 @@ html {
   background-color: white;
   color: black;
   height: 100%;
-  font: 18px/1.6 "Nunito", "PingFang TC", "Microsoft JhengHei";
+  font: 18px/1.6 "Nunito", "Yuanti SC", "PingFang TC", "Microsoft JhengHei";
   font-weight: 400;
   font-optical-sizing: auto;
   font-style: normal;
@@ -32,12 +32,8 @@ a {
 
   &:hover {
     color: lighten($color: #010d13, $amount: 50);
+    text-decoration-color: lighten($color: #010d13, $amount: 50);
     text-underline-offset: 1px;
-  }
-
-  &:visited {
-    color: lighten($color: #010d13, $amount: 20);
-    font-style: italic;
   }
 }
 
@@ -50,6 +46,62 @@ ul {
 
   li {
     margin: 0.4rem 0;
+  }
+}
+
+hr {
+  margin: 0;
+  padding: 0;
+  height: 1px;
+  background: #ddd;
+  border: none;
+}
+
+blockquote {
+  position: relative;
+  margin-inline-start: 40px;
+  margin-inline-end: 40px;
+  color: #333;
+
+  &::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: -40px;
+    transform: translate(0, -50%);
+    height: 68%;
+    width: 4px;
+    background-color: #ddd;
+  }
+}
+
+table {
+  border-collapse: collapse;
+  font-size: 0.9em;
+  line-height: 1.6;
+  margin: 2rem 0;
+
+  thead > tr {
+    border-bottom: 2px solid #ddd;
+  }
+
+  tbody > tr {
+    border-bottom: 1px solid #ddd;
+    &:last-child {
+      border-bottom: none;
+    }
+
+    &:hover {
+      background-color: #f1f1f1;
+    }
+  }
+
+  th,
+  td {
+    padding: 0.5rem;
+    vertical-align: top;
+    text-align: left;
+    word-break: break-word;
   }
 }
 
@@ -114,14 +166,6 @@ dialog {
   }
 }
 
-hr {
-  margin: 0;
-  padding: 0;
-  height: 1px;
-  background: #ddd;
-  border: none;
-}
-
 .img {
   display: block;
   width: auto;
@@ -146,22 +190,4 @@ hr {
 
 .rounded {
   border-radius: 3px 4px;
-}
-
-blockquote {
-  position: relative;
-  margin-inline-start: 40px;
-  margin-inline-end: 40px;
-  color: #333;
-
-  &::before {
-    content: "";
-    position: absolute;
-    top: 50%;
-    left: -40px;
-    transform: translate(0, -50%);
-    height: 68%;
-    width: 4px;
-    background-color: #ddd;
-  }
 }

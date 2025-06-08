@@ -1,6 +1,8 @@
 ---
 ---
 
+@import "./var";
+
 body {
   justify-content: center;
 }
@@ -60,7 +62,7 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  margin: 1rem 0rem;
+  margin: 1rem -2rem;
 
   img {
     width: 100%;
@@ -70,7 +72,7 @@ body {
   }
 
   p {
-    margin: 0.5rem 0;
+    margin: 0 0 0.5rem 0;
     font-size: 0.82em;
     font-weight: normal;
     text-align: center;
@@ -114,6 +116,17 @@ body {
     height: auto;
     display: block;
     margin: 0 auto;
+    box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 8px;
+
+    & + em {
+      display: block;
+      margin-top: 0.2em;
+      color: #333;
+      font-style: normal;
+      text-align: center;
+      font-size: 0.82em;
+      line-height: 1.2;
+    }
   }
 
   hr {
@@ -155,6 +168,11 @@ body {
   background-color: #131413;
   color: #fff;
   box-shadow: rgba(0, 0, 0, 0.2) 0px 2px 8px;
+  display: none;
+
+  @media screen and (min-width: $lg-screen-width) {
+    display: block;
+  }
 
   .IN {
     box-sizing: border-box;
@@ -183,22 +201,9 @@ body {
 
     li {
       margin-bottom: 0.5em;
-      color: #babdb6;
-
-      &.active {
-      }
-      &.normal {
-        cursor: not-allowed;
-        a {
-          color: #babdb6;
-          pointer-events: none;
-        }
-      }
 
       a {
         text-decoration: none;
-        color: #fff;
-
         &:hover {
           text-decoration: underline;
         }
@@ -209,6 +214,10 @@ body {
   &.BookChapterMenu {
     right: 1rem;
     transform: translate(100%, 0);
+
+    a {
+      color: #fff;
+    }
 
     &:hover {
       right: 0;

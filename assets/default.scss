@@ -74,6 +74,17 @@
   // background-image: url(/assets/images/3lbg.jpg);
 }
 
+.Menu {
+  display: flex;
+  gap: 6px;
+  list-style: none;
+  font-weight: 600;
+  font-size: 1.3rem;
+  a span {
+    font-size: 1rem;
+  }
+}
+
 .Flex {
   display: flex;
   justify-content: left;

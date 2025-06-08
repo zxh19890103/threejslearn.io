@@ -1,8 +1,7 @@
 ---
 ---
 
-$after-virtual-size: 48px;
-$lg-screen-width: 1024px;
+@import "./var";
 
 @mixin mobile-panel-trigger {
   cursor: pointer;

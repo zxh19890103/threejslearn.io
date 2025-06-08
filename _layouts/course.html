@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 
 <html>
-
 <head>
   {% include head.html %}
 
@@ -46,32 +45,34 @@
     <div class="BookMeta"
       style="display: flex; align-items: center; justify-content: flex-start; gap: 1.5rem; flex-wrap: wrap;">
       <div style="display: flex; gap: 0.6em; align-items: center;">
-        <a href="../">🔙</a>
-        <a rel="noopener noreferrer" target="_blank"
+        <a href="../" title="back" style="font-weight: 100; text-decoration: none;">&LeftArrow;</a>
+        <a rel="noopener noreferrer" title="wechat" target="_blank"
           href="https://zxh1989.oss-cn-qingdao.aliyuncs.com/20181105/151627_71615.jpg">𝕍</a>
-        <a rel="noopener noreferrer"
+        <a rel="noopener noreferrer" title="x(twitter)"
           href="https://x.com/intent/tweet?url=https%3A//threelearning.zhangxinghai.cn{{ page.url }}"
           target="_blank">𝕏</a>
       </div>
       <div style="display: flex; gap: 0.6em; align-items: center;">
+        {% if page.progress %}
         <span class="BookProgress" style="color: orange;">
           狀態：{{page.progress}} <em class="typewriter">...</em>
         </span>
+        {% endif %}
         <span class="BookAuthor">
           作者：
           {% if page.author %}
-          <a href="https://www.zhangxinghai.cn">{{page.author}}</a>
+          <a href="{{page.authorlink}}">{{page.author}}</a>
           {% else %}
-          unknown
+          <a href="https://www.zhangxinghai.cn">星海</a>
           {% endif %}
         </span>
         <span class="BookDate">
           創作日期：{{page.date | date: "%m/%d, %Y"}}
         </span>
 
-        {% assign words = page.content | number_of_words %}{% assign
-        minutes_float = words | divided_by:200.0 %} {% assign minutes =
-        minutes_float | ceil %}
+        {% assign words = page.content | number_of_words: "auto" %}
+        {% assign minutes_float = words | divided_by:200.0 %}
+        {% assign minutes = minutes_float | ceil %}
 
         <span>閱讀時間：{{ minutes }} 分鐘</span>
       </div>
@@ -93,12 +94,12 @@
 
     <div class="BookSide BookChapters">
       <div class="IN">
-        <h2>課程大綱</h2>
+        <h2>章節</h2>
         {% for part in site.data.courseoutline.course.parts %}
         <h3>{{ part.title }}</h3>
         <ul>
           {% for chapter in part.chapters %}
-          <li class="{% if chapter.active %}active{% else %}normal{% endif %}">
+          <li class=" {% if page.path contains chapter.filename %}current{% endif %} BookProgress BookProgress-{{ chapter.progress | default: 'todo' }}">
             <a href="/courses/{{part.level}}/{{ chapter.filename }}">{{ chapter.title }}</a>
           </li>
           {% endfor %}
