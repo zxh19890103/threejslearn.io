@@ -87,11 +87,6 @@ body {
   }
 }
 
-.english {
-  font-family: "BrandonGrotesque", sans-serif;
-  font-display: swap;
-}
-
 .BookContent {
   font-size: 1.2rem;
   -webkit-font-smoothing: antialiased;
@@ -526,4 +521,10 @@ code.highlighter-rouge {
   border-radius: 4px;
   font-family: inherit;
   color: #333;
+}
+
+.english {
+  font-family: "BrandonGrotesque", sans-serif;
+  font-display: swap;
+  font-size: 1.3rem;
 }

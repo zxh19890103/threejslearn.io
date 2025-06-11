@@ -1,19 +1,16 @@
 .tag-container {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 4px 8px;
   max-width: 1000px;
   justify-content: center;
-
   list-style-type: none;
   padding: 0;
 
   li {
-    padding: 10px 20px;
-    border-radius: 25px;
-    font-size: 16px;
+    padding: 8px 10px;
+    border-radius: 20px;
     transition: transform 0.3s ease, background-color 0.3s ease;
-
     background-color: #666;
     color: #fefefe;
 
@@ -21,8 +18,8 @@
       width: 16px;
       height: 16px;
       border-radius: 2px;
-      margin-right: 2px;
-      vertical-align: baseline;
+      margin-right: 4px;
+      vertical-align: middle;
     }
 
     &.level-10 {
@@ -83,7 +80,6 @@
     a {
       text-decoration: none;
       color: inherit;
-      font-weight: bold;
       &:hover {
         text-decoration: underline;
       }
