@@ -14,5 +14,9 @@
 <meta name="twitter:site" content="@singhijohn89" />
 <meta name="twitter:title" content="{{ page.title }}" />
 <meta name="twitter:description" content="{{ page.short }}" />
-<meta name="twitter:image" content="{{ page.ximg ? page.ximg : '/assets/android-chrome-192x192.png' }}" />
+  {% if page.ximg %}
+<meta name="twitter:image" content="{{page.ximg}}" />
+  {% else %}
+<meta name="twitter:image" content="/assets/android-chrome-192x192.png" />
+  {% endif %}
 {% endif %}

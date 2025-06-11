@@ -2,14 +2,14 @@
 layout: course
 title: 顏色、空間和時間
 entitle: Color, Space and Time
-short: 顏色、空間和時間
-ximg: "https://learnopengl.com/img/getting-started/vectors_scale.png"
+short: 顏色，是光與眼的交會；空間，是行動與自由的體感；時間，是變化在心中的迴響。它們看似外在，卻都根植於我們的感覺之中。重新認識它們，其實也是重新認識自己與世界的關係。
 banner1:
   img: https://plants2019.oss-cn-shenzhen.aliyuncs.com/personalwebsite.plant/201304291724.jpg
   caption: 二零一三年在大連旅順拍攝
 date: 2025-06-08
 math: 1
 twitter: 1
+ximg: "https://cdn.midjourney.com/21cfdfcf-8197-4b6f-8b8f-2f1b47974be4/0_0_384_N.webp"
 ---
 
 顏色，是光與眼的交會；
