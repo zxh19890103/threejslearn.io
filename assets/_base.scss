@@ -101,7 +101,11 @@ table {
     padding: 0.5rem;
     vertical-align: top;
     text-align: left;
-    word-break: break-word;
+    word-break: keep-all;
+    border-right: 1px solid #ddd;
+    &:last-child {
+      border-right: none;
+    }
   }
 }
 
@@ -190,4 +194,14 @@ dialog {
 
 .rounded {
   border-radius: 3px 4px;
+}
+
+.hide-scrollbar {
+  overflow: auto;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
 }

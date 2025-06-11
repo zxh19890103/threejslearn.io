@@ -68,10 +68,8 @@
   display: block;
   width: 100vw;
   height: 100vh;
-  background-color: #767676;
-  background-size: cover;
-  filter: blur(1px) brightness(0.4);
-  // background-image: url(/assets/images/3lbg.jpg);
+  background-color: #fff;
+  // filter: blur(1px) brightness(0.4);
 }
 
 .Menu {
@@ -79,9 +77,15 @@
   gap: 6px;
   list-style: none;
   font-weight: 600;
-  font-size: 1.3rem;
-  a span {
-    font-size: 1rem;
+  a {
+    i {
+      font-style: normal;
+      vertical-align: middle;
+    }
+
+    span {
+      font-size: 0.8em;
+    }
   }
 }
 

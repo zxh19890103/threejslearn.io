@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 
-<html>
+<html class="hide-scrollbar">
+
 <head>
   {% include head.html %}
 
@@ -37,44 +38,102 @@
 <body>
   <div class="BG"></div>
   <div class="Content">
+
+    {% if page.english %}
+    <div class="BookTitle english">
+      <h2>
+        {{page.entitle}}
+      </h2>
+    </div>
+    {% else %}
     <div class="BookTitle">
       <h2>
         {{page.title}}
       </h2>
     </div>
+    {% endif %}
+
     <div class="BookMeta"
       style="display: flex; align-items: center; justify-content: flex-start; gap: 1.5rem; flex-wrap: wrap;">
       <div style="display: flex; gap: 0.6em; align-items: center;">
-        <a href="../" title="back" style="font-weight: 100; text-decoration: none;">&LeftArrow;</a>
+        <a href="../" title="back" style="font-weight: 100; text-decoration: none;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+            class="icon icon-tabler icons-tabler-outline icon-tabler-arrow-left-dashed">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+            <path d="M5 12h6m3 0h1.5m3 0h.5" />
+            <path d="M5 12l6 6" />
+            <path d="M5 12l6 -6" />
+          </svg>
+        </a>
         <a rel="noopener noreferrer" title="wechat" target="_blank"
-          href="https://zxh1989.oss-cn-qingdao.aliyuncs.com/20181105/151627_71615.jpg">𝕍</a>
+          href="https://zxh1989.oss-cn-qingdao.aliyuncs.com/20181105/151627_71615.jpg">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+            class="icon icon-tabler icons-tabler-outline icon-tabler-brand-wechat">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+            <path
+              d="M16.5 10c3.038 0 5.5 2.015 5.5 4.5c0 1.397 -.778 2.645 -2 3.47l0 2.03l-1.964 -1.178a6.649 6.649 0 0 1 -1.536 .178c-3.038 0 -5.5 -2.015 -5.5 -4.5s2.462 -4.5 5.5 -4.5z" />
+            <path
+              d="M11.197 15.698c-.69 .196 -1.43 .302 -2.197 .302a8.008 8.008 0 0 1 -2.612 -.432l-2.388 1.432v-2.801c-1.237 -1.082 -2 -2.564 -2 -4.199c0 -3.314 3.134 -6 7 -6c3.782 0 6.863 2.57 7 5.785l0 .233" />
+            <path d="M10 8h.01" />
+            <path d="M7 8h.01" />
+            <path d="M15 14h.01" />
+            <path d="M18 14h.01" />
+          </svg>
+        </a>
         <a rel="noopener noreferrer" title="x(twitter)"
-          href="https://x.com/intent/tweet?url=https%3A//threelearning.zhangxinghai.cn{{ page.url }}"
-          target="_blank">𝕏</a>
+          href="https://x.com/intent/tweet?url=https%3A//threelearning.zhangxinghai.cn{{ page.url }}" target="_blank">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+            class="icon icon-tabler icons-tabler-outline icon-tabler-brand-x">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+            <path d="M4 4l11.733 16h4.267l-11.733 -16z" />
+            <path d="M4 20l6.768 -6.768m2.46 -2.46l6.772 -6.772" />
+          </svg>
+        </a>
+        <a href="javascript:void(0);" title="language"
+          onclick="var pp = '{{page.url}}'.replace(/\.html$/, ''); if (pp.endsWith('-en')) {location.href=pp.replace(/\-en$/, '');} else {location.href=pp + '-en';}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+            class="icon icon-tabler icons-tabler-outline icon-tabler-language">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+            <path d="M4 5h7" />
+            <path d="M9 3v2c0 4.418 -2.239 8 -5 8" />
+            <path d="M5 9c0 2.144 2.952 3.908 6.7 4" />
+            <path d="M12 20l4 -9l4 9" />
+            <path d="M19.1 18h-6.2" />
+          </svg>
+        </a>
       </div>
       <div style="display: flex; gap: 0.6em; align-items: center;">
         {% if page.progress %}
         <span class="BookProgress" style="color: orange;">
-          狀態：{{page.progress}} <em class="typewriter">...</em>
+          狀態：<em class="typewriter">...</em>
         </span>
         {% endif %}
-        <span class="BookAuthor">
+        <!-- <span class="BookAuthor">
           作者：
           {% if page.author %}
           <a href="{{page.authorlink}}">{{page.author}}</a>
           {% else %}
           <a href="https://www.zhangxinghai.cn">星海</a>
           {% endif %}
-        </span>
-        <span class="BookDate">
-          創作日期：{{page.date | date: "%m/%d, %Y"}}
+        </span> -->
+        <span class="BookDate{% if page.english%} english{%endif%}">
+          <label>{% if page.english %}Composed On:{% else %}創作日期：{% endif %}</label>
+          {{page.date | date: "%m/%d, %Y"}}
         </span>
 
         {% assign words = page.content | number_of_words: "auto" %}
         {% assign minutes_float = words | divided_by:200.0 %}
         {% assign minutes = minutes_float | ceil %}
 
-        <span>閱讀時間：{{ minutes }} 分鐘</span>
+        <span class="{% if page.english%}english{%endif%}">
+          <label>{% if page.english %}Reading Time:{% else %}閱讀時間：{% endif %}</label>
+          {{ minutes }}
+          {% if page.english %}mins{% else %}分鐘{% endif %}
+        </span>
       </div>
 
     </div>
@@ -88,27 +147,51 @@
     </div>
     {% endif %}
 
-    <div class="BookContent" id="BookContent" style="margin-top: 5rem;">
+    <div class="BookContent{% if page.english %} english{% endif %}" id="BookContent" style="margin-top: 5rem;">
       {{content}}
     </div>
 
     <div class="BookSide BookChapters">
+      {% if page.english %}
+      <div class="IN english">
+        <h2>Chapters:</h2>
+        {% for part in site.data.courseoutline.course.parts %}
+        <h3>{{ part.title_en }}</h3>
+        <ul>
+          {% for chapter in part.chapters %}
+          <li
+            class=" {% if page.path contains chapter.filename %}current{% endif %} BookProgress BookProgress-{{ chapter.progress | default: 'todo' }}">
+            <a href="/courses/{{part.level}}/{{ chapter.filename }}-en">{{ chapter.title_en }}</a>
+          </li>
+          {% endfor %}
+        </ul>
+        {% endfor %}
+      </div>
+      {%else%}
       <div class="IN">
-        <h2>章節</h2>
+        <h2>章節：</h2>
         {% for part in site.data.courseoutline.course.parts %}
         <h3>{{ part.title }}</h3>
         <ul>
           {% for chapter in part.chapters %}
-          <li class=" {% if page.path contains chapter.filename %}current{% endif %} BookProgress BookProgress-{{ chapter.progress | default: 'todo' }}">
+          <li
+            class=" {% if page.path contains chapter.filename %}current{% endif %} BookProgress BookProgress-{{ chapter.progress | default: 'todo' }}">
             <a href="/courses/{{part.level}}/{{ chapter.filename }}">{{ chapter.title }}</a>
           </li>
           {% endfor %}
         </ul>
         {% endfor %}
       </div>
+      {%endif%}
+
     </div>
+
+    <div class="Book_Read_Progress">
+      <div class="IN"></div>
+    </div>
+
     <div class="BookSide BookChapterMenu">
-      <div class="IN">
+      <div class="IN{% if page.english %} english{% endif %}">
         <script>
           let h2h3_highlighted = () => { };
 
@@ -116,7 +199,7 @@
             const bookContent = document.querySelector("#BookContent")
             const h2h3 = bookContent.querySelectorAll("h2, h3")
 
-            document.writeln("<h2>目錄</h2>")
+            document.writeln("<h2>{% if page.english %}Sections:{% else %}段落：{% endif %}</h2>")
             document.writeln("<ul id='Book__Chapter_Menu__List'>")
             h2h3.forEach((el, n) => {
               const text = el.textContent
@@ -127,13 +210,14 @@
             })
             document.writeln("</ul>")
 
-            setTimeout(() => {
+            document.addEventListener("DOMContentLoaded", () => {
               const Book__Chapter_Menu__List = document.querySelector("#Book__Chapter_Menu__List");
 
               Book__Chapter_Menu__List.addEventListener('click', (evt) => {
                 if (evt.target.tagName === 'A') {
                   const n = + evt.target.getAttribute("data-index");
                   h2h3_highlighted(n);
+                  requestAnimationFrame(updateReadProgress);
                 }
               });
 
@@ -150,6 +234,27 @@
               }
             }, 0);
           }
+
+          const BookReadProgressBar = document.querySelector(
+            ".Book_Read_Progress .IN",
+          )
+
+          function updateReadProgress() {
+            const progress =
+              document.documentElement.scrollTop /
+              (document.documentElement.scrollHeight - window.innerHeight)
+            BookReadProgressBar.style.width = `${progress * 100}%`
+            BookReadProgressBar.textContent = `${Math.round(progress * 100)}%`
+          }
+
+          document.documentElement.addEventListener(
+            "wheel", // wheel
+            updateReadProgress,
+            {
+              passive: true,
+            },
+          )
+
         </script>
 
       </div>
@@ -217,7 +322,6 @@
       tracker.addEventListener('headingchange', (e) => {
         const { tag, text, index } = e.detail;
         h2h3_highlighted(index);
-        console.log(`目前閱讀到：${tag} - ${text}`);
       });
     }
   </script>

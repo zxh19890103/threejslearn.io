@@ -10,7 +10,7 @@ course:
           filename: "intro"
           progress: "done"
         - title: "世界、眼睛與內心"
-          title_en: "The World and Our Eyes"
+          title_en: "The World, Our Eyes, and Mind"
           filename: "world-and-eyes"
           progress: "doing"
         - title: "顏色、空間與時間"

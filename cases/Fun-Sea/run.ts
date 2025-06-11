@@ -57,11 +57,13 @@ __main__ = (
       vec3 pos = position;
 
       // Simple sine wave based on position + time
-      float wave1 = sin(pos.x * 2.0 + time * 1.5) * 0.1;
-      float wave2 = cos(pos.y * 3.0 + time * 1.0) * 0.1;
 
-      pos.z += wave1 + wave2;
-      vWave = wave1 + wave2;
+      float wave1 = sin(pos.x * 0.2 + time * 1.5) * 0.3;
+      float wave2 = cos(pos.y * 0.3 + time * 1.0) * 0.2;
+      float wave3 = sin((pos.x + pos.y) * 0.4 + time * 2.0) * 0.1;
+
+      pos.z += wave1 + wave2 + wave3;
+      vWave = wave1 + wave2 + wave3;
 
       gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
     }
@@ -88,15 +90,9 @@ __main__ = (
     side: THREE.DoubleSide,
   });
 
-  const sunGeo = new THREE.SphereGeometry(3, 32, 32);
-  const sunMat = new THREE.MeshBasicMaterial({ color: 0xffdd66 });
-  const sunMesh = new THREE.Mesh(sunGeo, sunMat);
-  sunMesh.position.set(-30, 40, -50); // far away in sky
-  world.add(sunMesh);
-
   // 3. Create mesh
   const water = new THREE.Mesh(geometry, material);
-  water.rotation.x = -Math.PI / 2;
+  geometry.computeVertexNormals();
   world.add(water);
 
   __add_nextframe_fn__(() => {
