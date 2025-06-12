@@ -12,9 +12,9 @@
 }
 
 .BookProgress {
-  $color-todo: #d9dad5;
-  $color-doing: #edd4b0;
-  $color-done: #a1cca1;
+  $color-todo: #4b4b40;
+  $color-doing: #b16d15;
+  $color-done: #119611;
 
   &.current::after {
     content: "✔︎";
