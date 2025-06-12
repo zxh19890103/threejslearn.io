@@ -1,7 +1,6 @@
 ---
 layout: course
-title: 顏色、空間和時間
-entitle: Color, Space and Time
+title: Color, Space, and Time
 short: "Color is the meeting of light and the eye Space is the bodily sense of movement and freedom;Time is the echo of change within the heart."
 banner1:
   img: https://plants2019.oss-cn-shenzhen.aliyuncs.com/personalwebsite.plant/201304291724.jpg

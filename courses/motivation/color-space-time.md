@@ -1,7 +1,6 @@
 ---
 layout: course
 title: 顏色、空間和時間
-entitle: Color, Space and Time
 short: 顏色，是光與眼的交會；空間，是行動與自由的體感；時間，是變化在心中的迴響。它們看似外在，卻都根植於我們的感覺之中。重新認識它們，其實也是重新認識自己與世界的關係。
 banner1:
   img: https://plants2019.oss-cn-shenzhen.aliyuncs.com/personalwebsite.plant/201304291724.jpg

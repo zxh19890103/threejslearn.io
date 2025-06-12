@@ -47,6 +47,14 @@
   }
 }
 
+.Header {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: smaller;
+}
+
 .ThreeJsLogo {
   width: 5rem;
   transform-origin: center;

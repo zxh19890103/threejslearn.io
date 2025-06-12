@@ -1,6 +1,7 @@
 ---
 layout: default
 title: THREEJS Courses
+ok: 1
 ---
 
 {% for part in site.data.courseoutline.course.parts %}

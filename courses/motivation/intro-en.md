@@ -1,7 +1,6 @@
 ---
 layout: course
-title: 前言 &bull; 重新認識你眼中的世界
-entitle: "Preface &bull; Rediscover the World Through Your Eyes"
+title: "Preface &bull; Rediscover the World Through Your Eyes"
 short: The world we live in seems to naturally present itself before our eyes. Streets, trees, buildings, crowds — everything appears solid and clear. Just as children cannot comprehend the irreversibility of death, we have never truly questioned the world our eyes perceive.
 ximg: "https://learnopengl.com/img/getting-started/vectors_scale.png"
 date: 2025-06-07
@@ -26,9 +25,8 @@ The first part of this tutorial — **“Igniting Interest”** — invites you 
 - Chapter 1 discusses **“The Appearance of the World and Our Eyes,”** questioning the reality of what we see. Do these things really exist? When we say “it’s there,” what exactly do we mean?
 - Chapter 2 delves into the **perception of color, space, and time.** Do we truly understand what color, space, and time are? Are these concepts objectively real, or fabrications of the brain?
 - Chapter 3 explores **how the brain constructs space and perceives motion,** observing how perception forms and how humans process information when seeing “change.”
-- Chapter 4 enters the technical realm, introducing **“The Possibility of Computer Reconstruction of the World,”** exploring how we simulate reality.
-- Chapter 5 introduces **WebGL,** the key bridge connecting the virtual and the real. This technology enables us to reconstruct the visual world inside a browser.
-- Chapter 6 focuses on **Shaders,** the tools for sculpting pixels and light, which give the virtual world detail, texture, and life.
+- Chapter 4 introduces **WebGL,** the key bridge connecting the virtual and the real. This technology enables us to reconstruct the visual world inside a browser.
+- Chapter 5 focuses on **Shaders,** the tools for sculpting pixels and light, which give the virtual world detail, texture, and life.
 - The final chapter returns to an essential question: **“Why do we build worlds with code?”** This is not only a technical question but also an existential one. We seek no philosophical answers, only a space to reflect from practical and creative perspectives.
 
 You don’t need any professional background, just a pair of eyes willing to see the world anew. Let’s start with a flower and see the entire universe.

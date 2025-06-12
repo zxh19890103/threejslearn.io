@@ -1,7 +1,6 @@
 ---
 layout: course
-title: 世界、眼睛與內心
-entitle: The World, Our Eyes, and Mind
+title: The World, Our Eyes, and Mind
 short: The purpose of this article is not to teach knowledge, but to explore the relationship between the inner world, the visual world, and the external world, starting from how humans perceive the world.
 ximg: "https://learnopengl.com/img/getting-started/vectors_scale.png"
 banner1:

@@ -19,7 +19,7 @@
   "editor.fontLigatures": true,
   "terminal.integrated.fontFamily": "monospace",
   "workbench.iconTheme": "vscode-icons",
-  "workbench.colorTheme": "Atom One Dark",
+  "workbench.colorTheme": "Atom One Light",
   "editor.tabSize": 2,
   "typescript.tsdk": "node_modules/typescript/lib"
 }
