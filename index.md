@@ -16,35 +16,35 @@ This is a website dedicated to learning <a href="https://threejs.org/"><em>Three
 
 <a class="Portfolio-item" href="/cases/Fun-GoogleMapTile/">
 
-<img src="/assets/images/cases/3dmap.png">
+<img src="/assets/images/cases/3dmap.webp">
 
 like Google Map.
 </a>
 
 <a class="Portfolio-item" href="/cases/Fun-EarthSatellites/">
 
-<img src="/assets/images/cases/satellites.png">
+<img src="/assets/images/cases/satellites.webp">
 
 Earth Satellites.
 </a>
 
 <a class="Portfolio-item" href="/cases/Fun-SolarSystem/">
 
-<img src="/assets/images/cases/solar.png">
+<img src="/assets/images/cases/solar.webp">
 
 Solar System.
 </a>
 
 <a class="Portfolio-item" href="/cases/Fun-SPH/">
 
-<img src="/assets/images/cases/sph.png">
+<img src="/assets/images/cases/sph.webp">
 
 Fluid Simulation Based On SPH.
 </a>
 
 <a class="Portfolio-item" href="/cases/Fun-Comet/">
 
-<img src="/assets/images/cases/comets.png">
+<img src="/assets/images/cases/comets.webp">
 
 Comets.
 </a>

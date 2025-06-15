@@ -6,7 +6,7 @@
 .Content {
   z-index: 100;
   margin: 0 auto;
-  font-size: 1.2rem;
+  font-size: 1rem;
 
   p > img {
     display: block;
@@ -168,5 +168,15 @@ hr {
 @media only screen and (max-width: 640px) {
   .Content {
     width: 100%;
+  }
+}
+
+.Page-cases-md {
+  ul {
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 1em;
   }
 }

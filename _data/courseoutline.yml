@@ -24,6 +24,7 @@ course:
         - title: "WebGL：虛擬與真實之間的橋樑"
           title_en: "WebGL: Bridging Virtual and Reality"
           filename: "webgl-virtual-reality-bridge"
+          progress: "doing"
         - title: "Shader：像素的雕刻刀"
           title_en: "Shader: The Sculpting Knife of Pixels"
           filename: "shader-pixel-sculpting"

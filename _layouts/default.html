@@ -126,7 +126,10 @@
 
     {% if page.title %}
     <h2 class="underline">{{page.title}}</h2>
-    {% endif %} {{ content }}
+    {% endif %}
+    <div class="Page-{{page.path | replace: '.', '-'}}">
+      {{ content }}
+    </div>
   </div>
 </body>
 

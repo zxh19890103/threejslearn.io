@@ -45,9 +45,8 @@
       </h2>
     </div>
 
-    <div class="BookMeta"
-      style="display: flex; align-items: center; justify-content: flex-start; gap: 1.5rem; flex-wrap: wrap;">
-      <div style="display: flex; gap: 0.6em; align-items: center;">
+    <div class="BookMeta" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;">
+      <div class="BookMeta-Part BookMeta__Links" style="display: flex; gap: 0.6em; align-items: center;">
         <a href="../" title="back" style="font-weight: 100; text-decoration: none;">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
@@ -98,22 +97,26 @@
           </svg>
         </a>
       </div>
-      <div style="display: flex; gap: 0.6em; align-items: center;">
+      <div class="BookMeta-Part BookMeta__Info" style="display: flex; gap: 0.6em; align-items: center;"
+        class="{% if page.english %} english text-sm{% endif %}">
         {% if page.progress %}
-        <span class="BookProgress" style="color: orange;">
-          狀態：<em class="typewriter">...</em>
+        <span class="BookProgress">
+          <label>state:</label>
+          <em class="typewriter" style="color: orange;">...</em>
         </span>
         {% endif %}
-        <!-- <span class="BookAuthor">
-          作者：
+
+        <span class="BookAuthor">
+          <label>{% if page.english %}by:{% else %}作者：{% endif %}</label>
           {% if page.author %}
           <a href="{{page.authorlink}}">{{page.author}}</a>
           {% else %}
-          <a href="https://www.zhangxinghai.cn">星海</a>
+          <a href="https://www.zhangxinghai.cn">singhi(星海)</a>
           {% endif %}
-        </span> -->
-        <span class="BookDate{% if page.english%} english{%endif%}">
-          <label>{% if page.english %}Composed On:{% else %}創作日期：{% endif %}</label>
+        </span>
+
+        <span class="BookDate">
+          <label>{% if page.english %}on:{% else %}於：{% endif %}</label>
           {{page.date | date: "%m/%d, %Y"}}
         </span>
 
@@ -121,8 +124,8 @@
         {% assign minutes_float = words | divided_by:200.0 %}
         {% assign minutes = minutes_float | ceil %}
 
-        <span class="{% if page.english%}english{%endif%}">
-          <label>{% if page.english %}Reading Time:{% else %}閱讀時間：{% endif %}</label>
+        <span>
+          <label>{% if page.english %}takes:{% else %}花：{% endif %}</label>
           {{ minutes }}
           {% if page.english %}mins{% else %}分鐘{% endif %}
         </span>
@@ -145,7 +148,7 @@
 
     <div class="BookSide BookChapters">
       {% if page.english %}
-      <div class="IN english">
+      <div class="IN{% if page.english %} english{% endif %}">
         <h2>Chapters:</h2>
         {% for part in site.data.courseoutline.course.parts %}
         <h3>{{ part.title_en }}</h3>
@@ -316,6 +319,16 @@
         h2h3_highlighted(index);
       });
     }
+  </script>
+
+  <script src='https://storage.ko-fi.com/cdn/scripts/overlay-widget.js'></script>
+  <script>
+    kofiWidgetOverlay.draw('singhijohn', {
+      'type': 'floating-chat',
+      'floating-chat.donateButton.text': 'Tip Me',
+      'floating-chat.donateButton.background-color': '#5cb85c',
+      'floating-chat.donateButton.text-color': '#fff'
+    });
   </script>
 
 </body>

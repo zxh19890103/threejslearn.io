@@ -16,7 +16,9 @@ ok: 1
   <ul class="BookChapters">
     {% for chapter in part.chapters %}
     <li class="BookProgress-{{ chapter.progress | default: 'todo' }}">
-      <a href="/courses/{{part.level}}/{{ chapter.filename }}">{{ chapter.title }}</a>
+      <a href="/courses/{{part.level}}/{{ chapter.filename }}">
+      {{ chapter.title }}
+      </a>
     </li>
     <li class="BookProgress-{{ chapter.progress | default: 'todo' }}">
       <a href="/courses/{{part.level}}/{{ chapter.filename }}-en">{{ chapter.title_en }}</a>

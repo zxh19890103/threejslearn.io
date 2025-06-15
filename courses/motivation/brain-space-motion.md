@@ -1,10 +1,7 @@
 ---
 layout: course
 title: 大腦如何建構空間與感受運動
-short: "..."
-banner1:
-  img: https://plants2019.oss-cn-shenzhen.aliyuncs.com/personalwebsite.plant/201304291724.jpg
-  caption: 二零一三年在大連旅順拍攝
+short: "本文將從認知心理學的角度探討人類大腦如何形成時間感與空間感，包括人是如何在感知與記憶中建構對時間與空間的理解與組織。根據理論模型、實驗研究與相關心理學機制，並說明這些能力如何影響我們對世界的認知與行為"
 date: 2025-06-08
 math: 1
 twitter: 1

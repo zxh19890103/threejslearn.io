@@ -1,0 +1,11 @@
+{
+  "name": "scripts",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "fs-extra": "^11.3.0",
+    "sharp": "^0.34.2"
+  }
+}

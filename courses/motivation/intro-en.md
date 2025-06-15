@@ -1,6 +1,6 @@
 ---
 layout: course
-title: "Preface &bull; Rediscover the World Through Your Eyes"
+title: "Introduction"
 short: The world we live in seems to naturally present itself before our eyes. Streets, trees, buildings, crowds — everything appears solid and clear. Just as children cannot comprehend the irreversibility of death, we have never truly questioned the world our eyes perceive.
 ximg: "https://learnopengl.com/img/getting-started/vectors_scale.png"
 date: 2025-06-07

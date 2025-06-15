@@ -34,12 +34,12 @@ body {
   text-align: center;
   font-size: 1.4rem;
   font-weight: normal;
-  margin: 0.5em 0;
+  margin: 2.5em 0 1em 0;
 
   h2,
   h3 {
     line-height: 1.2;
-    font-weight: normal;
+    font-weight: bolder;
   }
 
   h3 {
@@ -50,13 +50,21 @@ body {
 }
 
 .BookMeta {
-  a {
-    text-decoration: underline;
-    text-decoration-thickness: 1px;
-    text-underline-offset: 3px;
-    display: block;
-    width: 24px;
-    height: 24px;
+  &__Links {
+    a {
+      text-decoration: underline;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 3px;
+      display: block;
+      width: 24px;
+      height: 24px;
+    }
+  }
+
+  &__Info {
+    label {
+      color: #333;
+    }
   }
 
   .typewriter {
@@ -110,20 +118,6 @@ body {
     margin-top: 1.5em;
     margin-bottom: 0.5em;
     color: #000;
-    // font-weight: bold;
-
-    // position: relative;
-    // padding-left: 1em;
-    // &::before {
-    //   position: absolute;
-    //   content: "";
-    //   display: block;
-    //   top: 0;
-    //   left: 0;
-    //   width: 4px;
-    //   height: 100%;
-    //   background-color: #ddd;
-    // }
   }
 
   h3 {
@@ -173,6 +167,11 @@ body {
       height: 6px;
       background-color: #ddd;
     }
+  }
+
+  ul {
+    list-style-position: outside;
+    padding-left: 0;
   }
 
   .CodeRun {
@@ -545,8 +544,14 @@ code.highlighter-rouge {
 }
 
 .english {
-  font-family: "BrandonGrotesque", sans-serif;
-  font-display: swap;
-  font-size: 1.4rem;
+  font-family: "BrandonGrotesque", "Nunito", sans-serif;
+  -webkit-font-smoothing: subpixel-antialiased;
+  -webkit-font-feature-settings: "kern";
+  font-feature-settings: "kern";
+  font-size: 1.2em;
   line-height: 1.6;
+
+  &.text-sm {
+    font-size: 1em;
+  }
 }
