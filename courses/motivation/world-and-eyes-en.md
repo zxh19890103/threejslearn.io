@@ -10,6 +10,7 @@ date: 2025-06-08
 math: 1
 twitter: 1
 english: 1
+kofi: 1
 ---
 
 The purpose of this article is not to teach knowledge, but to explore the relationship between the inner world, the visual world, and the external world, starting from how humans perceive the world.
