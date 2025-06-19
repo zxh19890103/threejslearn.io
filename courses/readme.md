@@ -1,0 +1,8 @@
+- kofi
+- math
+- nochapters
+- twitter
+- ximg
+- banner
+- ai
+- english

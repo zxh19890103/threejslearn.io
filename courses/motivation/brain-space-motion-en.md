@@ -9,6 +9,7 @@ date: 2025-06-12
 twitter: 1
 ximg: "https://cdn.midjourney.com/21cfdfcf-8197-4b6f-8b8f-2f1b47974be4/0_0_384_N.webp"
 english: 1
+ai: grok
 ---
 
 This article explores how the human brain constructs the sense of time and space from the perspective of cognitive psychology, including how people build and organize an understanding of time and space through perception and memory. It draws on theoretical models, experimental research, and relevant psychological mechanisms, and explains how these abilities influence our cognition and behavior.

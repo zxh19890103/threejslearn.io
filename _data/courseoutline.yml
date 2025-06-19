@@ -28,9 +28,7 @@ course:
         - title: "Shader：像素的雕刻刀"
           title_en: "Shader: The Sculpting Knife of Pixels"
           filename: "shader-pixel-sculpting"
-        - title: "思考：我們為何要用程式建構世界？"
-          title_en: "Why Build Worlds with Code?"
-          filename: "why-build-worlds-with-code"
+          progress: "doing"
 
     - title: "相關數學基礎（圖形數學）"
       level: "math"

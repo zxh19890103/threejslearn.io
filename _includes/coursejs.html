@@ -1,0 +1,98 @@
+<script>
+  {
+    const BookContentElement = document.querySelector('#BookContent');
+    class HeadingTracker extends EventTarget {
+      #bookContent = BookContentElement;
+
+      constructor() {
+        super();
+        this.headings = Array.from(
+          this.#bookContent.querySelectorAll('h2, h3')
+        );
+        this.visibleHeadings = new Set();
+        this.currentHeading = null;
+        this._initObserver();
+      }
+
+      _initObserver() {
+        const observer = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              const heading = entry.target;
+              if (entry.isIntersecting) {
+                this.visibleHeadings.add(heading);
+              } else {
+                this.visibleHeadings.delete(heading);
+              }
+            });
+
+            const sorted = Array.from(this.visibleHeadings).sort(
+              (a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top
+            );
+
+            const topHeading = sorted[0];
+            if (topHeading && topHeading !== this.currentHeading) {
+              this.currentHeading = topHeading;
+              this.dispatchEvent(
+                new CustomEvent('headingchange', {
+                  detail: {
+                    index: this.headings.indexOf(topHeading),
+                    element: topHeading,
+                    tag: topHeading.tagName.toLowerCase(),
+                    text: topHeading.textContent.trim(),
+                  },
+                })
+              );
+            }
+          },
+          {
+            rootMargin: '-20% 0px -60% 0px', // 控制觸發範圍
+            threshold: 0.1,
+          }
+        );
+
+        this.headings.forEach((h) => observer.observe(h));
+      }
+    }
+
+    const tracker = new HeadingTracker();
+
+    tracker.addEventListener('headingchange', (e) => {
+      const { tag, text, index } = e.detail;
+      h2h3_highlighted(index);
+    });
+
+    let LoadingOverlay = null;
+
+    LoadingOverlay = document.createElement('div');
+    LoadingOverlay.className = 'loading-overlay';
+    BookContentElement.appendChild(LoadingOverlay);
+
+    document.fonts.onloading = () => {
+      console.log('loading...');
+      // LoadingOverlay = document.createElement('div');
+      // LoadingOverlay.className = 'loading-overlay';
+      // BookContentElement.appendChild(LoadingOverlay);
+    };
+
+    const onFontBrandonGrotesqueLoaded = () => {
+      if (LoadingOverlay) {
+        BookContentElement.removeChild(LoadingOverlay);
+        LoadingOverlay = null;
+      }
+    }
+
+    document.fonts.onloadingdone = () => {
+      console.log('loaded..');
+      onFontBrandonGrotesqueLoaded();
+    };
+
+    document.fonts.onloadingerror = () => {
+      if (document.fonts.check('BrandonGrotesque')) {
+        onFontBrandonGrotesqueLoaded();
+      }
+      console.log('Some font(s) failed to load.');
+    };
+
+  }
+</script>

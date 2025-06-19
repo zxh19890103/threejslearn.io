@@ -79,7 +79,7 @@ body {
 
   &__Info {
     label {
-      font-style: italic;
+      font-family: BrandonGrotesque;
       color: #333;
     }
   }
@@ -115,10 +115,48 @@ body {
 }
 
 .BookContent {
+  position: relative;
   margin: 5.5em 0 0 0;
   font-size: 1.2rem;
   line-height: 2;
   -webkit-font-smoothing: antialiased;
+
+  & > .loading-overlay {
+    position: absolute;
+    top: 0;
+    left: -5%;
+    width: 110%;
+    height: 100%;
+    pointer-events: none;
+    background-color: rgba($color: #fff, $alpha: 0.8);
+    background-image: linear-gradient(
+      45deg,
+      rgba(0, 0, 0, 0.1) 25%,
+      transparent 25%,
+      transparent 50%,
+      rgba(0, 0, 0, 0.1) 50%,
+      rgba(0, 0, 0, 0.1) 75%,
+      transparent 75%,
+      transparent
+    );
+    background-size: 40px 40px;
+    animation: move-stripes 1s linear infinite;
+    z-index: 10;
+  }
+
+  @keyframes move-stripes {
+    0% {
+      background-position: 0 0;
+    }
+    100% {
+      background-position: 40px 0;
+    }
+  }
+
+  &::selection {
+    background: black;
+    color: white; /* Optional: this sets the text color inside the selection */
+  }
 
   h1,
   h2,
@@ -142,6 +180,9 @@ body {
     font-size: 1.2em;
     margin-top: 2em;
     margin-bottom: 0.8em;
+    &::before {
+      content: "﹟";
+    }
   }
 
   h4,
@@ -166,6 +207,11 @@ body {
       font-size: 0.82em;
       line-height: 1.2;
     }
+  }
+
+  blockquote,
+  ul {
+    line-height: 1.4;
   }
 
   hr {
@@ -249,6 +295,12 @@ body {
 
     li {
       margin-bottom: 0.5em;
+
+      &.H3 {
+        padding-left: 1em;
+        font-size: 0.88em;
+        list-style-type: circle;
+      }
 
       a {
         text-decoration: none;

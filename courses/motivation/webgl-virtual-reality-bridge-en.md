@@ -8,6 +8,7 @@ twitter: 1
 ximg: "https://cdn.midjourney.com/21cfdfcf-8197-4b6f-8b8f-2f1b47974be4/0_0_384_N.webp"
 kofi: 1
 english: 1
+ai: grok
 ---
 
 In the tidal wave of the digital era, the boundary between the virtual and the real grows increasingly blurred. We gaze at screens, yet feel as if we’re immersed in another world: perhaps amidst the clamor of the Roman Colosseum, navigating a cosmos woven from data, or interacting with virtual furniture in augmented reality (AR), envisioning a touch of imagination for our real living room. Behind these experiences lies a silent enabler—WebGL (Web Graphics Library). More than a browser-based graphics rendering tool, WebGL is a bridge connecting the virtual and the real, inviting us to reexamine the meaning of “existence” at their intersection.

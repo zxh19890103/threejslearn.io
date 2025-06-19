@@ -129,6 +129,10 @@
   }
 }
 
+.BG {
+  display: none;
+}
+
 .Section {
   position: relative;
   height: 100vh;
@@ -137,10 +141,20 @@
     flex: 1 0 auto;
     width: 100vw !important;
   }
-}
 
-.BG {
-  display: none;
+  &ExplainContentAll {
+    h2 {
+      margin: 2em 0 1em 0;
+      text-decoration: underline;
+      text-decoration-color: #000;
+      text-decoration-thickness: 1px;
+      text-decoration-style: wavy;
+      text-underline-offset: 0.2em;
+      font-size: 1.5rem;
+      font-weight: normal;
+      color: #000;
+    }
+  }
 }
 
 .PgApp {

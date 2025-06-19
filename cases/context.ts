@@ -470,6 +470,7 @@ __renderers__.push = (...renderers: any[]) => {
   __renderers__.active = __renderers__.filter((r, i) => {
     return isVrMode ? true : i % 2 === 0;
   });
+
   return renderers.length;
 };
 
