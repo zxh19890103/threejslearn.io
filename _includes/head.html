@@ -2,21 +2,22 @@
 <meta charSet="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="description" content="{{site.description}}" />
+
+<link href="/assets/fonts/face.css" rel="stylesheet">
 <link rel="stylesheet" type="text/css" href="/assets/style.css?ts={{site.time | date: " %s"}}">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">
 <link rel="manifest" href="/assets/site.webmanifest">
-<link href="/assets/fonts/face.css" rel="stylesheet">
 
 {% if page.twitter %}
 <meta name="twitter:card" content="summary" />
 <meta name="twitter:site" content="@singhijohn89" />
 <meta name="twitter:title" content="{{ page.title }}" />
 <meta name="twitter:description" content="{{ page.short }}" />
-  {% if page.ximg %}
+{% if page.ximg %}
 <meta name="twitter:image" content="{{page.ximg}}" />
-  {% else %}
+{% else %}
 <meta name="twitter:image" content="/assets/android-chrome-192x192.png" />
-  {% endif %}
+{% endif %}
 {% endif %}

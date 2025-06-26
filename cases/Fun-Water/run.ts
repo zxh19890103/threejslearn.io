@@ -4,10 +4,18 @@
 
 import * as THREE from "three";
 import {
+  AysncShaderMaterial,
+  createInitialDataTexture,
   createPingPongRTPair,
-  createQuadComputingScene,
+  createQuadGPUComputation,
   Water,
+  dt as timeDelta,
+  hbase,
+  initializeSeaHeightMap,
+  texSize,
+  initializeRandomHeightMap,
 } from "./water.js";
+import { Sky } from "cases/Fun-Sky/sky.js";
 
 let enableGrid = false;
 let enableAxes = false;
@@ -27,7 +35,7 @@ __updateControlsDOM__ = () => {
 __onControlsDOMChanged__iter__ = (exp) => eval(exp);
 //#endregion
 
-__config__.camPos = [4, 0, 0];
+// __config__.camPos = [-0.2, -0.2, 0.15];
 __config__.background = 0xffffff;
 
 __main__ = (
@@ -39,112 +47,85 @@ __main__ = (
   __updateTHREEJs__only__.enableGrid = (val) => __3__.grid(val);
   __updateTHREEJs__only__.enableAxes = (val) => __3__.axes(val);
 
+  camera.up.set(0, 0, 1);
+
   __contact__();
   __info__(``);
 
   const pingpong = {
-    h: createPingPongRTPair(THREE.RedFormat, THREE.FloatType),
+    h: createPingPongRTPair(THREE.RGFormat, THREE.FloatType),
     v: createPingPongRTPair(THREE.RGFormat, THREE.FloatType),
   };
 
-  const renderLoop = createQuadComputingScene(renderer);
-  const timeDelta = 0.016;
+  const renderLoop = createQuadGPUComputation(renderer);
   let timeFlyBy = 0;
 
-  const updateHeightMapMat = new THREE.ShaderMaterial({
-    precision: "highp",
-    uniforms: {
-      uTime: { value: 0 },
-      uDt: { value: timeDelta },
-      uHeightTex: { value: null },
-      uVelocityTex: { value: null },
+  const updateHeightMapMat = new AysncShaderMaterial(
+    {
+      uTime: 0,
+      uHeightTex: null,
+      uVelocityTex: null,
     },
-    vertexShader: `
-    out vec2 vUv;
-    void main() {
-      vUv = uv;
-      gl_Position = vec4(position, 1.0);
-    }`,
-    fragmentShader: `
-    uniform sampler2D uHeightTex;
-    uniform sampler2D uVelocityTex;
-    uniform float uDt;
-    uniform float uTime;
+    "./h.frag"
+  );
 
-    in vec2 vUv;
-
-    float hash(float x) {
-        return fract(sin(x) * 43758.5453123);
-    }
-
-    float noise1D(float x) {
-        float i = floor(x);
-        float f = fract(x);
-        
-        // Smoothstep-like interpolation
-        float u = f * f * (3.0 - 2.0 * f);
-        
-        // Interpolate between hash(i) and hash(i + 1)
-        return mix(hash(i), hash(i + 1.0), u);
-    }    
-
-    void main() {
-      gl_FragColor = vec4(noise1D(uTime + vUv.x * vUv.y), 0.0, 0.0, 1.0);
-    }`,
-  });
-
-  const updateVelocityMapMat = new THREE.ShaderMaterial({
-    precision: "highp",
-    uniforms: {
-      uDt: { value: timeDelta },
-      uHeightTex: { value: null },
-      uVelocityTex: { value: null },
+  const updateVelocityMapMat = new AysncShaderMaterial(
+    {
+      uTime: 0,
+      uHeightTex: null,
+      uVelocityTex: null,
+      impactPos: new THREE.Vector2(0.5, 0.5),
+      impactStrength: 0,
     },
-    vertexShader: `
-    out vec2 vUv;
-    void main() {
-      vUv = uv;
-      gl_Position = vec4(position, 1.0);
-    }`,
-    fragmentShader: `
-    uniform sampler2D uHeightTex;
-    uniform sampler2D uVelocityTex;
-    uniform float uDt;
+    "./v.frag"
+  );
 
-    in vec2 vUv;
-
-    void main() {
-      gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
-    }
-    `,
-  });
-
-  const waterplane = new Water();
+  const waterplane = new Water(10, 1);
+  waterplane.position.set(0, 0, 0);
+  waterplane.rotateX(70 * __3__.deg2rad);
   world.add(waterplane);
+  waterplane.material.uniforms.viewPos.value = camera.position;
 
+  const Grid = new THREE.GridHelper(10, 10, 0x10ae01, 0xd3d3d3);
+  Grid.rotateX(90 * __3__.deg2rad);
+
+  world.add(Grid);
+  const sky = new Sky();
+  // sky.rotateZ(90 * __3__.deg2rad);
+  world.add(sky);
+
+  const bootstrapHeightMapTex = initializeRandomHeightMap();
+
+  renderer.clear();
+  renderer.initTexture(bootstrapHeightMapTex);
   renderer.initRenderTarget(pingpong.h.rt0);
+  renderer.copyTextureToTexture(bootstrapHeightMapTex, pingpong.h.rt0.texture);
 
   __add_nextframe_fn__(() => {
     // update the velocity first
-    // renderer.setRenderTarget(pingpong.v.rt1);
-    // renderLoop(updateVelocityMapMat, {
-    //   uHeightTex: pingpong.h.rt0.texture,
-    //   uVelocityTex: pingpong.v.rt0.texture,
-    // });
-    // pingpong.v.swap();
+    if (updateVelocityMapMat.ready && updateHeightMapMat.ready) {
+      renderer.setRenderTarget(pingpong.v.rt1);
+      renderLoop(updateVelocityMapMat, {
+        uHeightTex: pingpong.h.rt0.texture,
+        uVelocityTex: pingpong.v.rt0.texture,
+        uTime: timeFlyBy,
+      });
+      pingpong.v.swap();
 
-    renderer.setRenderTarget(pingpong.h.rt1);
-    renderLoop(updateHeightMapMat, {
-      uHeightTex: pingpong.h.rt0.texture,
-      uVelocityTex: pingpong.v.rt0.texture,
-      uTime: timeFlyBy,
-    });
-    pingpong.h.swap();
+      renderer.setRenderTarget(pingpong.h.rt1);
+      renderLoop(updateHeightMapMat, {
+        uHeightTex: pingpong.h.rt0.texture,
+        uVelocityTex: pingpong.v.rt0.texture,
+        uTime: timeFlyBy,
+      });
+      pingpong.h.swap();
 
-    renderer.setRenderTarget(null);
-    waterplane.material.uniforms.uHeightTex.value = pingpong.h.rt0.texture;
+      renderer.setRenderTarget(null);
+      waterplane.material.uniforms.uHeightTex.value = pingpong.h.rt0.texture;
+      waterplane.material.uniforms.viewPos.value = camera.position;
 
-    timeFlyBy += timeDelta;
+      timeFlyBy += timeDelta;
+    }
   });
 
   __updateTHREEJs__ = (k: string, val: any) => {

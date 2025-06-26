@@ -155,6 +155,6 @@ __defineControl__(
   "bumpScale",
   "range",
   bumpScale,
-  __defineControl__.rint(1, 10)
+  __defineControl__.rint(1, 100)
 );
 __defineControl__("color", "color", color);

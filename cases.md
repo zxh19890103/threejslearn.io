@@ -13,6 +13,7 @@ title: Cases
 - [Fun-GoogleMapTile](/cases/Fun-GoogleMapTile)
 - [Fun-HeightMap](/cases/Fun-HeightMap)
 - [Fun-Sea](/cases/Fun-Sea)
+- [Fun-Sky](/cases/Fun-Sky)
 - [Fun-SolarSystem](/cases/Fun-SolarSystem)
 - [Fun-SPH](/cases/Fun-SPH)
 - [Fun-SPHSahder](/cases/Fun-SPHSahder)

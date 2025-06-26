@@ -4,8 +4,8 @@
 @import "./var";
 
 .Content {
-  z-index: 100;
   margin: 0 auto;
+  z-index: 100;
   font-size: 1rem;
 
   p > img {
@@ -33,6 +33,10 @@
     max-width: 21cm;
     margin: auto;
   }
+}
+
+.BG {
+  background-color: $bg-color;
 }
 
 .Home {
@@ -67,6 +71,7 @@
     border: 1px solid #767676;
     border-radius: 50%;
     position: relative;
+    background-color: #fff;
 
     @media screen and (max-width: $xs-screen-width) {
       display: none;
@@ -76,17 +81,6 @@
   &:hover {
     transform: rotate(180deg);
   }
-}
-
-.BG {
-  position: fixed;
-  top: 0;
-  left: 0;
-  display: block;
-  width: 100vw;
-  height: 100vh;
-  background-color: #fff;
-  // filter: blur(1px) brightness(0.4);
 }
 
 .Menu {
@@ -102,11 +96,11 @@
   flex-grow: 0;
   flex-basis: 120px;
 
-  // @media screen and (max-width: $xs-screen-width) {
-  //   li span {
-  //     display: none;
-  //   }
-  // }
+  @media screen and (max-width: $xs-screen-width) {
+    li span {
+      display: none;
+    }
+  }
 
   a {
     i {
@@ -124,7 +118,6 @@
   display: flex;
   justify-content: left;
   align-items: center;
-  // flex-direction: column;
   text-align: center;
 }
 
@@ -143,31 +136,6 @@
       border-radius: 4px;
       box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
     }
-  }
-}
-
-hr {
-  width: 38.2%;
-  margin: 2rem auto;
-  position: relative;
-  overflow: visible;
-
-  &::after {
-    content: "";
-    display: block;
-    position: absolute;
-    top: -3px;
-    left: 50%;
-    transform: translate(-3px, 0) rotate(45deg);
-    width: 6px;
-    height: 6px;
-    background-color: #ddd;
-  }
-}
-
-@media only screen and (max-width: 640px) {
-  .Content {
-    width: 100%;
   }
 }
 

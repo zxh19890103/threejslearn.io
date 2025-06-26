@@ -7,14 +7,55 @@
 .Content {
   padding: 1rem 2rem;
   min-height: 100vh;
-  background-color: #fff;
-  box-shadow: #ddd 0px 0px 10px 0px;
+  background-color: $bg-color;
+  color: $text-color;
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    color: $text-title-color;
+  }
+
+  a {
+    color: $a-text-color;
+    &:hover {
+      color: $a-hover-text-color;
+    }
+  }
+
+  em {
+    background-color: $em-bg-color;
+    color: $text-em-color;
+    border-radius: 4px;
+    padding: 0 4px;
+    font-style: normal;
+  }
+
+  code.highlighter-rouge {
+    padding: 0.1em 0.3em;
+    background-color: $code-bg-color;
+    border-radius: 4px;
+    font-size: 0.8em;
+    font-family: monospace;
+    font-style: italic;
+  }
+}
+
+.BG {
+  position: fixed;
+  top: 0;
+  left: 0;
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  background-color: $bg-color;
 }
 
 .BookProgress {
   $color-todo: #4b4b40;
-  $color-doing: #b16d15;
-  $color-done: #119611;
 
   &.current::after {
     content: "✔︎";
@@ -26,24 +67,15 @@
 
     a {
       color: $color-todo;
-      text-decoration-color: $color-todo;
       pointer-events: none;
     }
   }
 
+  &-done,
   &-doing {
-    color: $color-doing;
+    color: inherit;
     a {
-      text-decoration-color: $color-doing;
-      color: $color-doing;
-    }
-  }
-
-  &-done {
-    color: $color-done;
-    a {
-      text-decoration-color: $color-done;
-      color: $color-done;
+      color: inherit;
     }
   }
 }

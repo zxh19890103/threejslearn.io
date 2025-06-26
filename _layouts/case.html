@@ -129,7 +129,9 @@
 
     {
       var keys = [...new URLSearchParams(location.search).keys()].map(ky => `TT-${ky}`);
-      document.body.classList.add(keys);
+      if (keys.length > 0) {
+        document.body.classList.add(keys);
+      }
     }
   </script>
   <script src="/cases/global.v.js?ts={{site.time | date: '%s'}}"></script>

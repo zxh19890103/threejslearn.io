@@ -233,8 +233,16 @@ gl_Position = vec4(ix * cellSize, iy * cellSize, h, 1.0);
 
 其中， pos 為由 CPU 傳入的頂點座標，它們是格子的索引。
 
-### 初步結果
+<!-- ### 初步結果 -->
+<!-- {% include coderun.html id="Fun-Water" %} -->
 
-{% include coderun.html id="Fun-Water" %}
+### 忽略其中的計算過程，將流程寫出來
+
+### 簡單中心差分 + 顯式 Euler 時間積分
+
+
+```math
+
+```
 
 ---
