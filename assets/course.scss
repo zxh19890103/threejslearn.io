@@ -108,7 +108,7 @@ body {
 .BookContent {
   position: relative;
   margin: 5.5em 0 0 0;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
   line-height: 2;
   -webkit-font-smoothing: antialiased;
 
@@ -386,11 +386,11 @@ body {
 }
 
 .english {
-  font-family: "Ubuntu", sans-serif;
-  -webkit-font-smoothing: antialiased;
+  font-family: "KiddySans", sans-serif;
+  -webkit-font-smoothing: auto;
   -webkit-font-feature-settings: "kern";
   font-feature-settings: "kern";
-  font-size: 1.2em;
+  // font-size: 1.1em;
   line-height: 1.6;
 
   &.text-sm {
