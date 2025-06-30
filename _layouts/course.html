@@ -4,7 +4,7 @@
 
 <head>
   {% include head.html %}
-  
+
   {% if page.kofi %}
   <script type='text/javascript' src='https://storage.ko-fi.com/cdn/widget/Widget_2.js'></script>
   {% endif %}
@@ -51,7 +51,8 @@
 
     <div class="BookMeta">
       <div class="BookMeta-Part BookMeta__Links">
-        <a href="/{{ page.collection | default: 'courses' }}" title="back" style="font-weight: 100; text-decoration: none;">
+        <a href="/{{ page.collection | default: 'courses' }}" title="back"
+          style="font-weight: 100; text-decoration: none;">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
             class="icon icon-tabler icons-tabler-outline icon-tabler-arrow-left-dashed">
@@ -151,6 +152,30 @@
         {% include links.html %}
       </div>
     </div>
+
+    {% if page.comments %}
+    <div class="BookComments">
+      <h3>Comments: </h3>
+      <div id="disqus_thread"></div>
+      <script>
+        /**
+        *  RECOMMENDED CONFIGURATION VARIABLES: EDIT AND UNCOMMENT THE SECTION BELOW TO INSERT DYNAMIC VALUES FROM YOUR PLATFORM OR CMS.
+        *  LEARN WHY DEFINING THESE VARIABLES IS IMPORTANT: https://disqus.com/admin/universalcode/#configuration-variables    */
+        var disqus_config = function () {
+          this.page.url = "{{ page.url }}";  // Replace PAGE_URL with your page's canonical URL variable
+          this.page.identifier = "{{ page.path }}"; // Replace PAGE_IDENTIFIER with your page's unique identifier variable
+        };
+        (function () { // DON'T EDIT BELOW THIS LINE
+          var d = document, s = d.createElement('script');
+          s.src = 'https://threelearning-zhangxinghai-cn.disqus.com/embed.js';
+          s.setAttribute('data-timestamp', +new Date());
+          (d.head || d.body).appendChild(s);
+        })();
+      </script>
+      <noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by
+          Disqus.</a></noscript>
+    </div>
+    {% endif %}
 
     {% if page.nochapters != 1 %}
     <div class="BookSide BookChapters">
@@ -266,7 +291,13 @@
       </div>
     </div>
   </div>
+
   {% include coursejs.html %}
+
+  {% if page.comments %}
+  <!-- <script id="dsq-count-scr" src="//threelearning-zhangxinghai-cn.disqus.com/count.js" async></script> -->
+  <!-- <a href="http://foo.com/bar.html#disqus_thread">Link</a> -->
+  {% endif %}
 </body>
 
 </html>

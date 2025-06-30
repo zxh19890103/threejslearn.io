@@ -6,6 +6,7 @@ ximg: "https://learnopengl.com/img/getting-started/vectors_scale.png"
 date: 2025-06-07
 math: 1
 twitter: 1
+comments: true
 ---
 
 我們所生活的這個世界，似乎理所當然地呈現在我們眼前。街道、樹木、建築、人群，一切都顯得穩固、明晰，就像小孩子無法理解死亡的不可逆一樣，我們也從未真正質疑眼睛所見的世界。
