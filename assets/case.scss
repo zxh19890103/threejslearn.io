@@ -146,11 +146,10 @@
     h2 {
       margin: 2em 0 1em 0;
       text-decoration: underline;
-      text-decoration-color: #000;
+      text-decoration-color: $a-hover-text-color;
       text-decoration-thickness: 1px;
-      text-decoration-style: wavy;
-      text-underline-offset: 0.2em;
-      font-size: 1.5rem;
+      text-decoration-style: double;
+      text-underline-offset: 0.1em;
       font-weight: normal;
       color: #000;
     }

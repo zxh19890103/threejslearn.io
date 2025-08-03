@@ -4,7 +4,7 @@
   // "editor.fontFamily": "monospace, 'Cascadia Code', Consolas, Menlo, Monaco, 'Courier New', monospace",
   "editor.fontFamily": "'Chalkboard SE', 'Yuppy TC', Consolas, Menlo, Monaco, 'Courier New', monospace",
   // "editor.fontFamily": "'Annai MN', Consolas, Menlo, Monaco, 'Courier New', monospace",
-  "editor.fontSize": 16,
+  "editor.fontSize": 14,
   // "editor.codeLensFontSize": 12,
   // "scm.inputFontSize": 12,
   // "editor.suggestFontSize": 12,

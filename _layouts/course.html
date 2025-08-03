@@ -298,6 +298,91 @@
   <!-- <script id="dsq-count-scr" src="//threelearning-zhangxinghai-cn.disqus.com/count.js" async></script> -->
   <!-- <a href="http://foo.com/bar.html#disqus_thread">Link</a> -->
   {% endif %}
+
+  <div class="FloatingWin">
+    <div id="FullscreenToggle">
+      <a href="javascript:void(0);" onclick="openFullscreen(event)">enter Reading mode</a>
+      <a href="javascript:void(0);" style="display: none;" onclick="closeFullscreen(event)">exit Reading mode</a>
+    </div>
+  </div>
+
+  <script>
+    var __isFullscreen__ = false;
+    var __isFKeyUpOrBtnClicked__ = false;
+    function __set_isFullscreen__(val, esc) {
+      if (__isFullscreen__ === val) return;
+
+      __isFullscreen__ = val;
+      sessionStorage.setItem('fullscreen', val);
+
+      if (__isFullscreen__) {
+        doOpenFullscreen();
+        const target = document.querySelector('#FullscreenToggle').firstElementChild
+        target.style.display = 'none';
+        target.nextElementSibling.style.display = '';
+      } else {
+        if (esc === undefined || esc === false) {
+          doCloseFullscreen();
+        }
+        const target = document.querySelector('#FullscreenToggle').lastElementChild
+        target.style.display = 'none';
+        target.previousElementSibling.style.display = '';
+      }
+    }
+
+    function doOpenFullscreen() {
+      const elem = document.documentElement; // 預設全屏整個頁面
+      if (elem.requestFullscreen) {
+        elem.requestFullscreen();
+      } else if (elem.webkitRequestFullscreen) { // Safari
+        elem.webkitRequestFullscreen();
+      } else if (elem.msRequestFullscreen) { // IE11
+        elem.msRequestFullscreen();
+      }
+    }
+
+    function doCloseFullscreen() {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      } else if (document.webkitExitFullscreen) { // Safari
+        document.webkitExitFullscreen();
+      } else if (document.msExitFullscreen) { // IE11
+        document.msExitFullscreen();
+      }
+    }
+
+    function openFullscreen(evt) {
+      __isFKeyUpOrBtnClicked__ = true;
+      __set_isFullscreen__(true);
+    }
+
+    function closeFullscreen(evt) {
+      __isFKeyUpOrBtnClicked__ = true;
+      __set_isFullscreen__(false);
+    }
+
+    document.onfullscreenchange = () => {
+      if (__isFKeyUpOrBtnClicked__) {
+      } else {
+        __set_isFullscreen__(false, true);
+      }
+
+      __isFKeyUpOrBtnClicked__ = false;
+    }
+
+    window.addEventListener('keyup', (evt) => {
+      if (evt.key === 'f') {
+        __isFKeyUpOrBtnClicked__ = true;
+        __set_isFullscreen__(!__isFullscreen__);
+      }
+    })
+
+    document.addEventListener('DOMContentLoaded', () => {
+      if (sessionStorage.getItem('fullscreen')) {
+        // __set_isFullscreen__(true);
+      }
+    })
+  </script>
 </body>
 
 </html>
