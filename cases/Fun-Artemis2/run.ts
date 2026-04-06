@@ -10,7 +10,7 @@ import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 let enableGrid = false;
 let enableAxes = false;
 let timeStep = 1; // simulation time step in seconds
-let iterations = 1000;
+let iterations = 100;
 let rotationVisualScaleFactor = 0.1;
 
 __config__.camPos = [0, spaceInformation.EARTH.meanRadiusKm * 3, 0];
@@ -319,7 +319,7 @@ which is the second menu item.
     .multiplyScalar(moonDistanceKm);
 
   const moonVelocityDirection = new THREE.Vector3().crossVectors(
-    worldUp,
+    moonPlaneNormal,
     moonDirection,
   );
   if (moonVelocityDirection.lengthSq() < 1e-9) {
@@ -352,7 +352,6 @@ which is the second menu item.
     .multiplyScalar(satelliteOrbitRadiusKm);
   const satelliteInitialVelocity = satellitePlaneVelocityDirection
     .clone()
-    .negate()
     .multiplyScalar(satelliteCircularVelocityKmPerS);
 
   // State vectors for Earth and Moon: [x, y, z, vx, vy, vz]
@@ -391,6 +390,14 @@ which is the second menu item.
     moonOrbitRadius * 0.3,
   );
   camera.lookAt(0, 0, 0);
+  const craftCameraOffset = new THREE.Vector3(0, 5000, 15000);
+  const earthTargetLocal = new THREE.Vector3();
+  let craftViewEnabled = false;
+  const earthSafeDistanceKm =
+    spaceInformation.EARTH.meanRadiusKm * moonRadiusVisualScale + 500;
+  const moonSafeDistanceKm =
+    spaceInformation.MOON.meanRadiusKm * moonRadiusVisualScale + 200;
+  let satelliteDestroyed = false;
 
   const trajectoryMaxPoints = 8192;
 
@@ -549,6 +556,36 @@ which is the second menu item.
 
   world.add(moonTrajectory);
   world.add(satelliteTrajectory);
+
+  const explosionParticleCount = 300;
+  const explosionPositions = new Float32Array(explosionParticleCount * 3);
+  const explosionColors = new Float32Array(explosionParticleCount * 3);
+  const explosionVelocities: THREE.Vector3[] = Array.from(
+    { length: explosionParticleCount },
+    () => new THREE.Vector3(),
+  );
+  const explosionLifetimes = new Float32Array(explosionParticleCount);
+  let explosionActive = false;
+  const explosionGeometry = new THREE.BufferGeometry();
+  explosionGeometry.setAttribute(
+    "position",
+    new THREE.BufferAttribute(explosionPositions, 3),
+  );
+  explosionGeometry.setAttribute(
+    "color",
+    new THREE.BufferAttribute(explosionColors, 3),
+  );
+  const explosionMesh = new THREE.Points(
+    explosionGeometry,
+    new THREE.PointsMaterial({
+      size: 8000,
+      vertexColors: true,
+      transparent: true,
+      depthWrite: false,
+      sizeAttenuation: true,
+    }),
+  );
+  world.add(explosionMesh);
 
   const reduceMoonState = () => {
     const dx = moonState[0];
@@ -756,7 +793,7 @@ which is the second menu item.
     // Calculate distance vector from Earth (at origin) to Moon (in km)
     for (let i = 0; i < iterations; i++) {
       reduceMoonState();
-      reduceSatelliteState();
+      if (!satelliteDestroyed) reduceSatelliteState();
     }
 
     simElapsedSec += simStepSeconds;
@@ -769,17 +806,50 @@ which is the second menu item.
       satelliteState[2],
     );
 
+    if (!satelliteDestroyed) {
+      const distToEarth = Math.hypot(
+        satelliteState[0],
+        satelliteState[1],
+        satelliteState[2],
+      );
+      if (distToEarth < earthSafeDistanceKm) {
+        triggerExplosion();
+      } else {
+        const distToMoon = Math.hypot(
+          satelliteState[0] - moonState[0],
+          satelliteState[1] - moonState[1],
+          satelliteState[2] - moonState[2],
+        );
+        if (distToMoon < moonSafeDistanceKm) {
+          triggerExplosion();
+        }
+      }
+    }
+
     updateTrajectory(moon.position, 80, moonTrajectoryState);
 
     updateTrajectory(satellite.position, 20, satelliteTrajectoryState);
 
     updateExhaust();
+    updateExplosion();
+
+    if (craftViewEnabled) {
+      if (currentCraftViewMode === 0) {
+        // look at earth
+        earthTargetLocal.set(0, 0, 0);
+      } else if (currentCraftViewMode === 1) {
+        // look at moon
+        earthTargetLocal.set(moonState[0], moonState[1], moonState[2]);
+      }
+      satellite.worldToLocal(earthTargetLocal);
+      camera.lookAt(earthTargetLocal);
+    }
 
     earth.rotateY(earthSpinOmega * simStepSeconds * rotationVisualScaleFactor);
     moon.rotateY(moonSpinOmega * simStepSeconds * rotationVisualScaleFactor);
   });
 
-  __add_nextframe_fn__(() => {
+  __add_nextframe_fn__((x, y, z, delta, skip) => {
     __usePanel_write__(
       0,
       `spacecraft's position: (${satelliteState[0].toFixed(1)}, ${satelliteState[1].toFixed(1)}, ${satelliteState[2].toFixed(1)}) km`,
@@ -802,9 +872,15 @@ which is the second menu item.
     );
     __usePanel_write__(
       4,
-      `screen time: ${new Date(simStartMs + simElapsedSec * 1000).toLocaleString()} | 1s = ${formatSimDuration(simElapsedSec / Math.max((Date.now() - simStartMs) / 1000, 1e-6))}`,
+      `screen time: ${new Date(simStartMs + simElapsedSec * 1000).toLocaleString()}`,
     );
-  }, 0.3);
+    __usePanel_write__(
+      5,
+      `screen time: 1s = ${formatSimDuration(
+        Math.floor((skip * iterations * timeStep) / delta),
+      )}`,
+    );
+  }, 1);
 
   __updateTHREEJs__only__.enableGrid = (val) => __3__.grid(val);
   __updateTHREEJs__only__.enableAxes = (val) =>
@@ -870,31 +946,177 @@ which is the second menu item.
     exhaustBurnFrames = 120;
   };
 
+  let craftviewClick = 0;
+  let currentCraftViewMode = -1; // track which mode is active
+  const initialCameraPos = new THREE.Vector3(
+    moonOrbitRadius * 0.3,
+    moonOrbitRadius * 1.2,
+    moonOrbitRadius * 0.3,
+  );
+  __updateTHREEJs__invoke__.craftview = () => {
+    switch (craftviewClick) {
+      case 0: {
+        // look at earth
+        if (camera.parent !== satellite) {
+          satellite.add(camera);
+          camera.position.copy(craftCameraOffset);
+        }
+        craftViewEnabled = true;
+        currentCraftViewMode = 0;
+        earthTargetLocal.set(0, 0, 0);
+        satellite.worldToLocal(earthTargetLocal);
+        camera.lookAt(earthTargetLocal);
+        break;
+      }
+      case 1: {
+        // look at moon
+        if (camera.parent !== satellite) {
+          satellite.add(camera);
+          camera.position.copy(craftCameraOffset);
+        }
+        craftViewEnabled = true;
+        currentCraftViewMode = 1;
+        earthTargetLocal.set(moonState[0], moonState[1], moonState[2]);
+        satellite.worldToLocal(earthTargetLocal);
+        camera.lookAt(earthTargetLocal);
+        break;
+      }
+      case 2: {
+        // restore
+        craftViewEnabled = false;
+        currentCraftViewMode = -1;
+        world.add(camera);
+        camera.position.copy(initialCameraPos);
+        camera.lookAt(0, 0, 0);
+        break;
+      }
+    }
+
+    craftviewClick++;
+    craftviewClick = craftviewClick % 3;
+  };
+
+  const triggerExplosion = () => {
+    if (satelliteDestroyed) return;
+    satelliteDestroyed = true;
+
+    if (craftViewEnabled) {
+      craftViewEnabled = false;
+      currentCraftViewMode = -1;
+      craftviewClick = 0;
+      world.add(camera);
+      camera.position.copy(initialCameraPos);
+      camera.lookAt(0, 0, 0);
+    }
+
+    satellite.visible = false;
+
+    const wx = satelliteState[0];
+    const wy = satelliteState[1];
+    const wz = satelliteState[2];
+
+    for (let i = 0; i < explosionParticleCount; i++) {
+      const base = i * 3;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const sinPhi = Math.sin(phi);
+      const dx = sinPhi * Math.cos(theta);
+      const dy = sinPhi * Math.sin(theta);
+      const dz = Math.cos(phi);
+
+      explosionPositions[base] = wx;
+      explosionPositions[base + 1] = wy;
+      explosionPositions[base + 2] = wz;
+
+      const speed = 20000 + Math.random() * 40000;
+      explosionVelocities[i].set(dx * speed, dy * speed, dz * speed);
+      explosionLifetimes[i] = 0.5 + Math.random() * 1.2;
+
+      explosionColors[base] = 1.0;
+      explosionColors[base + 1] = 0.3 + Math.random() * 0.5;
+      explosionColors[base + 2] = 0.0;
+    }
+
+    (
+      explosionGeometry.getAttribute("position") as THREE.BufferAttribute
+    ).needsUpdate = true;
+    (
+      explosionGeometry.getAttribute("color") as THREE.BufferAttribute
+    ).needsUpdate = true;
+    explosionActive = true;
+  };
+
+  const updateExplosion = () => {
+    if (!explosionActive) return;
+    const dt = 1 / 60;
+    let anyAlive = false;
+    const posAttr = explosionGeometry.getAttribute(
+      "position",
+    ) as THREE.BufferAttribute;
+    const colAttr = explosionGeometry.getAttribute(
+      "color",
+    ) as THREE.BufferAttribute;
+
+    for (let i = 0; i < explosionParticleCount; i++) {
+      if (explosionLifetimes[i] <= 0) continue;
+      anyAlive = true;
+      const base = i * 3;
+      explosionLifetimes[i] -= dt * 1.2;
+
+      explosionPositions[base] += explosionVelocities[i].x * dt;
+      explosionPositions[base + 1] += explosionVelocities[i].y * dt;
+      explosionPositions[base + 2] += explosionVelocities[i].z * dt;
+      explosionVelocities[i].multiplyScalar(0.94);
+
+      if (explosionLifetimes[i] <= 0) {
+        explosionPositions[base] = 0;
+        explosionPositions[base + 1] = 0;
+        explosionPositions[base + 2] = 0;
+        explosionColors[base] = 0;
+        explosionColors[base + 1] = 0;
+        explosionColors[base + 2] = 0;
+      }
+    }
+
+    posAttr.needsUpdate = true;
+    colAttr.needsUpdate = true;
+    if (!anyAlive) explosionActive = false;
+  };
+
+  __updateTHREEJs__invoke__.craftview_create = () => {};
+
   __updateTHREEJs__ = (k: string, val: any) => {
     // variables changed, run your code!
   };
 
   __usePanel__({
     placement: "top",
-    width: 600,
-    lines: 5,
+    width: 520,
+    lines: 6,
   });
 };
 
 __defineControl__("fire", "btn", "fire", { label: "boost" });
 __defineControl__("fire_down", "btn", "fire down", { label: "brake" });
+__defineControl__("craftview", "btn", "craftview", { label: "craft view" });
+__defineControl__("craftview_create", "btn", "add a", { label: "new craft" });
 __defineControl__("iterations", "range", iterations, {
   min: 100,
   max: 2000,
   fixed: 0,
   label: "iterations",
-  help: "iteration",
+  help: "physics steps per frame — higher values speed up simulation time",
 });
 
-__defineControl__("rotationVisualScaleFactor", "range", rotationVisualScaleFactor, {
-  min: 0.01,
-  max: 1,
-  fixed: 2,
-  label: "rotate",
-  help: "iteration",
-});
+__defineControl__(
+  "rotationVisualScaleFactor",
+  "range",
+  rotationVisualScaleFactor,
+  {
+    min: 0.01,
+    max: 1,
+    fixed: 2,
+    label: "rotate",
+    help: "scales Earth & Moon spin speed for visual clarity",
+  },
+);
