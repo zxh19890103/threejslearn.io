@@ -289,6 +289,7 @@ const $cDOM = (c: Control): HTMLDivElement => {
       const input = document.createElement("input");
       input.name = c.name;
       input.type = "button";
+      input.style.cssText = ` line-height: 20px; width: 20px; height: 20px; border: none; outline: none; border-radius: 50%`;
       input.value = "🔘";
       input.$meta4ctrl = c;
       input.onclick = $onchange;

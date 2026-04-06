@@ -5,6 +5,7 @@ title: Cases
 
 
 - [Camera](/cases/Camera)
+- [Fun-Artemis2](/cases/Fun-Artemis2)
 - [Fun-Comet](/cases/Fun-Comet)
 - [Fun-CometReal](/cases/Fun-CometReal)
 - [Fun-EarthMap](/cases/Fun-EarthMap)
@@ -24,7 +25,7 @@ title: Cases
 - [Geometry-Sphere](/cases/Geometry-Sphere)
 - [Materials-LineBasicMaterial](/cases/Materials-LineBasicMaterial)
 - [Materials-MeshStandardMaterial](/cases/Materials-MeshStandardMaterial)
-- [Materials-X-Blend](/cases/Materials-X-Blend)
+- [Materials-x-Blend](/cases/Materials-x-Blend)
 - [Materials-X-Map](/cases/Materials-X-Map)
 - [Math-Matrix](/cases/Math-Matrix)
 - [Math-Quaternion](/cases/Math-Quaternion)

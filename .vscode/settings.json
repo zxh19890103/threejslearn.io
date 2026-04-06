@@ -1,10 +1,8 @@
 {
-  // "editor.fontFamily": "'Wawati SC' ,'Operator Mono Lig', 'Cascadia Code', Consolas, Menlo, Monaco, 'Courier New', monospace",
-  // "editor.fontFamily": "Monaco, 'Operator Mono Lig', 'Cascadia Code', Consolas, Menlo, Monaco, 'Courier New', monospace",
-  // "editor.fontFamily": "monospace, 'Cascadia Code', Consolas, Menlo, Monaco, 'Courier New', monospace",
-  "editor.fontFamily": "'Chalkboard SE', 'Yuppy TC', Consolas, Menlo, Monaco, 'Courier New', monospace",
-  // "editor.fontFamily": "'Annai MN', Consolas, Menlo, Monaco, 'Courier New', monospace",
-  "editor.fontSize": 14,
+  "editor.fontFamily": "Ubuntu Sans Mono",
+  // "editor.fontFamily": "Ubuntu Mono",
+  "editor.fontSize": 16,
+  "workbench.fontAliasing": "antialiased",
   // "editor.codeLensFontSize": 12,
   // "scm.inputFontSize": 12,
   // "editor.suggestFontSize": 12,
@@ -14,12 +12,10 @@
   // "chat.editor.fontSize": 12,
   "notebook.markup.fontSize": 12,
   "window.zoomLevel": 1,
-  "editor.letterSpacing": 0,
   "editor.fontWeight": "300",
-  "editor.fontLigatures": true,
+  "editor.fontLigatures": false,
   "terminal.integrated.fontFamily": "monospace",
-  "workbench.iconTheme": "vscode-icons",
   "workbench.colorTheme": "Visual Studio 2017 Light - C++",
   "editor.tabSize": 2,
-  "typescript.tsdk": "node_modules/typescript/lib"
+  "js/ts.tsdk.path": "node_modules/typescript/lib"
 }
