@@ -12,6 +12,8 @@ let enableAxes = false;
 let timeStep = 1; // simulation time step in seconds
 let iterations = 100;
 let rotationVisualScaleFactor = 0.1;
+let craftBoostAngle = 0; // radians, 0 to 2π — controls boost direction in orbital plane
+let boostPower = 1; // scales boost acceleration
 
 __config__.camPos = [0, spaceInformation.EARTH.meanRadiusKm * 3, 0];
 __config__.camFar = spaceInformation.EARTH_MOON_DISTANCE.averageKm;
@@ -109,19 +111,28 @@ which is the second menu item.
     return `${secs}s`;
   };
 
-  const sunCurrentPosition = (lat: number, lng: number, dt: Date) => {
-    const { altitude, azimuth } = SunCalc.getPosition(
-      dt ?? new Date(),
-      lat,
-      lng,
-    );
-    const r = Math.cos(altitude);
-    const xyz = [
-      r * Math.cos(azimuth),
-      r * Math.sin(azimuth),
-      -Math.sin(altitude),
-    ] as Vec3;
-    return xyz;
+  const sunCurrentPosition = (_lat: number, _lng: number, dt: Date) => {
+    // Geocentric Sun direction in an Earth-centered inertial frame.
+    // Returns a unit vector mapped to the scene's y-up convention.
+    const t = dt ?? new Date();
+    const msPerDay = 86400000;
+    const jd = t.getTime() / msPerDay + 2440587.5;
+    const n = jd - 2451545.0;
+
+    const L = THREE.MathUtils.degToRad((280.46 + 0.9856474 * n) % 360);
+    const g = THREE.MathUtils.degToRad((357.528 + 0.9856003 * n) % 360);
+    const lambda =
+      L +
+      THREE.MathUtils.degToRad(1.915) * Math.sin(g) +
+      THREE.MathUtils.degToRad(0.02) * Math.sin(2 * g);
+    const epsilon = THREE.MathUtils.degToRad(23.439 - 0.0000004 * n);
+
+    const xEq = Math.cos(lambda);
+    const yEq = Math.cos(epsilon) * Math.sin(lambda);
+    const zEq = Math.sin(epsilon) * Math.sin(lambda);
+
+    const v = new THREE.Vector3(xEq, zEq, yEq).normalize();
+    return [v.x, v.y, v.z] as Vec3;
   };
 
   const sunCalcSun = sunCurrentPosition(
@@ -198,6 +209,7 @@ which is the second menu item.
   let exhaustWriteIndex = 0;
   let exhaustBurnFrames = 0;
   let exhaustDirectionSign = -1;
+  const exhaustBurnDirection = new THREE.Vector3(0, -1, 0);
 
   const exhaustGeometry = new THREE.BufferGeometry();
   exhaustGeometry.setAttribute(
@@ -243,29 +255,52 @@ which is the second menu item.
   const perigeeKm = spaceInformation.EARTH_MOON_DISTANCE.perigeeKm;
   const semiMajorAxis = (apogeeKm + perigeeKm) / 2;
 
-  // Calculate Moon's velocity at apogee: v = sqrt(GM(2/r - 1/a))
+  // Use vis-viva to compute orbital speed at the current distance r: v = sqrt(mu(2/r - 1/a)).
   // G * M in SI units: m^3/s^2
   const GM = spaceInformation.G * earthMass;
-  const apogeeM = apogeeKm * 1000; // convert to meters
   const semiMajorAxisM = semiMajorAxis * 1000; // convert to meters
-  const velocityAtApogeeMs = Math.sqrt(GM * (2 / apogeeM - 1 / semiMajorAxisM));
-  const velocityAtApogeeKmPerS = velocityAtApogeeMs / 1000; // convert to km/s
 
-  const moonCurrentPosition = (lat: number, lng: number, dt: Date) => {
-    const { altitude, azimuth, distance } = SunCalc.getMoonPosition(
-      dt ?? new Date(),
-      lat,
-      lng,
-    );
-    const r = Math.cos(altitude);
-    const xyz = [
-      r * Math.cos(azimuth),
-      r * Math.sin(azimuth),
-      -Math.sin(altitude),
-    ] as Vec3;
+  const moonCurrentPosition = (_lat: number, _lng: number, dt: Date) => {
+    // Geocentric Moon position from low-precision orbital elements (Earth-centered).
+    const t = dt ?? new Date();
+    const msPerDay = 86400000;
+    const jd = t.getTime() / msPerDay + 2440587.5;
+    const d = jd - 2451543.5;
+
+    const N = THREE.MathUtils.degToRad(125.1228 - 0.0529538083 * d);
+    const i = THREE.MathUtils.degToRad(5.1454);
+    const w = THREE.MathUtils.degToRad(318.0634 + 0.1643573223 * d);
+    const a = 60.2666; // Earth radii
+    const e = 0.0549;
+    const M = THREE.MathUtils.degToRad(115.3654 + 13.0649929509 * d);
+
+    const E = M + e * Math.sin(M) * (1 + e * Math.cos(M));
+    const xv = a * (Math.cos(E) - e);
+    const yv = a * (Math.sqrt(1 - e * e) * Math.sin(E));
+    const v = Math.atan2(yv, xv);
+    const r = Math.sqrt(xv * xv + yv * yv);
+
+    const xEcl =
+      r *
+      (Math.cos(N) * Math.cos(v + w) -
+        Math.sin(N) * Math.sin(v + w) * Math.cos(i));
+    const yEcl =
+      r *
+      (Math.sin(N) * Math.cos(v + w) +
+        Math.cos(N) * Math.sin(v + w) * Math.cos(i));
+    const zEcl = r * Math.sin(v + w) * Math.sin(i);
+
+    const eps = THREE.MathUtils.degToRad(23.4393 - 3.563e-7 * d);
+    const xEq = xEcl;
+    const yEq = yEcl * Math.cos(eps) - zEcl * Math.sin(eps);
+    const zEq = yEcl * Math.sin(eps) + zEcl * Math.cos(eps);
+
+    const dir = new THREE.Vector3(xEq, zEq, yEq).normalize();
+    const distKm = r * spaceInformation.EARTH.meanRadiusKm;
+
     return {
-      xyz,
-      dist: distance,
+      xyz: [dir.x, dir.y, dir.z] as Vec3,
+      dist: distKm,
     };
   };
 
@@ -329,9 +364,11 @@ which is the second menu item.
     );
   }
   moonVelocityDirection.normalize();
-  const moonInitialVelocity = moonVelocityDirection.multiplyScalar(
-    velocityAtApogeeKmPerS,
-  );
+  const moonDistanceM = moonDistanceKm * 1000;
+  const moonOrbitSpeedKmPerS =
+    Math.sqrt(GM * (2 / moonDistanceM - 1 / semiMajorAxisM)) / 1000;
+  const moonInitialVelocity =
+    moonVelocityDirection.multiplyScalar(moonOrbitSpeedKmPerS);
 
   const satelliteMass = 1000;
   const satelliteOrbitRadiusKm =
@@ -390,6 +427,7 @@ which is the second menu item.
     moonOrbitRadius * 0.3,
   );
   camera.lookAt(0, 0, 0);
+  const defaultCameraFov = camera.fov;
   const craftCameraOffset = new THREE.Vector3(0, 5000, 15000);
   const earthTargetLocal = new THREE.Vector3();
   let craftViewEnabled = false;
@@ -398,6 +436,7 @@ which is the second menu item.
   const moonSafeDistanceKm =
     spaceInformation.MOON.meanRadiusKm * moonRadiusVisualScale + 200;
   let satelliteDestroyed = false;
+  let respawnCount = 0;
 
   const trajectoryMaxPoints = 8192;
 
@@ -424,6 +463,10 @@ which is the second menu item.
   const satelliteTrajectoryUniforms = {
     uCount: { value: 0.0 },
     uColor: { value: new THREE.Color(0xffaa33) },
+  };
+  const predictedTrajectoryUniforms = {
+    uCount: { value: 0.0 },
+    uColor: { value: new THREE.Color(0x00ff88) },
   };
 
   const moonTrajectoryPositions = new Float32Array(trajectoryMaxPoints * 3);
@@ -467,11 +510,37 @@ which is the second menu item.
       depthWrite: false,
     }),
   );
+  const predictedTrajectoryPositions = new Float32Array(
+    trajectoryMaxPoints * 3,
+  );
+  const predictedTrajectoryPositionAttr = new THREE.BufferAttribute(
+    predictedTrajectoryPositions,
+    3,
+  );
+  const predictedTrajectoryGeometry = new THREE.BufferGeometry();
+  predictedTrajectoryGeometry.setAttribute(
+    "position",
+    predictedTrajectoryPositionAttr,
+  );
+  predictedTrajectoryGeometry.setDrawRange(0, 0);
+  const predictedTrajectory = new THREE.Line(
+    predictedTrajectoryGeometry,
+    new THREE.ShaderMaterial({
+      uniforms: predictedTrajectoryUniforms,
+      vertexShader: trajectoryVertexShader,
+      fragmentShader: trajectoryFragmentShader,
+      transparent: true,
+      depthWrite: false,
+      depthTest: false,
+    }),
+  );
 
   moonTrajectory.frustumCulled = false;
   satelliteTrajectory.frustumCulled = false;
+  predictedTrajectory.frustumCulled = false;
   moonTrajectory.renderOrder = 20;
   satelliteTrajectory.renderOrder = 20;
+  predictedTrajectory.renderOrder = 30;
 
   const moonTrajectoryState = {
     lastSaved: null as THREE.Vector3 | null,
@@ -492,6 +561,12 @@ which is the second menu item.
     positionAttr: satelliteTrajectoryPositionAttr,
     geometry: satelliteTrajectoryGeometry,
     uniforms: satelliteTrajectoryUniforms,
+  };
+  const predictedTrajectoryState = {
+    positions: predictedTrajectoryPositions,
+    positionAttr: predictedTrajectoryPositionAttr,
+    geometry: predictedTrajectoryGeometry,
+    uniforms: predictedTrajectoryUniforms,
   };
 
   const updateTrajectory = (
@@ -556,6 +631,7 @@ which is the second menu item.
 
   world.add(moonTrajectory);
   world.add(satelliteTrajectory);
+  world.add(predictedTrajectory);
 
   const explosionParticleCount = 300;
   const explosionPositions = new Float32Array(explosionParticleCount * 3);
@@ -683,6 +759,130 @@ which is the second menu item.
     satelliteState[2] += satelliteState[5] * timeStep;
   };
 
+  const predictionTimeStep = 80;
+
+  const updatePredictedTrajectory = () => {
+    const state = predictedTrajectoryState;
+    state.positions.fill(0);
+
+    if (satelliteDestroyed) {
+      state.geometry.setDrawRange(0, 0);
+      state.uniforms.uCount.value = 0;
+      state.positionAttr.needsUpdate = true;
+      return;
+    }
+
+    const shadowMoonState = new Float64Array(moonState);
+    const shadowSatelliteState = new Float64Array(satelliteState);
+    const predictionSteps = 5000;
+    const sampleStride = 3;
+    let count = 0;
+
+    const reduceShadowMoonState = () => {
+      const dx = shadowMoonState[0];
+      const dy = shadowMoonState[1];
+      const dz = shadowMoonState[2];
+      const distanceKm = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      const gravityForce = spaceInformation.calculateGravityForce(
+        earthMass,
+        moonMass,
+        distanceKm,
+      );
+      const moonAccel = gravityForce / (moonMass * 1000);
+      shadowMoonState[3] += (-dx / distanceKm) * moonAccel * predictionTimeStep;
+      shadowMoonState[4] += (-dy / distanceKm) * moonAccel * predictionTimeStep;
+      shadowMoonState[5] += (-dz / distanceKm) * moonAccel * predictionTimeStep;
+      shadowMoonState[0] += shadowMoonState[3] * predictionTimeStep;
+      shadowMoonState[1] += shadowMoonState[4] * predictionTimeStep;
+      shadowMoonState[2] += shadowMoonState[5] * predictionTimeStep;
+    };
+
+    const reduceShadowSatelliteState = () => {
+      const dxEarth = shadowSatelliteState[0];
+      const dyEarth = shadowSatelliteState[1];
+      const dzEarth = shadowSatelliteState[2];
+      const distanceEarthKm = Math.sqrt(
+        dxEarth * dxEarth + dyEarth * dyEarth + dzEarth * dzEarth,
+      );
+
+      const dxMoon = shadowMoonState[0] - shadowSatelliteState[0];
+      const dyMoon = shadowMoonState[1] - shadowSatelliteState[1];
+      const dzMoon = shadowMoonState[2] - shadowSatelliteState[2];
+      const distanceMoonKm = Math.sqrt(
+        dxMoon * dxMoon + dyMoon * dyMoon + dzMoon * dzMoon,
+      );
+
+      let ax = 0;
+      let ay = 0;
+      let az = 0;
+
+      if (distanceEarthKm > 1e-6) {
+        const earthGravityForce = spaceInformation.calculateGravityForce(
+          earthMass,
+          satelliteMass,
+          distanceEarthKm,
+        );
+        const earthAccel = earthGravityForce / (satelliteMass * 1000);
+        ax += (-dxEarth / distanceEarthKm) * earthAccel;
+        ay += (-dyEarth / distanceEarthKm) * earthAccel;
+        az += (-dzEarth / distanceEarthKm) * earthAccel;
+      }
+
+      if (distanceMoonKm > 1e-6) {
+        const moonGravityForce = spaceInformation.calculateGravityForce(
+          moonMass,
+          satelliteMass,
+          distanceMoonKm,
+        );
+        const moonAccel = moonGravityForce / (satelliteMass * 1000);
+        ax += (dxMoon / distanceMoonKm) * moonAccel;
+        ay += (dyMoon / distanceMoonKm) * moonAccel;
+        az += (dzMoon / distanceMoonKm) * moonAccel;
+      }
+
+      shadowSatelliteState[3] += ax * predictionTimeStep;
+      shadowSatelliteState[4] += ay * predictionTimeStep;
+      shadowSatelliteState[5] += az * predictionTimeStep;
+      shadowSatelliteState[0] += shadowSatelliteState[3] * predictionTimeStep;
+      shadowSatelliteState[1] += shadowSatelliteState[4] * predictionTimeStep;
+      shadowSatelliteState[2] += shadowSatelliteState[5] * predictionTimeStep;
+    };
+
+    for (let i = 0; i < predictionSteps && count < trajectoryMaxPoints; i++) {
+      reduceShadowMoonState();
+      reduceShadowSatelliteState();
+
+      const distToEarth = Math.hypot(
+        shadowSatelliteState[0],
+        shadowSatelliteState[1],
+        shadowSatelliteState[2],
+      );
+      const distToMoon = Math.hypot(
+        shadowSatelliteState[0] - shadowMoonState[0],
+        shadowSatelliteState[1] - shadowMoonState[1],
+        shadowSatelliteState[2] - shadowMoonState[2],
+      );
+      if (
+        distToEarth < earthSafeDistanceKm ||
+        distToMoon < moonSafeDistanceKm
+      ) {
+        break;
+      }
+
+      if (i % sampleStride === 0) {
+        const base = count * 3;
+        state.positions[base] = shadowSatelliteState[0];
+        state.positions[base + 1] = shadowSatelliteState[1];
+        state.positions[base + 2] = shadowSatelliteState[2];
+        count += 1;
+      }
+    }
+
+    state.geometry.setDrawRange(0, count);
+    state.uniforms.uCount.value = count;
+    state.positionAttr.needsUpdate = true;
+  };
+
   const spawnExhaustParticle = (
     position: THREE.Vector3,
     backwardDirection: THREE.Vector3,
@@ -724,15 +924,18 @@ which is the second menu item.
       satelliteState[5],
     );
     const speed = satVel.length();
-    const backward =
+    const burnActive = exhaustBurnFrames > 0;
+    const fallbackDirection =
       speed > 1e-6
         ? satVel.normalize().multiplyScalar(exhaustDirectionSign)
         : new THREE.Vector3(0, -1, 0);
-    const burnActive = exhaustBurnFrames > 0;
+    const plumeDirection = burnActive
+      ? exhaustBurnDirection
+      : fallbackDirection;
 
     if (burnActive) {
       for (let n = 0; n < 36; n++) {
-        spawnExhaustParticle(satPos, backward);
+        spawnExhaustParticle(satPos, plumeDirection);
       }
       exhaustBurnFrames -= 1;
     }
@@ -829,6 +1032,7 @@ which is the second menu item.
     updateTrajectory(moon.position, 80, moonTrajectoryState);
 
     updateTrajectory(satellite.position, 20, satelliteTrajectoryState);
+    updatePredictedTrajectory();
 
     updateExhaust();
     updateExplosion();
@@ -890,30 +1094,67 @@ which is the second menu item.
     );
 
   __updateTHREEJs__invoke__.fire = (val) => {
-    const vx = satelliteState[3];
-    const vy = satelliteState[4];
-    const vz = satelliteState[5];
-    const speed = Math.sqrt(vx * vx + vy * vy + vz * vz);
-
-    if (speed <= 0) {
-      return;
-    }
-
     const rx = satelliteState[0];
     const ry = satelliteState[1];
     const rz = satelliteState[2];
     const radiusKm = Math.sqrt(rx * rx + ry * ry + rz * rz);
+    const speed = Math.hypot(
+      satelliteState[3],
+      satelliteState[4],
+      satelliteState[5],
+    );
+    if (speed <= 1e-9) {
+      return;
+    }
 
-    // Keep it bound: apply a small prograde boost but clamp below local escape speed.
+    // Local craft frame: forward=velocity, right=in-plane perpendicular.
+    const forward = new THREE.Vector3(
+      satelliteState[3],
+      satelliteState[4],
+      satelliteState[5],
+    ).normalize();
+
+    const right = new THREE.Vector3().crossVectors(moonPlaneNormal, forward);
+    if (right.lengthSq() <= 1e-12) {
+      // Fallback if forward is nearly parallel to plane normal.
+      right.crossVectors(new THREE.Vector3(0, 1, 0), forward);
+      if (right.lengthSq() <= 1e-12) {
+        right.crossVectors(new THREE.Vector3(1, 0, 0), forward);
+      }
+    }
+    right.normalize();
+
+    // Angle is relative to craft heading: 0=prograde, PI=retrograde.
+    const boostDir = forward
+      .clone()
+      .multiplyScalar(Math.cos(craftBoostAngle))
+      .add(right.multiplyScalar(Math.sin(craftBoostAngle)))
+      .normalize();
+
+    // Use a small delta-v step to avoid unrealistic jumps.
+    const deltaV = Math.max(0.05, speed * 0.02) * boostPower;
+    let nextVx = satelliteState[3] + boostDir.x * deltaV;
+    let nextVy = satelliteState[4] + boostDir.y * deltaV;
+    let nextVz = satelliteState[5] + boostDir.z * deltaV;
+
+    // Clamp to below local escape speed to keep trajectories stable.
     const localEscapeSpeedKmPerS =
       Math.sqrt((2 * spaceInformation.G * earthMass) / (radiusKm * 1000)) /
       1000;
-    const targetSpeed = Math.min(speed * 1.02, localEscapeSpeedKmPerS * 0.98);
-    const scale = targetSpeed / speed;
+    const maxAllowedSpeed = localEscapeSpeedKmPerS * 0.98;
+    const nextSpeed = Math.hypot(nextVx, nextVy, nextVz);
+    if (nextSpeed > maxAllowedSpeed && nextSpeed > 1e-9) {
+      const scale = maxAllowedSpeed / nextSpeed;
+      nextVx *= scale;
+      nextVy *= scale;
+      nextVz *= scale;
+    }
 
-    satelliteState[3] *= scale;
-    satelliteState[4] *= scale;
-    satelliteState[5] *= scale;
+    satelliteState[3] = nextVx;
+    satelliteState[4] = nextVy;
+    satelliteState[5] = nextVz;
+    // Plume points opposite to thrust direction during boost.
+    exhaustBurnDirection.copy(boostDir).multiplyScalar(-1).normalize();
     exhaustDirectionSign = -1;
     exhaustBurnFrames = 120;
   };
@@ -942,6 +1183,9 @@ which is the second menu item.
     satelliteState[3] *= scale;
     satelliteState[4] *= scale;
     satelliteState[5] *= scale;
+    // Brake burn: thrust is retrograde, so plume points prograde.
+    const prograde = new THREE.Vector3(vx, vy, vz).normalize();
+    exhaustBurnDirection.copy(prograde);
     exhaustDirectionSign = 1;
     exhaustBurnFrames = 120;
   };
@@ -961,6 +1205,8 @@ which is the second menu item.
           satellite.add(camera);
           camera.position.copy(craftCameraOffset);
         }
+        camera.fov = 120;
+        camera.updateProjectionMatrix();
         craftViewEnabled = true;
         currentCraftViewMode = 0;
         earthTargetLocal.set(0, 0, 0);
@@ -974,6 +1220,8 @@ which is the second menu item.
           satellite.add(camera);
           camera.position.copy(craftCameraOffset);
         }
+        camera.fov = 120;
+        camera.updateProjectionMatrix();
         craftViewEnabled = true;
         currentCraftViewMode = 1;
         earthTargetLocal.set(moonState[0], moonState[1], moonState[2]);
@@ -985,6 +1233,8 @@ which is the second menu item.
         // restore
         craftViewEnabled = false;
         currentCraftViewMode = -1;
+        camera.fov = defaultCameraFov;
+        camera.updateProjectionMatrix();
         world.add(camera);
         camera.position.copy(initialCameraPos);
         camera.lookAt(0, 0, 0);
@@ -1004,6 +1254,8 @@ which is the second menu item.
       craftViewEnabled = false;
       currentCraftViewMode = -1;
       craftviewClick = 0;
+      camera.fov = defaultCameraFov;
+      camera.updateProjectionMatrix();
       world.add(camera);
       camera.position.copy(initialCameraPos);
       camera.lookAt(0, 0, 0);
@@ -1083,7 +1335,95 @@ which is the second menu item.
     if (!anyAlive) explosionActive = false;
   };
 
-  __updateTHREEJs__invoke__.craftview_create = () => {};
+  const resetSatellite = (spawnAngleRad: number) => {
+    const spawnDirection = satellitePlanePositionDirection
+      .clone()
+      .applyAxisAngle(moonPlaneNormal, spawnAngleRad)
+      .normalize();
+    const spawnVelocityDirection = new THREE.Vector3()
+      .crossVectors(moonPlaneNormal, spawnDirection)
+      .normalize();
+
+    satelliteState[0] = spawnDirection.x * satelliteOrbitRadiusKm;
+    satelliteState[1] = spawnDirection.y * satelliteOrbitRadiusKm;
+    satelliteState[2] = spawnDirection.z * satelliteOrbitRadiusKm;
+    satelliteState[3] =
+      spawnVelocityDirection.x * satelliteCircularVelocityKmPerS;
+    satelliteState[4] =
+      spawnVelocityDirection.y * satelliteCircularVelocityKmPerS;
+    satelliteState[5] =
+      spawnVelocityDirection.z * satelliteCircularVelocityKmPerS;
+
+    satellite.position.set(
+      satelliteState[0],
+      satelliteState[1],
+      satelliteState[2],
+    );
+    satellite.visible = true;
+    satelliteDestroyed = false;
+
+    exhaustBurnFrames = 0;
+    exhaustDirectionSign = -1;
+    exhaustWriteIndex = 0;
+    for (let i = 0; i < exhaustParticleCount; i++) {
+      const base = i * 3;
+      exhaustPositions[base] = 0;
+      exhaustPositions[base + 1] = 0;
+      exhaustPositions[base + 2] = 0;
+      exhaustColors[base] = 0;
+      exhaustColors[base + 1] = 0;
+      exhaustColors[base + 2] = 0;
+      exhaustLifetimes[i] = 0;
+      exhaustVelocities[i].set(0, 0, 0);
+    }
+    (
+      exhaustGeometry.getAttribute("position") as THREE.BufferAttribute
+    ).needsUpdate = true;
+    (
+      exhaustGeometry.getAttribute("color") as THREE.BufferAttribute
+    ).needsUpdate = true;
+
+    satelliteTrajectoryState.lastSaved = null;
+    satelliteTrajectoryState.count = 0;
+    satelliteTrajectoryState.totalAngle = 0;
+    satelliteTrajectoryState.angles.fill(0);
+    satelliteTrajectoryState.positions.fill(0);
+    satelliteTrajectoryState.geometry.setDrawRange(0, 0);
+    satelliteTrajectoryState.uniforms.uCount.value = 0;
+    satelliteTrajectoryState.positionAttr.needsUpdate = true;
+
+    predictedTrajectoryState.positions.fill(0);
+    predictedTrajectoryState.geometry.setDrawRange(0, 0);
+    predictedTrajectoryState.uniforms.uCount.value = 0;
+    predictedTrajectoryState.positionAttr.needsUpdate = true;
+
+    explosionActive = false;
+    for (let i = 0; i < explosionParticleCount; i++) {
+      const base = i * 3;
+      explosionPositions[base] = 0;
+      explosionPositions[base + 1] = 0;
+      explosionPositions[base + 2] = 0;
+      explosionColors[base] = 0;
+      explosionColors[base + 1] = 0;
+      explosionColors[base + 2] = 0;
+      explosionLifetimes[i] = 0;
+      explosionVelocities[i].set(0, 0, 0);
+    }
+    (
+      explosionGeometry.getAttribute("position") as THREE.BufferAttribute
+    ).needsUpdate = true;
+    (
+      explosionGeometry.getAttribute("color") as THREE.BufferAttribute
+    ).needsUpdate = true;
+  };
+
+  __updateTHREEJs__invoke__.craftview_create = () => {
+    if (!satelliteDestroyed) {
+      return;
+    }
+    respawnCount += 1;
+    resetSatellite((respawnCount * Math.PI) / 6);
+  };
 
   __updateTHREEJs__ = (k: string, val: any) => {
     // variables changed, run your code!
@@ -1096,6 +1436,20 @@ which is the second menu item.
   });
 };
 
+__defineControl__("craftBoostAngle", "range", craftBoostAngle, {
+  min: 0,
+  max: Math.PI * 2,
+  fixed: 2,
+  label: "boost angle",
+  help: "relative to craft velocity: 0=prograde, PI=retrograde",
+});
+__defineControl__("boostPower", "range", boostPower, {
+  min: 0.1,
+  max: 5,
+  fixed: 2,
+  label: "boost power",
+  help: "scales boost acceleration strength",
+});
 __defineControl__("fire", "btn", "fire", { label: "boost" });
 __defineControl__("fire_down", "btn", "fire down", { label: "brake" });
 __defineControl__("craftview", "btn", "craftview", { label: "craft view" });

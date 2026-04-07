@@ -15,7 +15,7 @@
   "editor.fontWeight": "300",
   "editor.fontLigatures": false,
   "terminal.integrated.fontFamily": "monospace",
-  "workbench.colorTheme": "Visual Studio 2017 Light - C++",
+  "workbench.colorTheme": "Night Owl Light (No Italics)",
   "editor.tabSize": 2,
   "js/ts.tsdk.path": "node_modules/typescript/lib"
 }
