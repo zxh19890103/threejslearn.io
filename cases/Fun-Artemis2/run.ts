@@ -1576,7 +1576,7 @@ which is the second menu item.
   };
 
   __usePanel__({
-    placement: "top",
+    placement: "left-bottom",
     width: 520,
     lines: 7,
   });
