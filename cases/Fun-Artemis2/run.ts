@@ -14,6 +14,8 @@ let iterations = 100;
 let rotationVisualScaleFactor = 0.1;
 let craftBoostAngle = 0; // radians, 0 to 2π — controls boost direction in orbital plane
 let boostPower = 1; // scales boost acceleration
+let trajectoryPredictionTimeStep = 80;
+let trajectoryPredictionSteps = 5000;
 
 __config__.camPos = [0, spaceInformation.EARTH.meanRadiusKm * 3, 0];
 __config__.camFar = spaceInformation.EARTH_MOON_DISTANCE.averageKm;
@@ -79,6 +81,15 @@ which is the second menu item.
     new THREE.MeshPhongMaterial({
       color: 0xffffff,
       map: textloader.load("lroc_color_2k.jpg"),
+    }),
+  );
+  const predictedMoon = new THREE.Mesh(
+    moonGeo.clone(),
+    new THREE.MeshPhongMaterial({
+      color: 0xffff0f,
+      transparent: true,
+      opacity: 0.4,
+      depthWrite: false,
     }),
   );
 
@@ -415,6 +426,7 @@ which is the second menu item.
 
   world.add(earthTiltGroup);
   world.add(moon);
+  world.add(predictedMoon);
   world.add(satellite);
   satellite.add(exhaust);
 
@@ -431,6 +443,9 @@ which is the second menu item.
   const craftCameraOffset = new THREE.Vector3(0, 5000, 15000);
   const earthTargetLocal = new THREE.Vector3();
   let craftViewEnabled = false;
+  const boostDirectionForward = new THREE.Vector3();
+  const boostDirectionRight = new THREE.Vector3();
+  const boostDirectionLive = new THREE.Vector3(0, -1, 0);
   const earthSafeDistanceKm =
     spaceInformation.EARTH.meanRadiusKm * moonRadiusVisualScale + 500;
   const moonSafeDistanceKm =
@@ -455,6 +470,44 @@ which is the second menu item.
       gl_FragColor = vec4(uColor, vAlpha);
     }
   `;
+  const predictedTrajectoryVertexShader = `
+    uniform float uCount;
+    varying float vAlpha;
+    varying float vSpeedAlpha;
+    varying float vLineDistance;
+    attribute float lineDistance;
+    attribute float aSpeedAlpha;
+    void main() {
+      vAlpha = float(gl_VertexID) / max(uCount - 1.0, 1.0);
+      vSpeedAlpha = aSpeedAlpha;
+      vLineDistance = lineDistance;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `;
+  const predictedTrajectoryFragmentShader = `
+    uniform float uDashSize;
+    uniform float uGapSize;
+    uniform float uOpacityMin;
+    uniform float uOpacityMax;
+    uniform float uMinVisibleAlpha;
+    varying float vAlpha;
+    varying float vSpeedAlpha;
+    varying float vLineDistance;
+    void main() {
+      float cycle = uDashSize + uGapSize;
+      if (cycle > 0.0) {
+        float dashPhase = mod(vLineDistance, cycle);
+        if (dashPhase > uDashSize) {
+          discard;
+        }
+      }
+
+      float speedAlpha = mix(uOpacityMin, uOpacityMax, vSpeedAlpha);
+      float trailAlpha = 0.2 + vAlpha * 0.8;
+      float finalAlpha = max(uMinVisibleAlpha, speedAlpha * trailAlpha);
+      gl_FragColor = vec4(vec3(1.0), finalAlpha);
+    }
+  `;
 
   const moonTrajectoryUniforms = {
     uCount: { value: 0.0 },
@@ -466,7 +519,11 @@ which is the second menu item.
   };
   const predictedTrajectoryUniforms = {
     uCount: { value: 0.0 },
-    uColor: { value: new THREE.Color(0x00ff88) },
+    uDashSize: { value: 12000.0 },
+    uGapSize: { value: 7000.0 },
+    uOpacityMin: { value: 0.35 },
+    uOpacityMax: { value: 1.0 },
+    uMinVisibleAlpha: { value: 0.22 },
   };
 
   const moonTrajectoryPositions = new Float32Array(trajectoryMaxPoints * 3);
@@ -517,18 +574,27 @@ which is the second menu item.
     predictedTrajectoryPositions,
     3,
   );
+  const predictedTrajectoryAlphas = new Float32Array(trajectoryMaxPoints);
+  const predictedTrajectoryAlphaAttr = new THREE.BufferAttribute(
+    predictedTrajectoryAlphas,
+    1,
+  );
   const predictedTrajectoryGeometry = new THREE.BufferGeometry();
   predictedTrajectoryGeometry.setAttribute(
     "position",
     predictedTrajectoryPositionAttr,
+  );
+  predictedTrajectoryGeometry.setAttribute(
+    "aSpeedAlpha",
+    predictedTrajectoryAlphaAttr,
   );
   predictedTrajectoryGeometry.setDrawRange(0, 0);
   const predictedTrajectory = new THREE.Line(
     predictedTrajectoryGeometry,
     new THREE.ShaderMaterial({
       uniforms: predictedTrajectoryUniforms,
-      vertexShader: trajectoryVertexShader,
-      fragmentShader: trajectoryFragmentShader,
+      vertexShader: predictedTrajectoryVertexShader,
+      fragmentShader: predictedTrajectoryFragmentShader,
       transparent: true,
       depthWrite: false,
       depthTest: false,
@@ -564,7 +630,10 @@ which is the second menu item.
   };
   const predictedTrajectoryState = {
     positions: predictedTrajectoryPositions,
+    alphas: predictedTrajectoryAlphas,
+    speeds: new Float32Array(trajectoryMaxPoints),
     positionAttr: predictedTrajectoryPositionAttr,
+    alphaAttr: predictedTrajectoryAlphaAttr,
     geometry: predictedTrajectoryGeometry,
     uniforms: predictedTrajectoryUniforms,
   };
@@ -632,6 +701,23 @@ which is the second menu item.
   world.add(moonTrajectory);
   world.add(satelliteTrajectory);
   world.add(predictedTrajectory);
+
+  const boostDirectionArrow = new THREE.ArrowHelper(
+    new THREE.Vector3(1, 0, 0),
+    new THREE.Vector3(0, 0, 0),
+    50000,
+    0xffffff,
+    5000,
+    2500,
+  );
+  boostDirectionArrow.renderOrder = 40;
+  if (boostDirectionArrow.line.material instanceof THREE.Material) {
+    boostDirectionArrow.line.material.depthTest = false;
+  }
+  if (boostDirectionArrow.cone.material instanceof THREE.Material) {
+    boostDirectionArrow.cone.material.depthTest = false;
+  }
+  world.add(boostDirectionArrow);
 
   const explosionParticleCount = 300;
   const explosionPositions = new Float32Array(explosionParticleCount * 3);
@@ -759,24 +845,64 @@ which is the second menu item.
     satelliteState[2] += satelliteState[5] * timeStep;
   };
 
-  const predictionTimeStep = 80;
+  const computeBoostDirection = (out: THREE.Vector3) => {
+    const speed = Math.hypot(
+      satelliteState[3],
+      satelliteState[4],
+      satelliteState[5],
+    );
+    if (speed <= 1e-9) {
+      return out.set(0, -1, 0);
+    }
+
+    boostDirectionForward
+      .set(satelliteState[3], satelliteState[4], satelliteState[5])
+      .normalize();
+    boostDirectionRight.crossVectors(moonPlaneNormal, boostDirectionForward);
+    if (boostDirectionRight.lengthSq() <= 1e-12) {
+      boostDirectionRight.crossVectors(
+        new THREE.Vector3(0, 1, 0),
+        boostDirectionForward,
+      );
+      if (boostDirectionRight.lengthSq() <= 1e-12) {
+        boostDirectionRight.crossVectors(
+          new THREE.Vector3(1, 0, 0),
+          boostDirectionForward,
+        );
+      }
+    }
+    boostDirectionRight.normalize();
+
+    return out
+      .copy(boostDirectionForward)
+      .multiplyScalar(Math.cos(craftBoostAngle))
+      .add(boostDirectionRight.multiplyScalar(Math.sin(craftBoostAngle)))
+      .normalize();
+  };
 
   const updatePredictedTrajectory = () => {
     const state = predictedTrajectoryState;
     state.positions.fill(0);
+    state.alphas.fill(0);
+    state.speeds.fill(0);
 
     if (satelliteDestroyed) {
       state.geometry.setDrawRange(0, 0);
       state.uniforms.uCount.value = 0;
       state.positionAttr.needsUpdate = true;
+      state.alphaAttr.needsUpdate = true;
+      predictedMoon.visible = false;
       return;
     }
 
+    predictedMoon.visible = true;
+
     const shadowMoonState = new Float64Array(moonState);
     const shadowSatelliteState = new Float64Array(satelliteState);
-    const predictionSteps = 5000;
     const sampleStride = 3;
     let count = 0;
+    let minSpeed = Number.POSITIVE_INFINITY;
+    let maxSpeed = 0;
 
     const reduceShadowMoonState = () => {
       const dx = shadowMoonState[0];
@@ -789,12 +915,12 @@ which is the second menu item.
         distanceKm,
       );
       const moonAccel = gravityForce / (moonMass * 1000);
-      shadowMoonState[3] += (-dx / distanceKm) * moonAccel * predictionTimeStep;
-      shadowMoonState[4] += (-dy / distanceKm) * moonAccel * predictionTimeStep;
-      shadowMoonState[5] += (-dz / distanceKm) * moonAccel * predictionTimeStep;
-      shadowMoonState[0] += shadowMoonState[3] * predictionTimeStep;
-      shadowMoonState[1] += shadowMoonState[4] * predictionTimeStep;
-      shadowMoonState[2] += shadowMoonState[5] * predictionTimeStep;
+      shadowMoonState[3] += (-dx / distanceKm) * moonAccel * trajectoryPredictionTimeStep;
+      shadowMoonState[4] += (-dy / distanceKm) * moonAccel * trajectoryPredictionTimeStep;
+      shadowMoonState[5] += (-dz / distanceKm) * moonAccel * trajectoryPredictionTimeStep;
+      shadowMoonState[0] += shadowMoonState[3] * trajectoryPredictionTimeStep;
+      shadowMoonState[1] += shadowMoonState[4] * trajectoryPredictionTimeStep;
+      shadowMoonState[2] += shadowMoonState[5] * trajectoryPredictionTimeStep;
     };
 
     const reduceShadowSatelliteState = () => {
@@ -840,15 +966,15 @@ which is the second menu item.
         az += (dzMoon / distanceMoonKm) * moonAccel;
       }
 
-      shadowSatelliteState[3] += ax * predictionTimeStep;
-      shadowSatelliteState[4] += ay * predictionTimeStep;
-      shadowSatelliteState[5] += az * predictionTimeStep;
-      shadowSatelliteState[0] += shadowSatelliteState[3] * predictionTimeStep;
-      shadowSatelliteState[1] += shadowSatelliteState[4] * predictionTimeStep;
-      shadowSatelliteState[2] += shadowSatelliteState[5] * predictionTimeStep;
+      shadowSatelliteState[3] += ax * trajectoryPredictionTimeStep;
+      shadowSatelliteState[4] += ay * trajectoryPredictionTimeStep;
+      shadowSatelliteState[5] += az * trajectoryPredictionTimeStep;
+      shadowSatelliteState[0] += shadowSatelliteState[3] * trajectoryPredictionTimeStep;
+      shadowSatelliteState[1] += shadowSatelliteState[4] * trajectoryPredictionTimeStep;
+      shadowSatelliteState[2] += shadowSatelliteState[5] * trajectoryPredictionTimeStep;
     };
 
-    for (let i = 0; i < predictionSteps && count < trajectoryMaxPoints; i++) {
+    for (let i = 0; i < trajectoryPredictionSteps && count < trajectoryMaxPoints; i++) {
       reduceShadowMoonState();
       reduceShadowSatelliteState();
 
@@ -874,13 +1000,37 @@ which is the second menu item.
         state.positions[base] = shadowSatelliteState[0];
         state.positions[base + 1] = shadowSatelliteState[1];
         state.positions[base + 2] = shadowSatelliteState[2];
+        const speed = Math.hypot(
+          shadowSatelliteState[3],
+          shadowSatelliteState[4],
+          shadowSatelliteState[5],
+        );
+        state.speeds[count] = speed;
+        minSpeed = Math.min(minSpeed, speed);
+        maxSpeed = Math.max(maxSpeed, speed);
         count += 1;
       }
     }
 
+    // Speed-to-opacity mapping: normalize speed and use higher alpha for higher speed.
+    const speedRange = Math.max(1e-6, maxSpeed - minSpeed);
+    for (let i = 0; i < count; i++) {
+      const t = THREE.MathUtils.clamp((state.speeds[i] - minSpeed) / speedRange, 0, 1);
+      state.alphas[i] = Math.pow(t, 0.8);
+    }
+
     state.geometry.setDrawRange(0, count);
+    if (count >= 2) {
+      predictedTrajectory.computeLineDistances();
+    }
     state.uniforms.uCount.value = count;
     state.positionAttr.needsUpdate = true;
+    state.alphaAttr.needsUpdate = true;
+    predictedMoon.position.set(
+      shadowMoonState[0],
+      shadowMoonState[1],
+      shadowMoonState[2],
+    );
   };
 
   const spawnExhaustParticle = (
@@ -1029,6 +1179,16 @@ which is the second menu item.
       }
     }
 
+    if (!satelliteDestroyed) {
+      computeBoostDirection(boostDirectionLive);
+      boostDirectionArrow.visible = true;
+      boostDirectionArrow.position.copy(satellite.position);
+      boostDirectionArrow.setDirection(boostDirectionLive);
+      boostDirectionArrow.setLength(12000 + 18000 * boostPower, 4500, 2200);
+    } else {
+      boostDirectionArrow.visible = false;
+    }
+
     updateTrajectory(moon.position, 80, moonTrajectoryState);
 
     updateTrajectory(satellite.position, 20, satelliteTrajectoryState);
@@ -1084,6 +1244,10 @@ which is the second menu item.
         Math.floor((skip * iterations * timeStep) / delta),
       )}`,
     );
+    __usePanel_write__(
+      6,
+      `boost dir: (${boostDirectionLive.x.toFixed(3)}, ${boostDirectionLive.y.toFixed(3)}, ${boostDirectionLive.z.toFixed(3)})`,
+    );
   }, 1);
 
   __updateTHREEJs__only__.enableGrid = (val) => __3__.grid(val);
@@ -1107,29 +1271,7 @@ which is the second menu item.
       return;
     }
 
-    // Local craft frame: forward=velocity, right=in-plane perpendicular.
-    const forward = new THREE.Vector3(
-      satelliteState[3],
-      satelliteState[4],
-      satelliteState[5],
-    ).normalize();
-
-    const right = new THREE.Vector3().crossVectors(moonPlaneNormal, forward);
-    if (right.lengthSq() <= 1e-12) {
-      // Fallback if forward is nearly parallel to plane normal.
-      right.crossVectors(new THREE.Vector3(0, 1, 0), forward);
-      if (right.lengthSq() <= 1e-12) {
-        right.crossVectors(new THREE.Vector3(1, 0, 0), forward);
-      }
-    }
-    right.normalize();
-
-    // Angle is relative to craft heading: 0=prograde, PI=retrograde.
-    const boostDir = forward
-      .clone()
-      .multiplyScalar(Math.cos(craftBoostAngle))
-      .add(right.multiplyScalar(Math.sin(craftBoostAngle)))
-      .normalize();
+    const boostDir = computeBoostDirection(new THREE.Vector3());
 
     // Use a small delta-v step to avoid unrealistic jumps.
     const deltaV = Math.max(0.05, speed * 0.02) * boostPower;
@@ -1393,9 +1535,13 @@ which is the second menu item.
     satelliteTrajectoryState.positionAttr.needsUpdate = true;
 
     predictedTrajectoryState.positions.fill(0);
+    predictedTrajectoryState.alphas.fill(0);
+    predictedTrajectoryState.speeds.fill(0);
     predictedTrajectoryState.geometry.setDrawRange(0, 0);
     predictedTrajectoryState.uniforms.uCount.value = 0;
     predictedTrajectoryState.positionAttr.needsUpdate = true;
+    predictedTrajectoryState.alphaAttr.needsUpdate = true;
+    predictedMoon.visible = false;
 
     explosionActive = false;
     for (let i = 0; i < explosionParticleCount; i++) {
@@ -1432,7 +1578,7 @@ which is the second menu item.
   __usePanel__({
     placement: "top",
     width: 520,
-    lines: 6,
+    lines: 7,
   });
 };
 
@@ -1461,6 +1607,31 @@ __defineControl__("iterations", "range", iterations, {
   label: "iterations",
   help: "physics steps per frame — higher values speed up simulation time",
 });
+
+__defineControl__(
+  "trajectoryPredictionTimeStep",
+  "range",
+  trajectoryPredictionTimeStep,
+  {
+    min: 30,
+    max: 100,
+    fixed: 0,
+    label: "predict timestep",
+    help: "future trajectory simulation timestep (seconds)",
+  },
+);
+__defineControl__(
+  "trajectoryPredictionSteps",
+  "range",
+  trajectoryPredictionSteps,
+  {
+    min: 1000,
+    max: 10000,
+    fixed: 0,
+    label: "predict steps",
+    help: "future trajectory simulation step count",
+  },
+);
 
 __defineControl__(
   "rotationVisualScaleFactor",
