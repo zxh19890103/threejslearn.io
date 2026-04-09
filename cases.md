@@ -6,6 +6,7 @@ title: Cases
 
 - [Camera](/cases/Camera)
 - [Fun-Artemis2](/cases/Fun-Artemis2)
+- [Fun-Artemis2-design](/cases/Fun-Artemis2-design)
 - [Fun-Comet](/cases/Fun-Comet)
 - [Fun-CometReal](/cases/Fun-CometReal)
 - [Fun-EarthMap](/cases/Fun-EarthMap)

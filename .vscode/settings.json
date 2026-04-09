@@ -1,9 +1,10 @@
 {
   // "editor.fontFamily": "Ubuntu Sans Mono",
   // "editor.fontFamily": "Anonymous Pro",
-  "editor.fontFamily": "Chalkboard SE",
+  // "editor.fontFamily": "Chalkboard SE",
+  "editor.fontFamily": "Cascadia Code PL",
   "editor.fontSize": 16,
-  "workbench.fontAliasing": "antialiased",
+  // "workbench.fontAliasing": "antialiased",
   // "editor.codeLensFontSize": 12,
   // "scm.inputFontSize": 12,
   // "editor.suggestFontSize": 12,
@@ -13,10 +14,11 @@
   // "chat.editor.fontSize": 12,
   "notebook.markup.fontSize": 12,
   "window.zoomLevel": 1,
+  "editor.letterSpacing": 1.2,
   "editor.fontWeight": "300",
-  "editor.fontLigatures": false,
+  "editor.fontLigatures": true,
   "terminal.integrated.fontFamily": "monospace",
-  "workbench.colorTheme": "Night Owl Light (No Italics)",
+  "workbench.colorTheme": "Light 2026",
   "editor.tabSize": 2,
   "js/ts.tsdk.path": "node_modules/typescript/lib"
 }
