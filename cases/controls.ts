@@ -113,7 +113,7 @@ const $onchange = (event: Event) => {
             // revoke the value of input.
             __renderControls__({ [$key]: lastValue });
             input.disabled = false;
-          }
+          },
         );
       } else if (!res) {
         __renderControls__({ [$key]: lastValue });
@@ -292,7 +292,13 @@ const $cDOM = (c: Control): HTMLDivElement => {
       input.style.cssText = ` line-height: 20px; width: 20px; height: 20px; border: none; outline: none; border-radius: 50%`;
       input.value = "🔘";
       input.$meta4ctrl = c;
-      input.onclick = $onchange;
+
+      if (c.freq > 0) {
+        fireInterval(input, $onchange, c.freq);
+      } else {
+        input.onclick = $onchange;
+      }
+
       div.appendChild(input);
       break;
     }
@@ -306,6 +312,19 @@ const $cDOM = (c: Control): HTMLDivElement => {
 
   return div;
 };
+
+function fireInterval(dom: HTMLInputElement, handler, freq) {
+  let timer = null;
+  const event = { target: dom };
+  dom.onmousedown = () => {
+    timer = setInterval(handler, freq, event);
+
+    dom.onmouseup = () => {
+      dom.onmouseup = null;
+      clearInterval(timer);
+    };
+  };
+}
 
 /**
  * @todo
@@ -343,7 +362,7 @@ __defineControl__ = (<T>(
   name: string,
   type: ControlType,
   iniVal: any,
-  extras: Partial<DefCtrlExtras<T>>
+  extras: Partial<DefCtrlExtras<T>>,
 ) => {
   controls[name] = {
     label: name,
@@ -451,7 +470,7 @@ const rangeCtrlValueSet = (meta: Control, val: number) => {
 const rangeInputValueSet = (
   input: HTMLInputElement,
   meta: Control,
-  val: number
+  val: number,
 ) => {
   const scale = 100 / (meta.max - meta.min);
   const viewValue = scale * Math.max(0, val - meta.min);

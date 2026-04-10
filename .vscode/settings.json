@@ -1,10 +1,10 @@
 {
-  // "editor.fontFamily": "Ubuntu Sans Mono",
+  "editor.fontFamily": "Ubuntu Sans Mono",
   // "editor.fontFamily": "Anonymous Pro",
   // "editor.fontFamily": "Chalkboard SE",
-  "editor.fontFamily": "Cascadia Code PL",
+  // "editor.fontFamily": "Cascadia Code PL",
   "editor.fontSize": 16,
-  // "workbench.fontAliasing": "antialiased",
+  "workbench.fontAliasing": "antialiased",
   // "editor.codeLensFontSize": 12,
   // "scm.inputFontSize": 12,
   // "editor.suggestFontSize": 12,

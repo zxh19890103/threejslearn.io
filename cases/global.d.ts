@@ -23,6 +23,7 @@ interface Control<T extends ControlValueType = any> {
   options?: ControlOption<T>[];
   min?: number;
   max?: number;
+  freq?: number;
   /**
    * @default true
    */
