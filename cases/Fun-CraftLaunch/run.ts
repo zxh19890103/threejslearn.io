@@ -15,6 +15,9 @@ let thrustPitchDeg = 0;
 let thrustYawDeg = 0;
 let thrustPower = 0;
 let holdThrust = false;
+let showPrediction = true;
+let predictionHorizonSec = 120;
+let predictionSamples = 180;
 
 //#region reactive
 __dev__();
@@ -27,7 +30,7 @@ __defineControl__("burnSecondsPerBoost", "range", burnSecondsPerBoost, {
   ...__defineControl__.rint(1, 20),
 });
 __defineControl__("thrustPitchDeg", "range", thrustPitchDeg, {
-  ...__defineControl__.rint(0, 85),
+  ...__defineControl__.rint(0, 120),
 });
 __defineControl__("thrustYawDeg", "range", thrustYawDeg, {
   ...__defineControl__.rint(-180, 180),
@@ -36,6 +39,13 @@ __defineControl__("thrustPower", "range", thrustPower, {
   ...__defineControl__.rint(0, 50),
 });
 __defineControl__("holdThrust", "bit", holdThrust);
+__defineControl__("showPrediction", "bit", showPrediction);
+__defineControl__("predictionHorizonSec", "range", predictionHorizonSec, {
+  ...__defineControl__.rint(10, 600),
+});
+__defineControl__("predictionSamples", "range", predictionSamples, {
+  ...__defineControl__.rint(16, 600),
+});
 
 __updateControlsDOM__ = () => {
   __renderControls__({
@@ -47,6 +57,9 @@ __updateControlsDOM__ = () => {
     thrustYawDeg,
     thrustPower,
     holdThrust,
+    showPrediction,
+    predictionHorizonSec,
+    predictionSamples,
   });
 };
 
@@ -61,6 +74,9 @@ const EARTH_MASS_KG = spaceInformation.EARTH.massKg;
 const G = spaceInformation.G;
 const MAX_PHYSICS_STEP_SEC = 1 / 60;
 const MAX_PHYSICS_SUBSTEPS = 60;
+const PREDICTION_MAX_POINTS = 600;
+const PREDICTION_REFRESH_SEC = 0.1;
+const SATELLITE_RELEASE_OFFSET_KM = 35;
 
 // Viewport behavior tuning
 const ALTITUDE_NEAR_KM = 0;
@@ -92,6 +108,11 @@ const buildRocketLocalBasis = (upDirection: THREE.Vector3) => {
     .crossVectors(upDirection, right)
     .normalize();
   return { right, forward };
+};
+
+const getThrustAccelerationKmS2 = (massKg: number) => {
+  const thrustAccelerationMS2 = (ROCKET_THRUST_N * Math.max(0, thrustPower)) / massKg;
+  return thrustAccelerationMS2 / 1000;
 };
 
 // Helper: Convert lat/lng to 3D position
@@ -150,7 +171,7 @@ __main__ = (
 ) => {
   __usePanel__({
     placement: "left-bottom",
-    lines: 3,
+    lines: 5,
     width: 300,
   });
 
@@ -202,6 +223,13 @@ __main__ = (
     remainingTrustTime: 0, // seconds
   };
 
+  const satelliteState = {
+    active: false,
+    position: new THREE.Vector3(), // km
+    velocity: new THREE.Vector3(), // km/s
+    altitudeKm: 0,
+  };
+
   const cameraLookTarget = new THREE.Vector3();
   let cameraInitialized = false;
 
@@ -240,6 +268,36 @@ __main__ = (
   flameMesh.frustumCulled = false;
   world.add(flameMesh);
 
+  const satellite = new THREE.Mesh(
+    new THREE.SphereGeometry(12, 16, 16),
+    new THREE.MeshBasicMaterial({
+      color: 0xfff27a,
+      transparent: true,
+      opacity: 0.98,
+    }),
+  );
+  satellite.visible = false;
+  world.add(satellite);
+
+  const trajectoryPositions = new Float32Array(PREDICTION_MAX_POINTS * 3);
+  const trajectoryGeo = new THREE.BufferGeometry();
+  trajectoryGeo.setAttribute(
+    "position",
+    new THREE.BufferAttribute(trajectoryPositions, 3),
+  );
+  trajectoryGeo.setDrawRange(0, 0);
+  const trajectoryLine = new THREE.Line(
+    trajectoryGeo,
+    new THREE.LineBasicMaterial({
+      color: 0x7fd6ff,
+      transparent: true,
+      opacity: 0.85,
+    }),
+  );
+  trajectoryLine.frustumCulled = false;
+  world.add(trajectoryLine);
+  let predictionRefreshAccumSec = 0;
+
   let _spawnAccum = 0;
   const FLAME_SPAWN_RATE = 120; // particles per second
   // ----------------------------------
@@ -254,13 +312,13 @@ __main__ = (
     Rocket.position.copy(rocketState.position);
   };
 
-  const getThrustDirection = () => {
-    const radialUpDirection = rocketState.position.clone().normalize();
+  const getThrustDirectionAtPosition = (positionKm: THREE.Vector3) => {
+    const radialUpDirection = positionKm.clone().normalize();
     const { right, forward } = buildRocketLocalBasis(radialUpDirection);
 
     const yawRad = THREE.MathUtils.degToRad(thrustYawDeg);
     const pitchRad = THREE.MathUtils.degToRad(
-      THREE.MathUtils.clamp(thrustPitchDeg, 0, 89.9),
+      THREE.MathUtils.clamp(thrustPitchDeg, 0, 120),
     );
 
     const tangentDirection = right
@@ -276,7 +334,74 @@ __main__ = (
       .normalize();
   };
 
+  const getThrustDirection = () => getThrustDirectionAtPosition(rocketState.position);
+
+  const updatePredictionTrajectory = () => {
+    if (!showPrediction) {
+      trajectoryLine.visible = false;
+      return;
+    }
+
+    trajectoryLine.visible = true;
+
+    const sampleCount = THREE.MathUtils.clamp(
+      Math.floor(predictionSamples),
+      16,
+      PREDICTION_MAX_POINTS,
+    );
+    const horizonSec = Math.max(1, predictionHorizonSec);
+    const dt = horizonSec / Math.max(1, sampleCount - 1);
+
+    const simPos = rocketState.position.clone();
+    const simVel = rocketState.velocity.clone();
+    let simRemainingTrustTime = rocketState.remainingTrustTime;
+
+    let writeCount = 0;
+    for (let i = 0; i < sampleCount; i++) {
+      const idx = i * 3;
+      trajectoryPositions[idx] = simPos.x;
+      trajectoryPositions[idx + 1] = simPos.y;
+      trajectoryPositions[idx + 2] = simPos.z;
+      writeCount++;
+
+      if (i >= sampleCount - 1) {
+        break;
+      }
+
+      const thrustActive = holdThrust || simRemainingTrustTime > 0;
+      const thrustAccel = thrustActive
+        ? getThrustDirectionAtPosition(simPos).multiplyScalar(
+            getThrustAccelerationKmS2(rocketState.mass),
+          )
+        : new THREE.Vector3();
+
+      if (simRemainingTrustTime > 0) {
+        simRemainingTrustTime = Math.max(0, simRemainingTrustTime - dt);
+      }
+
+      const gravityAccel = calculateGravityAcceleration(simPos);
+      const totalAccel = gravityAccel.add(thrustAccel);
+      simVel.addScaledVector(totalAccel, dt);
+      simPos.addScaledVector(simVel, dt);
+
+      const simRadiusKm = simPos.length();
+      if (simRadiusKm <= EARTH_RADIUS_KM) {
+        simPos.normalize().multiplyScalar(EARTH_RADIUS_KM);
+        const nextIdx = (i + 1) * 3;
+        trajectoryPositions[nextIdx] = simPos.x;
+        trajectoryPositions[nextIdx + 1] = simPos.y;
+        trajectoryPositions[nextIdx + 2] = simPos.z;
+        writeCount++;
+        break;
+      }
+    }
+
+    trajectoryGeo.setDrawRange(0, writeCount);
+    trajectoryGeo.attributes.position.needsUpdate = true;
+  };
+
   moveRocketTo(39.9041999, 116.4073963);
+  updatePredictionTrajectory();
 
   const burnRocket = () => {
     // Each call extends burn duration by configurable seconds.
@@ -284,6 +409,20 @@ __main__ = (
 
     // Allow takeoff from ground on next frame integration.
     if (rocketState.isLanded) rocketState.isLanded = false;
+  };
+
+  const emitSatellite = () => {
+    const releaseNormal = rocketState.position.clone().normalize();
+    const { right } = buildRocketLocalBasis(releaseNormal);
+
+    satelliteState.active = true;
+    satelliteState.position
+      .copy(rocketState.position)
+      .addScaledVector(right, SATELLITE_RELEASE_OFFSET_KM);
+    satelliteState.velocity.copy(rocketState.velocity);
+    satelliteState.altitudeKm = satelliteState.position.length() - EARTH_RADIUS_KM;
+    satellite.visible = true;
+    satellite.position.copy(satelliteState.position);
   };
 
   const isThrustActive = () => holdThrust || rocketState.remainingTrustTime > 0;
@@ -299,9 +438,7 @@ __main__ = (
 
     if (isThrustActive()) {
       const thrustDirection = getThrustDirection();
-      const thrustAccelerationMS2 =
-        (ROCKET_THRUST_N * Math.max(0, thrustPower)) / rocketState.mass; // m/s^2
-      const thrustAccelerationKmS2 = thrustAccelerationMS2 / 1000; // km/s^2
+      const thrustAccelerationKmS2 = getThrustAccelerationKmS2(rocketState.mass);
       rocketState.thrustApplied
         .copy(thrustDirection)
         .multiplyScalar(thrustAccelerationKmS2);
@@ -352,8 +489,22 @@ __main__ = (
     }
   };
 
+  const reduceSatelliteState = (dtSec: number) => {
+    if (!satelliteState.active || dtSec <= 0) {
+      return;
+    }
+
+    const gravityAccel = calculateGravityAcceleration(satelliteState.position); // km/s^2
+    satelliteState.velocity.addScaledVector(gravityAccel, dtSec);
+    satelliteState.position.addScaledVector(satelliteState.velocity, dtSec);
+    satelliteState.altitudeKm = satelliteState.position.length() - EARTH_RADIUS_KM;
+  };
+
   const updateDispay = (dtSec: number) => {
     Rocket.position.copy(rocketState.position);
+    if (satelliteState.active) {
+      satellite.position.copy(satelliteState.position);
+    }
 
     const radialUpDirection = rocketState.position.clone().normalize();
     const burnActive = isThrustActive();
@@ -537,7 +688,14 @@ __main__ = (
 
     for (let i = 0; i < substeps; i++) {
       reduceRocketState(substepDtSec);
+      reduceSatelliteState(substepDtSec);
       updateFlame(substepDtSec);
+    }
+
+    predictionRefreshAccumSec += dt;
+    if (predictionRefreshAccumSec >= PREDICTION_REFRESH_SEC) {
+      predictionRefreshAccumSec = 0;
+      updatePredictionTrajectory();
     }
 
     updateDispay(dt);
@@ -553,10 +711,25 @@ __main__ = (
       `velocity length: ${rocketState.velocity.length().toFixed(6)} km/s`,
     );
     __usePanel_write__(2, `time scale: ${timeScale.toFixed(1)}x`);
+    __usePanel_write__(
+      3,
+      satelliteState.active
+        ? `sat altitude: ${satelliteState.altitudeKm.toFixed(3)} km`
+        : "satellite: waiting emit",
+    );
+    __usePanel_write__(
+      4,
+      satelliteState.active
+        ? `sat speed: ${satelliteState.velocity.length().toFixed(6)} km/s`
+        : "sat speed: -",
+    );
   }, 1);
 
   __updateTHREEJs__invoke__.boost = () => {
     burnRocket();
+  };
+  __updateTHREEJs__invoke__.emitSatellite = () => {
+    emitSatellite();
   };
 
   __updateTHREEJs__only__.enableGrid = (val) => __3__.grid(val);
@@ -568,5 +741,8 @@ __main__ = (
 };
 
 __defineControl__("boost", "btn", "", {
+  freq: 200,
+});
+__defineControl__("emitSatellite", "btn", "", {
   freq: 200,
 });

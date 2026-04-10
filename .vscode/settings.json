@@ -1,6 +1,6 @@
 {
-  "editor.fontFamily": "Ubuntu Sans Mono",
-  // "editor.fontFamily": "Anonymous Pro",
+  // "editor.fontFamily": "Ubuntu Sans Mono",
+  "editor.fontFamily": "Anonymous Pro",
   // "editor.fontFamily": "Chalkboard SE",
   // "editor.fontFamily": "Cascadia Code PL",
   "editor.fontSize": 16,
