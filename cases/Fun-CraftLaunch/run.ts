@@ -18,33 +18,49 @@ let holdThrust = false;
 let showPrediction = true;
 let predictionHorizonSec = 120;
 let predictionSamples = 180;
+let freeCameraMode = false;
 
 //#region reactive
 __dev__();
-__defineControl__("enableGrid", "bit", enableGrid);
-__defineControl__("enableAxes", "bit", enableAxes);
+__defineControl__("enableGrid", "bit", enableGrid, {
+  help: "Show or hide the world grid for depth and scale reference.",
+});
+__defineControl__("enableAxes", "bit", enableAxes, {
+  help: "Show or hide global XYZ axes at world origin.",
+});
 __defineControl__("timeScale", "range", timeScale, {
-  ...__defineControl__.rint(1, 100),
+  ...__defineControl__.rint(1, 500),
+  help: "Physics time multiplier. Higher values speed up motion, burns, and trajectory evolution.",
 });
 __defineControl__("burnSecondsPerBoost", "range", burnSecondsPerBoost, {
   ...__defineControl__.rint(1, 20),
+  help: "Seconds added per Boost press. Used only when Hold Thrust is OFF.",
 });
 __defineControl__("thrustPitchDeg", "range", thrustPitchDeg, {
-  ...__defineControl__.rint(0, 120),
+  ...__defineControl__.rint(-85, 85),
+  help: "Pitch angle around body +X. Drives ORANGE pitch line; with yaw it also changes YELLOW thrust line.",
 });
 __defineControl__("thrustYawDeg", "range", thrustYawDeg, {
   ...__defineControl__.rint(-180, 180),
+  help: "Yaw angle around body +Z. Drives WHITE yaw line; with pitch it also changes YELLOW thrust line.",
 });
 __defineControl__("thrustPower", "range", thrustPower, {
-  ...__defineControl__.rint(0, 50),
+  ...__defineControl__.rfloat(0, 10),
+  help: "Engine force multiplier. 0 means no acceleration even if direction lines still rotate.",
 });
-__defineControl__("holdThrust", "bit", holdThrust);
-__defineControl__("showPrediction", "bit", showPrediction);
+__defineControl__("holdThrust", "bit", holdThrust, {
+  help: "Continuous burn toggle. ON ignores burnSecondsPerBoost timer and keeps thrust active.",
+});
+__defineControl__("showPrediction", "bit", showPrediction, {
+  help: "Show future trajectory preview from current state, using current thrust direction/power settings.",
+});
 __defineControl__("predictionHorizonSec", "range", predictionHorizonSec, {
   ...__defineControl__.rint(10, 600),
+  help: "How far ahead to predict. Longer horizon shows more orbit arc but updates may feel heavier.",
 });
 __defineControl__("predictionSamples", "range", predictionSamples, {
   ...__defineControl__.rint(16, 600),
+  help: "Prediction resolution. More samples make the line smoother but cost more CPU.",
 });
 
 __updateControlsDOM__ = () => {
@@ -111,7 +127,8 @@ const buildRocketLocalBasis = (upDirection: THREE.Vector3) => {
 };
 
 const getThrustAccelerationKmS2 = (massKg: number) => {
-  const thrustAccelerationMS2 = (ROCKET_THRUST_N * Math.max(0, thrustPower)) / massKg;
+  const thrustAccelerationMS2 =
+    (ROCKET_THRUST_N * Math.max(0, thrustPower)) / massKg;
   return thrustAccelerationMS2 / 1000;
 };
 
@@ -122,12 +139,14 @@ const latLngToPosition = (
   altitudeKm: number = 0,
 ): THREE.Vector3 => {
   const latRad = (lat * Math.PI) / 180;
-  const lngRad = (lng * Math.PI) / 180;
+  const lngRad = ((lng + 90) * Math.PI) / 180;
   const radiusKm = EARTH_RADIUS_KM + altitudeKm;
 
-  const x = radiusKm * Math.cos(latRad) * Math.cos(lngRad);
+  // Keep the same axis convention used by other Earth demos in this repo:
+  // x follows east-west (sin lng), z follows prime-meridian direction (cos lng).
+  const x = radiusKm * Math.cos(latRad) * Math.sin(lngRad);
   const y = radiusKm * Math.sin(latRad);
-  const z = radiusKm * Math.cos(latRad) * Math.sin(lngRad);
+  const z = radiusKm * Math.cos(latRad) * Math.cos(lngRad);
 
   return new THREE.Vector3(x, y, z);
 };
@@ -140,7 +159,7 @@ const positionToLatLngAltitude = (
   const altitudeKm = radiusKm - EARTH_RADIUS_KM;
 
   const lat = (Math.asin(pos.y / radiusKm) * 180) / Math.PI;
-  const lng = (Math.atan2(pos.z, pos.x) * 180) / Math.PI;
+  const lng = (Math.atan2(pos.x, pos.z) * 180) / Math.PI;
 
   return { lat, lng, altitudeKm };
 };
@@ -169,9 +188,11 @@ __main__ = (
   camera: THREE.PerspectiveCamera,
   renderer: THREE.WebGLRenderer,
 ) => {
+  __contact__();
+
   __usePanel__({
     placement: "left-bottom",
-    lines: 5,
+    lines: 6,
     width: 300,
   });
 
@@ -187,14 +208,16 @@ __main__ = (
   const Earth = new THREE.Mesh(
     new THREE.SphereGeometry(spaceInformation.EARTH.meanRadiusKm, 64, 64),
     new THREE.MeshBasicMaterial({
-      transparent: true,
-      opacity: 0.2,
+      transparent: false,
+      opacity: 1,
       map: textureLoader.load("/cases/Fun-Artemis2/Earth (A).jpg"),
     }),
   );
 
   const Rocket = new THREE.Group();
-  Rocket.scale.setScalar(1);
+  Rocket.scale.setScalar(10);
+  const rocketAxes = new THREE.AxesHelper(120);
+  Rocket.add(rocketAxes);
 
   const dracoLoader = new DRACOLoader();
 
@@ -231,9 +254,47 @@ __main__ = (
   };
 
   const cameraLookTarget = new THREE.Vector3();
+  const cameraBackDirection = new THREE.Vector3();
   let cameraInitialized = false;
 
-  world.add(Earth, Rocket);
+  const createDebugLine = (color: number) => {
+    const positions = new Float32Array(6);
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    const line = new THREE.Line(
+      geometry,
+      new THREE.LineBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.95,
+      }),
+    );
+    line.frustumCulled = false;
+    return line;
+  };
+
+  const setDebugLine = (
+    line: THREE.Line,
+    origin: THREE.Vector3,
+    direction: THREE.Vector3,
+    length: number,
+  ) => {
+    const dir = direction.clone().normalize();
+    const end = origin.clone().addScaledVector(dir, Math.max(1, length));
+    const pos = line.geometry.getAttribute("position") as THREE.BufferAttribute;
+    pos.setXYZ(0, origin.x, origin.y, origin.z);
+    pos.setXYZ(1, end.x, end.y, end.z);
+    pos.needsUpdate = true;
+  };
+
+  // Requested debug colors:
+  // body up: pink, yaw: white, pitch: orange, thrust direction: yellow
+  const bodyUpLine = createDebugLine(0xff5fd1);
+  const yawLine = createDebugLine(0xffffff);
+  const pitchLine = createDebugLine(0xff8a3d);
+  const thrustLine = createDebugLine(0xfff34a);
+
+  world.add(Earth, Rocket, bodyUpLine, yawLine, pitchLine, thrustLine);
 
   // ---- Flame Particle System ----
   const FLAME_COUNT = 5000;
@@ -253,7 +314,7 @@ __main__ = (
   flameGeo.setAttribute("color", new THREE.BufferAttribute(_fColor, 3));
 
   const flameMat = new THREE.PointsMaterial({
-    size: 3,
+    size: 10,
     vertexColors: true,
     transparent: true,
     depthWrite: false,
@@ -263,21 +324,21 @@ __main__ = (
   });
 
   const flameMesh = new THREE.Points(flameGeo, flameMat);
-  flameMesh.translateY(10);
+  // flameMesh.translateY(10);
   // Dynamic particle positions make default bounds stale; keep particles rendered.
   flameMesh.frustumCulled = false;
   world.add(flameMesh);
 
-  const satellite = new THREE.Mesh(
-    new THREE.SphereGeometry(12, 16, 16),
-    new THREE.MeshBasicMaterial({
-      color: 0xfff27a,
-      transparent: true,
-      opacity: 0.98,
-    }),
-  );
+  const satellite = new THREE.Group();
+  satellite.scale.setScalar(0.02);
   satellite.visible = false;
   world.add(satellite);
+  gltfLoader.load(
+    "./Active Cavity Irradiance Monitor Satellite (AcrimSAT) (B).glb",
+    (gltf) => {
+      satellite.add(gltf.scene);
+    },
+  );
 
   const trajectoryPositions = new Float32Array(PREDICTION_MAX_POINTS * 3);
   const trajectoryGeo = new THREE.BufferGeometry();
@@ -302,39 +363,94 @@ __main__ = (
   const FLAME_SPAWN_RATE = 120; // particles per second
   // ----------------------------------
 
-  const moveRocketTo = (lat: number, lng: number) => {
+  const moveRocketTo = (
+    lat: number,
+    lng: number,
+    altitudeKm: number = 0,
+    velocityMagnitudeKmS: number = 0,
+  ) => {
     rocketState.lat = lat;
     rocketState.lng = lng;
-    rocketState.altitudeKm = 0; // Start at surface
-    rocketState.position = latLngToPosition(lat, lng, 0);
-    rocketState.velocity.set(0, 0, 0);
-    rocketState.isLanded = true; // Initially on ground
+    rocketState.altitudeKm = Math.max(0, altitudeKm);
+    rocketState.position = latLngToPosition(lat, lng, rocketState.altitudeKm);
+
+    if (velocityMagnitudeKmS > 0) {
+      const radialUpDirection = rocketState.position.clone().normalize();
+      const { forward } = buildRocketLocalBasis(radialUpDirection);
+      rocketState.velocity
+        .copy(forward)
+        .setLength(Math.max(0, velocityMagnitudeKmS));
+    } else {
+      rocketState.velocity.set(0, 0, 0);
+    }
+
+    rocketState.isLanded =
+      rocketState.altitudeKm <= 0 && velocityMagnitudeKmS <= 0;
+    rocketState.remainingTrustTime = 0;
+    rocketState.thrustApplied.set(0, 0, 0);
     Rocket.position.copy(rocketState.position);
   };
 
-  const getThrustDirectionAtPosition = (positionKm: THREE.Vector3) => {
-    const radialUpDirection = positionKm.clone().normalize();
-    const { right, forward } = buildRocketLocalBasis(radialUpDirection);
-
-    const yawRad = THREE.MathUtils.degToRad(thrustYawDeg);
-    const pitchRad = THREE.MathUtils.degToRad(
-      THREE.MathUtils.clamp(thrustPitchDeg, 0, 120),
-    );
-
-    const tangentDirection = right
-      .clone()
-      .multiplyScalar(Math.cos(yawRad))
-      .add(forward.clone().multiplyScalar(Math.sin(yawRad)))
-      .normalize();
-
-    return radialUpDirection
-      .clone()
-      .multiplyScalar(Math.cos(pitchRad))
-      .add(tangentDirection.multiplyScalar(Math.sin(pitchRad)))
-      .normalize();
+  const getBodyUpDirectionAtState = (
+    positionKm: THREE.Vector3,
+    velocityKmS: THREE.Vector3,
+    fallbackThrustDirection?: THREE.Vector3,
+  ) => {
+    if (velocityKmS.lengthSq() > VELOCITY_VISUAL_EPSILON_KMPS ** 2) {
+      return velocityKmS.clone().normalize();
+    }
+    if (fallbackThrustDirection && fallbackThrustDirection.lengthSq() > 1e-10) {
+      return fallbackThrustDirection.clone().normalize();
+    }
+    return positionKm.clone().normalize();
   };
 
-  const getThrustDirection = () => getThrustDirectionAtPosition(rocketState.position);
+  const getBodyAxes = (bodyY: THREE.Vector3) => {
+    const q = new THREE.Quaternion().setFromUnitVectors(
+      new THREE.Vector3(0, 1, 0),
+      bodyY.clone().normalize(),
+    );
+    return {
+      bodyX: new THREE.Vector3(1, 0, 0).applyQuaternion(q),
+      bodyZ: new THREE.Vector3(0, 0, 1).applyQuaternion(q),
+    };
+  };
+
+  const getThrustDirectionAtPosition = (
+    positionKm: THREE.Vector3,
+    velocityKmS: THREE.Vector3,
+    fallbackThrustDirection?: THREE.Vector3,
+  ) => {
+    const bodyY = getBodyUpDirectionAtState(
+      positionKm,
+      velocityKmS,
+      fallbackThrustDirection,
+    );
+    const { bodyX, bodyZ } = getBodyAxes(bodyY);
+
+    const pitchRad = THREE.MathUtils.degToRad(
+      THREE.MathUtils.clamp(thrustPitchDeg, -89.9, 89.9),
+    );
+    const yawRad = THREE.MathUtils.degToRad(thrustYawDeg);
+
+    // Intrinsic body rotations: yaw around body +Z, then pitch around the yawed body +X.
+    const yawQuat = new THREE.Quaternion().setFromAxisAngle(bodyZ, yawRad);
+    const yawedBodyY = bodyY.clone().applyQuaternion(yawQuat).normalize();
+    const yawedBodyX = bodyX.clone().applyQuaternion(yawQuat).normalize();
+    const pitchQuat = new THREE.Quaternion().setFromAxisAngle(
+      yawedBodyX,
+      pitchRad,
+    );
+
+    return yawedBodyY.applyQuaternion(pitchQuat).normalize();
+  };
+
+  const getThrustDirection = () =>
+    getThrustDirectionAtPosition(
+      rocketState.position,
+      rocketState.velocity,
+      rocketState.thrustApplied,
+    );
 
   const updatePredictionTrajectory = () => {
     if (!showPrediction) {
@@ -370,7 +486,7 @@ __main__ = (
 
       const thrustActive = holdThrust || simRemainingTrustTime > 0;
       const thrustAccel = thrustActive
-        ? getThrustDirectionAtPosition(simPos).multiplyScalar(
+        ? getThrustDirectionAtPosition(simPos, simVel).multiplyScalar(
             getThrustAccelerationKmS2(rocketState.mass),
           )
         : new THREE.Vector3();
@@ -400,7 +516,7 @@ __main__ = (
     trajectoryGeo.attributes.position.needsUpdate = true;
   };
 
-  moveRocketTo(39.9041999, 116.4073963);
+  moveRocketTo(39.9041999, 116.4073963, 110, 7.9);
   updatePredictionTrajectory();
 
   const burnRocket = () => {
@@ -420,7 +536,8 @@ __main__ = (
       .copy(rocketState.position)
       .addScaledVector(right, SATELLITE_RELEASE_OFFSET_KM);
     satelliteState.velocity.copy(rocketState.velocity);
-    satelliteState.altitudeKm = satelliteState.position.length() - EARTH_RADIUS_KM;
+    satelliteState.altitudeKm =
+      satelliteState.position.length() - EARTH_RADIUS_KM;
     satellite.visible = true;
     satellite.position.copy(satelliteState.position);
   };
@@ -438,7 +555,9 @@ __main__ = (
 
     if (isThrustActive()) {
       const thrustDirection = getThrustDirection();
-      const thrustAccelerationKmS2 = getThrustAccelerationKmS2(rocketState.mass);
+      const thrustAccelerationKmS2 = getThrustAccelerationKmS2(
+        rocketState.mass,
+      );
       rocketState.thrustApplied
         .copy(thrustDirection)
         .multiplyScalar(thrustAccelerationKmS2);
@@ -497,7 +616,8 @@ __main__ = (
     const gravityAccel = calculateGravityAcceleration(satelliteState.position); // km/s^2
     satelliteState.velocity.addScaledVector(gravityAccel, dtSec);
     satelliteState.position.addScaledVector(satelliteState.velocity, dtSec);
-    satelliteState.altitudeKm = satelliteState.position.length() - EARTH_RADIUS_KM;
+    satelliteState.altitudeKm =
+      satelliteState.position.length() - EARTH_RADIUS_KM;
   };
 
   const updateDispay = (dtSec: number) => {
@@ -518,7 +638,10 @@ __main__ = (
           ? getThrustDirection()
           : radialUpDirection;
     const quaternion = new THREE.Quaternion();
-    quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), rocketUpDirection);
+    quaternion.setFromUnitVectors(
+      new THREE.Vector3(0, 1, 0),
+      rocketUpDirection,
+    );
     Rocket.quaternion.copy(quaternion);
 
     const altitudeT = smoothstep(
@@ -531,10 +654,47 @@ __main__ = (
       ROCKET_SCALE_SPACE,
       altitudeT,
     );
-    Rocket.scale.setScalar(rocketScale);
 
-    const { forward } = buildRocketLocalBasis(radialUpDirection);
-    const backDirection = forward.clone().negate();
+    // Rocket.scale.setScalar(rocketScale);
+
+    const bodyUpDirection = getBodyUpDirectionAtState(
+      rocketState.position,
+      rocketState.velocity,
+      rocketState.thrustApplied,
+    );
+    const { bodyX: bodyX_steering, bodyZ: bodyZ_steering } =
+      getBodyAxes(bodyUpDirection);
+    const yawOnlyQuat = new THREE.Quaternion().setFromAxisAngle(
+      bodyZ_steering,
+      THREE.MathUtils.degToRad(thrustYawDeg),
+    );
+    const yawDirection = bodyUpDirection.clone().applyQuaternion(yawOnlyQuat);
+    const pitchOnlyQuat = new THREE.Quaternion().setFromAxisAngle(
+      bodyX_steering,
+      THREE.MathUtils.degToRad(thrustPitchDeg),
+    );
+    const pitchDirection = bodyUpDirection
+      .clone()
+      .applyQuaternion(pitchOnlyQuat)
+      .normalize();
+    const thrustDirection = getThrustDirection();
+    const lineLenBase = Math.max(80, rocketScale * 4);
+    const lineOrigin = rocketState.position
+      .clone()
+      .addScaledVector(rocketUpDirection, -Math.max(8, rocketScale * 0.08));
+
+    setDebugLine(bodyUpLine, lineOrigin, bodyUpDirection, lineLenBase * 0.85);
+    setDebugLine(yawLine, lineOrigin, yawDirection, lineLenBase * 0.75);
+    setDebugLine(pitchLine, lineOrigin, pitchDirection, lineLenBase * 0.8);
+    setDebugLine(thrustLine, lineOrigin, thrustDirection, lineLenBase);
+
+    if (freeCameraMode) {
+      // camera.up.set(0, 1, 0);
+      // cameraLookTarget.set(0, 0, 0);
+      // camera.lookAt(cameraLookTarget);
+      return;
+    }
+
     const upOffsetKm = THREE.MathUtils.lerp(
       CAMERA_NEAR_UP_OFFSET_KM,
       CAMERA_FAR_UP_OFFSET_KM,
@@ -546,14 +706,22 @@ __main__ = (
       altitudeT,
     );
 
+    if (!cameraInitialized) {
+      cameraBackDirection
+        .copy(camera.position)
+        .sub(rocketState.position)
+        .normalize();
+      if (cameraBackDirection.lengthSq() < 1e-8) {
+        cameraBackDirection.set(0, 0, 1);
+      }
+    }
+
     const desiredCameraPosition = rocketState.position
       .clone()
       .addScaledVector(radialUpDirection, upOffsetKm)
-      .addScaledVector(backDirection, backOffsetKm);
+      .addScaledVector(cameraBackDirection, backOffsetKm);
 
-    const desiredLookTarget = rocketState.position
-      .clone()
-      .addScaledVector(rocketState.velocity, CAMERA_LOOKAHEAD_SEC);
+    const desiredLookTarget = rocketState.position.clone();
 
     const alpha = THREE.MathUtils.clamp(
       1 - Math.exp(-CAMERA_DAMPING * Math.max(dtSec, 0)),
@@ -564,12 +732,14 @@ __main__ = (
     if (!cameraInitialized) {
       camera.position.copy(desiredCameraPosition);
       cameraLookTarget.copy(desiredLookTarget);
+      camera.up.set(0, 1, 0);
       cameraInitialized = true;
     } else {
       camera.position.lerp(desiredCameraPosition, alpha);
       cameraLookTarget.lerp(desiredLookTarget, alpha);
     }
 
+    camera.up.set(0, 1, 0);
     camera.lookAt(cameraLookTarget);
   };
 
@@ -723,6 +893,12 @@ __main__ = (
         ? `sat speed: ${satelliteState.velocity.length().toFixed(6)} km/s`
         : "sat speed: -",
     );
+    const _radialUp = rocketState.position.clone().normalize();
+    const _velLen = rocketState.velocity.length();
+    const _velAngleDeg = _velLen > 1e-9
+      ? THREE.MathUtils.radToDeg(Math.acos(Math.max(-1, Math.min(1, _radialUp.dot(rocketState.velocity.clone().normalize())))))
+      : 0;
+    __usePanel_write__(5, `velocity ∠ radial-up: ${_velAngleDeg.toFixed(2)}°`);
   }, 1);
 
   __updateTHREEJs__invoke__.boost = () => {
@@ -730,6 +906,30 @@ __main__ = (
   };
   __updateTHREEJs__invoke__.emitSatellite = () => {
     emitSatellite();
+  };
+  __updateTHREEJs__invoke__.moveToBeijing = () => {
+    moveRocketTo(39.9041999, 116.4073963, 0, 0);
+  };
+  __updateTHREEJs__only__.freeCameraMode = () => {
+    // freeCameraMode = !freeCameraMode;
+
+    if (freeCameraMode) {
+      const maxVisibleRadiusKm = Math.max(
+        EARTH_RADIUS_KM,
+        rocketState.position.length(),
+        satelliteState.active ? satelliteState.position.length() : 0,
+      );
+      const fovRad = THREE.MathUtils.degToRad(camera.fov);
+      const minDistanceKm =
+        maxVisibleRadiusKm / Math.max(Math.sin(fovRad * 0.5), 1e-3);
+      const cameraDistanceKm = minDistanceKm * 1.2;
+      const freeViewDir = new THREE.Vector3(1, 0.4, 1).normalize();
+      camera.position.copy(freeViewDir.multiplyScalar(cameraDistanceKm));
+      camera.up.set(0, 1, 0);
+      camera.lookAt(0, 0, 0);
+    }
+
+    cameraInitialized = false;
   };
 
   __updateTHREEJs__only__.enableGrid = (val) => __3__.grid(val);
@@ -742,7 +942,14 @@ __main__ = (
 
 __defineControl__("boost", "btn", "", {
   freq: 200,
+  help: "Trigger one timed burn pulse. Duration comes from burnSecondsPerBoost.",
 });
 __defineControl__("emitSatellite", "btn", "", {
-  freq: 200,
+  help: "Release the satellite with current rocket velocity for independent orbit.",
+});
+__defineControl__("moveToBeijing", "btn", "", {
+  help: "Reset rocket to Beijing at ground level with zero velocity.",
+});
+__defineControl__("freeCameraMode", "bit", "", {
+  help: "Switch to/from free camera framing instead of follow-camera behavior.",
 });
