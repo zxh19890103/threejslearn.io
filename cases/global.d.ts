@@ -56,7 +56,7 @@ type NextFrameFn = (
   /** the delta of time delta, unit: s */
   delta: number,
   /** frames skipped */
-  skip: number
+  skip: number,
 ) => void;
 
 type AddNextFrameFnItem = {
@@ -71,7 +71,7 @@ type AddNextFrameFnItem = {
 type MainFunc = (
   scene: THREE.Scene,
   camera: THREE.Camera,
-  renderer: THREE.WebGLRenderer
+  renderer: THREE.WebGLRenderer,
 ) => void;
 
 type Config = {
@@ -113,7 +113,7 @@ let __enter_vr__: (event: MouseEvent) => void;
 let __onControlsDOMChanged__iter__: (
   evalExp: string,
   k: string,
-  val: any
+  val: any,
 ) => void;
 let __updateControlsDOM__: () => void;
 
@@ -122,7 +122,7 @@ let __createAnimation__: <T>(
   to: Partial<Record<keyof T, number>>,
   duration: number,
   overFn?: VoidFunction,
-  updateFn?: VoidFunction
+  updateFn?: VoidFunction,
 ) => CreateAnimationReturns;
 
 interface CreateAnimationReturns {
@@ -141,7 +141,7 @@ type DefineControl = {
     name: string,
     type: ControlType,
     initialVal: T,
-    extras?: Partial<DefCtrlExtras<T>>
+    extras?: Partial<DefCtrlExtras<T>>,
   ): void;
   r01: () => Partial<DefCtrlExtras<T>>;
   rint: (min: number, max: number) => Partial<DefCtrlExtras<T>>;
@@ -186,13 +186,13 @@ type ThreeObjects = {
   dirLight: (
     c?: THREE.ColorRepresentation,
     intensity?: number,
-    direction?: Vec3
+    direction?: Vec3,
   ) => { helper: (size: number, color: number) => void };
   ptLight: (
     c?: THREE.ColorRepresentation,
     intensity?: number,
     dist?: number,
-    decay?: number
+    decay?: number,
   ) => {
     helper: (size: number, color: number, dist: number, decay: number) => void;
   };
@@ -215,7 +215,7 @@ type ThreeObjects = {
   };
   track: (
     p: Vec3,
-    color: THREE.ColorRepresentation
+    color: THREE.ColorRepresentation,
   ) => {
     userData: Record<string, any>;
     append: (...pts: Vec3[]) => void;
@@ -225,7 +225,7 @@ type ThreeObjects = {
     p: Vec3,
     r: number,
     color?: ColorRepresentation,
-    wire?: boolean
+    wire?: boolean,
   ) => THREE.Mesh;
   box: (p0: Vec3, l: number, w: number, h: number) => THREE.Mesh;
   plane: (c: Vec3, l: number, w: number) => THREE.Mesh;
@@ -301,7 +301,7 @@ namespace SunCalc {
   const getMoonPosition: (
     dt: Date,
     lat: number,
-    lon: number
+    lon: number,
   ) => GetMoonPositionRes;
 
   const getTimes: (dt: Date, lat: number, lon: number) => GetTimesRes;
@@ -313,3 +313,17 @@ declare class Noise {
   perlin3(x: number, y: number, z: number): any;
   simplex3(x: number, y: number, z: number): any;
 }
+
+declare function shp(data: any): Promise<any>;
+
+interface Delaunay {
+  triangles;
+  halfedges;
+  points;
+}
+
+declare var d3: {
+  Delaunay: {
+    from: (pts: [number, number][]) => Delaunay;
+  };
+};

@@ -16,6 +16,7 @@ let craftBoostAngle = 0; // radians, 0 to 2π — controls boost direction in or
 let boostPower = 1; // scales boost acceleration
 let trajectoryPredictionTimeStep = 80;
 let trajectoryPredictionSteps = 5000;
+let isInDesignMode = false;
 
 __config__.camPos = [0, spaceInformation.EARTH.meanRadiusKm * 3, 0];
 __config__.camFar = spaceInformation.EARTH_MOON_DISTANCE.averageKm;
@@ -880,6 +881,8 @@ which is the second menu item.
       .normalize();
   };
 
+  let isShadowSatelliteTooCloseToShadowMoon = false;
+
   const updatePredictedTrajectory = () => {
     const state = predictedTrajectoryState;
     state.positions.fill(0);
@@ -915,9 +918,12 @@ which is the second menu item.
         distanceKm,
       );
       const moonAccel = gravityForce / (moonMass * 1000);
-      shadowMoonState[3] += (-dx / distanceKm) * moonAccel * trajectoryPredictionTimeStep;
-      shadowMoonState[4] += (-dy / distanceKm) * moonAccel * trajectoryPredictionTimeStep;
-      shadowMoonState[5] += (-dz / distanceKm) * moonAccel * trajectoryPredictionTimeStep;
+      shadowMoonState[3] +=
+        (-dx / distanceKm) * moonAccel * trajectoryPredictionTimeStep;
+      shadowMoonState[4] +=
+        (-dy / distanceKm) * moonAccel * trajectoryPredictionTimeStep;
+      shadowMoonState[5] +=
+        (-dz / distanceKm) * moonAccel * trajectoryPredictionTimeStep;
       shadowMoonState[0] += shadowMoonState[3] * trajectoryPredictionTimeStep;
       shadowMoonState[1] += shadowMoonState[4] * trajectoryPredictionTimeStep;
       shadowMoonState[2] += shadowMoonState[5] * trajectoryPredictionTimeStep;
@@ -969,12 +975,19 @@ which is the second menu item.
       shadowSatelliteState[3] += ax * trajectoryPredictionTimeStep;
       shadowSatelliteState[4] += ay * trajectoryPredictionTimeStep;
       shadowSatelliteState[5] += az * trajectoryPredictionTimeStep;
-      shadowSatelliteState[0] += shadowSatelliteState[3] * trajectoryPredictionTimeStep;
-      shadowSatelliteState[1] += shadowSatelliteState[4] * trajectoryPredictionTimeStep;
-      shadowSatelliteState[2] += shadowSatelliteState[5] * trajectoryPredictionTimeStep;
+      shadowSatelliteState[0] +=
+        shadowSatelliteState[3] * trajectoryPredictionTimeStep;
+      shadowSatelliteState[1] +=
+        shadowSatelliteState[4] * trajectoryPredictionTimeStep;
+      shadowSatelliteState[2] +=
+        shadowSatelliteState[5] * trajectoryPredictionTimeStep;
     };
 
-    for (let i = 0; i < trajectoryPredictionSteps && count < trajectoryMaxPoints; i++) {
+    for (
+      let i = 0;
+      i < trajectoryPredictionSteps && count < trajectoryMaxPoints;
+      i++
+    ) {
       reduceShadowMoonState();
       reduceShadowSatelliteState();
 
@@ -988,12 +1001,17 @@ which is the second menu item.
         shadowSatelliteState[1] - shadowMoonState[1],
         shadowSatelliteState[2] - shadowMoonState[2],
       );
+
       if (
         distToEarth < earthSafeDistanceKm ||
         distToMoon < moonSafeDistanceKm
       ) {
+        console.log("hi");
+        isShadowSatelliteTooCloseToShadowMoon = true;
         break;
       }
+
+      isShadowSatelliteTooCloseToShadowMoon = false;
 
       if (i % sampleStride === 0) {
         const base = count * 3;
@@ -1015,7 +1033,11 @@ which is the second menu item.
     // Speed-to-opacity mapping: normalize speed and use higher alpha for higher speed.
     const speedRange = Math.max(1e-6, maxSpeed - minSpeed);
     for (let i = 0; i < count; i++) {
-      const t = THREE.MathUtils.clamp((state.speeds[i] - minSpeed) / speedRange, 0, 1);
+      const t = THREE.MathUtils.clamp(
+        (state.speeds[i] - minSpeed) / speedRange,
+        0,
+        1,
+      );
       state.alphas[i] = Math.pow(t, 0.8);
     }
 
@@ -1026,10 +1048,23 @@ which is the second menu item.
     state.uniforms.uCount.value = count;
     state.positionAttr.needsUpdate = true;
     state.alphaAttr.needsUpdate = true;
+
     predictedMoon.position.set(
       shadowMoonState[0],
       shadowMoonState[1],
       shadowMoonState[2],
+    );
+
+    const dxMoon = shadowMoonState[0] - shadowSatelliteState[0];
+    const dyMoon = shadowMoonState[1] - shadowSatelliteState[1];
+    const dzMoon = shadowMoonState[2] - shadowSatelliteState[2];
+    const distanceMoonKm = Math.sqrt(
+      dxMoon * dxMoon + dyMoon * dyMoon + dzMoon * dzMoon,
+    );
+
+    __usePanel_write__(
+      7,
+      `predicted distance to moon: ${(distanceMoonKm - spaceInformation.MOON.meanRadiusKm).toFixed(3)} km`,
     );
   };
 
@@ -1141,6 +1176,8 @@ which is the second menu item.
   };
 
   __add_nextframe_fn__(() => {
+    if (isInDesignMode) return;
+
     const simStepSeconds = iterations * timeStep;
 
     // Calculate distance vector from Earth (at origin) to Moon (in km)
@@ -1190,9 +1227,7 @@ which is the second menu item.
     }
 
     updateTrajectory(moon.position, 80, moonTrajectoryState);
-
     updateTrajectory(satellite.position, 20, satelliteTrajectoryState);
-    updatePredictedTrajectory();
 
     updateExhaust();
     updateExplosion();
@@ -1212,6 +1247,19 @@ which is the second menu item.
     earth.rotateY(earthSpinOmega * simStepSeconds * rotationVisualScaleFactor);
     moon.rotateY(moonSpinOmega * simStepSeconds * rotationVisualScaleFactor);
   });
+
+  __add_nextframe_fn__(() => {
+    updatePredictedTrajectory();
+  });
+
+  __add_nextframe_fn__(() => {
+    if (isShadowSatelliteTooCloseToShadowMoon) {
+      iterations = 100;
+      __renderControls__({ iterations });
+
+      isShadowSatelliteTooCloseToShadowMoon = false;
+    }
+  }, 0.1);
 
   __add_nextframe_fn__((x, y, z, delta, skip) => {
     __usePanel_write__(
@@ -1577,8 +1625,8 @@ which is the second menu item.
 
   __usePanel__({
     placement: "left-bottom",
-    width: 520,
-    lines: 7,
+    width: 480,
+    lines: 8,
   });
 };
 
@@ -1645,3 +1693,7 @@ __defineControl__(
     help: "scales Earth & Moon spin speed for visual clarity",
   },
 );
+
+__defineControl__("isInDesignMode", "bit", isInDesignMode, {
+  label: "design",
+});

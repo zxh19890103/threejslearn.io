@@ -5,6 +5,7 @@
   "license": "MIT",
   "type": "module",
   "dependencies": {
+    "eventsource": "^4.1.0",
     "fs-extra": "^11.3.0",
     "sharp": "^0.34.2"
   }

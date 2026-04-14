@@ -6,6 +6,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 import { spaceInformation } from "cases/Fun-Artemis2/space.js";
+import earcut from "earcut";
 
 let enableGrid = false;
 let enableAxes = false;
@@ -99,13 +100,16 @@ const ALTITUDE_NEAR_KM = 0;
 const ALTITUDE_FAR_KM = 1200;
 const ROCKET_SCALE_GROUND = 1;
 const ROCKET_SCALE_SPACE = 30;
-const CAMERA_NEAR_UP_OFFSET_KM = 35;
-const CAMERA_NEAR_BACK_OFFSET_KM = 120;
+const CAMERA_NEAR_UP_OFFSET_KM = 350;
+const CAMERA_NEAR_BACK_OFFSET_KM = 1200;
 const CAMERA_FAR_UP_OFFSET_KM = 1200;
 const CAMERA_FAR_BACK_OFFSET_KM = 3600;
 const CAMERA_DAMPING = 4.5;
 const CAMERA_LOOKAHEAD_SEC = 0.6;
 const VELOCITY_VISUAL_EPSILON_KMPS = 1e-4;
+const CAMERA_NEAR_PLANE_KM = 50;
+const COUNTRY_POLY_OFFSET_FACTOR = -1;
+const COUNTRY_POLY_OFFSET_UNITS = -4;
 
 const smoothstep = (edge0: number, edge1: number, value: number): number => {
   const t = THREE.MathUtils.clamp((value - edge0) / (edge1 - edge0), 0, 1);
@@ -183,6 +187,319 @@ const calculateGravityAcceleration = (
   return gravityVector;
 };
 
+// Helper: Create country filled mesh from GeoJSON
+const createCountriesMesh = async (geojsonUrl: string): Promise<THREE.Mesh> => {
+  const response = await fetch(geojsonUrl);
+  const geojson = await response.json();
+
+  const positions: number[] = [];
+  const colors: number[] = [];
+  const indices: number[] = [];
+
+  // Color palette for countries (cycle through hues)
+  const getCountryColor = (index: number): THREE.Color => {
+    const hue = (index * 137.5) % 360; // Golden angle for good color distribution
+    return new THREE.Color().setHSL(hue / 360, 0.7, 0.6);
+  };
+
+  // Process each feature (country)
+  geojson.features.forEach((feature: any, featureIndex: number) => {
+    const geometry = feature.geometry;
+    if (!geometry || !geometry.coordinates) return;
+
+    const color = getCountryColor(featureIndex);
+    const colorArray = [color.r, color.g, color.b];
+
+    // Handle both Polygon and MultiPolygon
+    const polygons =
+      geometry.type === "MultiPolygon"
+        ? geometry.coordinates
+        : [geometry.coordinates];
+
+    polygons.forEach((polygon: any) => {
+      // polygon[0] is the outer ring, polygon[1+] are holes
+      const rings = polygon;
+
+      // Flatten all coordinates and convert to 2D for earcut
+      const data: number[] = [];
+      const holeIndices: number[] = [];
+      const ringVertices: THREE.Vector3[][] = [];
+
+      rings.forEach((ring: any, ringIndex: number) => {
+        if (ringIndex > 0) {
+          holeIndices.push(data.length / 2);
+        }
+
+        const vertices: THREE.Vector3[] = [];
+        ring.forEach(([lng, lat]: [number, number]) => {
+          data.push(lng, lat);
+          const pos = latLngToPosition(lat, lng, 0);
+          vertices.push(pos);
+        });
+        ringVertices.push(vertices);
+      });
+
+      // Triangulate using earcut
+      const triangles = earcut(data, holeIndices);
+
+      // Map triangle indices to 3D positions and colors
+      const startIndex = positions.length / 3;
+
+      // Add all vertices to position/color arrays
+      ringVertices.forEach((ring) => {
+        ring.forEach((pos) => {
+          positions.push(pos.x, pos.y, pos.z);
+          colors.push(...colorArray);
+        });
+      });
+
+      // Add triangle indices (offset by vertex count before this polygon)
+      triangles.forEach((idx) => {
+        indices.push(startIndex + idx);
+      });
+    });
+  });
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute(
+    "position",
+    new THREE.BufferAttribute(new Float32Array(positions), 3),
+  );
+  geometry.setAttribute(
+    "color",
+    new THREE.BufferAttribute(new Float32Array(colors), 3),
+  );
+  geometry.setIndex(new THREE.BufferAttribute(new Uint32Array(indices), 1));
+
+  const material = new THREE.MeshBasicMaterial({
+    vertexColors: true,
+    side: THREE.FrontSide,
+    polygonOffset: true,
+    polygonOffsetFactor: COUNTRY_POLY_OFFSET_FACTOR,
+    polygonOffsetUnits: COUNTRY_POLY_OFFSET_UNITS,
+  });
+
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.frustumCulled = false;
+  mesh.renderOrder = 120;
+
+  return mesh;
+};
+
+// Helper: Create country name label sprites using bbox centroid
+const createCountryLabels = async (
+  geojsonUrl: string,
+): Promise<THREE.Group> => {
+  const response = await fetch(geojsonUrl);
+  const geojson = await response.json();
+
+  const group = new THREE.Group();
+
+  geojson.features.forEach((feature: any) => {
+    const name: string | undefined =
+      feature.properties?.name ?? feature.properties?.NAME;
+    if (!name) return;
+
+    // bbox = [minLng, minLat, maxLng, maxLat]
+    // Per-feature bbox may be absent in Natural Earth GeoJSON; compute from coordinates
+    let bbox: number[] | undefined = feature.bbox;
+    if (!bbox || bbox.length < 4) {
+      const geometry = feature.geometry;
+      if (!geometry || !geometry.coordinates) return;
+      const allRings: number[][][] =
+        geometry.type === "MultiPolygon"
+          ? geometry.coordinates.flat(1)
+          : geometry.coordinates;
+      let minLng = Infinity,
+        minLat = Infinity,
+        maxLng = -Infinity,
+        maxLat = -Infinity;
+      allRings.forEach((ring: number[][]) => {
+        ring.forEach(([lng, lat]: number[]) => {
+          if (lng < minLng) minLng = lng;
+          if (lat < minLat) minLat = lat;
+          if (lng > maxLng) maxLng = lng;
+          if (lat > maxLat) maxLat = lat;
+        });
+      });
+      if (!isFinite(minLng)) return;
+      bbox = [minLng, minLat, maxLng, maxLat];
+    }
+
+    const centLng = (bbox[0] + bbox[2]) / 2;
+    const centLat = (bbox[1] + bbox[3]) / 2;
+
+    // Draw label onto an offscreen canvas
+    const fontSize = 24;
+    const padding = 8;
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const tmp = document.createElement("canvas").getContext("2d")!;
+    tmp.font = `bold ${fontSize}px Wawati TC, sans-serif`;
+    const textWidth = Math.ceil(tmp.measureText(name).width);
+    const cssWidth = textWidth + padding * 2;
+    const cssHeight = fontSize + padding * 2;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(cssWidth * dpr);
+    canvas.height = Math.ceil(cssHeight * dpr);
+
+    const ctx = canvas.getContext("2d")!;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.font = `bold ${fontSize}px Wawati TC, sans-serif`;
+    ctx.fillStyle = "rgba(0,0,0,0.0)";
+    ctx.fillRect(0, 0, cssWidth, cssHeight);
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(name, cssWidth / 2, cssHeight / 2);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    texture.generateMipmaps = false;
+    texture.needsUpdate = true;
+    const material = new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      depthWrite: true,
+      depthTest: true,
+    });
+
+    const sprite = new THREE.Sprite(material);
+    sprite.renderOrder = 200;
+    sprite.position.copy(latLngToPosition(centLat, centLng, 80));
+
+    // Scale proportional to canvas aspect ratio; base height ~200 km
+    const aspect = cssWidth / cssHeight;
+    const baseHeight = 200;
+    sprite.scale.set(baseHeight * aspect, baseHeight, 1);
+
+    group.add(sprite);
+  });
+
+  return group;
+};
+
+// Sphere midpoint: average two points then normalize back onto sphere
+const sphereMid = (
+  a: THREE.Vector3,
+  b: THREE.Vector3,
+  r: number,
+): THREE.Vector3 => a.clone().add(b).normalize().multiplyScalar(r);
+
+// Recursively subdivide a triangle whose vertices lie on a sphere,
+// projecting each new midpoint back onto the sphere surface.
+const subdivideTriOnSphere = (
+  a: THREE.Vector3,
+  b: THREE.Vector3,
+  c: THREE.Vector3,
+  depth: number,
+  outPos: number[],
+  outIdx: number[],
+  r: number,
+): void => {
+  if (depth === 0) {
+    const s = outPos.length / 3;
+    outPos.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
+    outIdx.push(s, s + 1, s + 2);
+    return;
+  }
+  const ab = sphereMid(a, b, r);
+  const bc = sphereMid(b, c, r);
+  const ca = sphereMid(c, a, r);
+  subdivideTriOnSphere(a, ab, ca, depth - 1, outPos, outIdx, r);
+  subdivideTriOnSphere(b, bc, ab, depth - 1, outPos, outIdx, r);
+  subdivideTriOnSphere(c, ca, bc, depth - 1, outPos, outIdx, r);
+  subdivideTriOnSphere(ab, bc, ca, depth - 1, outPos, outIdx, r);
+};
+
+// Helper: Create ocean filled mesh from a zipped shapefile (.zip)
+const createOcensMeshFromShpfile = async (
+  shpUrl: string,
+): Promise<THREE.Mesh> => {
+  const raw = await shp(shpUrl);
+
+  const positions: number[] = [];
+  const indices: number[] = [];
+
+  const appendPolygon = (polygon: any) => {
+    const rings = polygon;
+    const data: number[] = [];
+    const holeIndices: number[] = [];
+    const ringVertices: THREE.Vector3[][] = [];
+
+    rings.forEach((ring: any, ringIndex: number) => {
+      if (ringIndex > 0) {
+        holeIndices.push(data.length / 2);
+      }
+      const vertices: THREE.Vector3[] = [];
+      ring.forEach(([lng, lat]: [number, number]) => {
+        data.push(lng, lat);
+        vertices.push(latLngToPosition(lat, lng, 0));
+      });
+      ringVertices.push(vertices);
+    });
+
+    const triangles = earcut(data, holeIndices);
+    // Build a flat vertex lookup matching earcut's index space
+    const flatVerts: THREE.Vector3[] = [];
+    ringVertices.forEach((ring) => ring.forEach((v) => flatVerts.push(v)));
+    // For each earcut triangle, subdivide onto the sphere surface (depth 3 = 64 sub-tris each)
+    for (let i = 0; i < triangles.length; i += 3) {
+      const a = flatVerts[triangles[i]];
+      const b = flatVerts[triangles[i + 1]];
+      const c = flatVerts[triangles[i + 2]];
+      subdivideTriOnSphere(a, b, c, 3, positions, indices, EARTH_RADIUS_KM);
+    }
+  };
+
+  const appendGeometry = (geometry: any, index: number) => {
+    if (!geometry || !geometry.coordinates) return;
+    if (geometry.type === "Polygon") {
+      appendPolygon(geometry.coordinates);
+    } else if (geometry.type === "MultiPolygon") {
+      geometry.coordinates.forEach((polygon: any) => appendPolygon(polygon));
+    }
+  };
+
+  // shpjs may return a single FeatureCollection or an array of them
+  const collections: any[] = Array.isArray(raw) ? raw : [raw];
+
+  collections.forEach((collection) => {
+    if (
+      collection.type === "FeatureCollection" &&
+      Array.isArray(collection.features)
+    ) {
+      collection.features.forEach((feature: any, index) =>
+        appendGeometry(feature.geometry, index),
+      );
+    } else {
+      appendGeometry(collection, -1);
+    }
+  });
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute(
+    "position",
+    new THREE.BufferAttribute(new Float32Array(positions), 3),
+  );
+  geometry.setIndex(new THREE.BufferAttribute(new Uint32Array(indices), 1));
+
+  const material = new THREE.MeshBasicMaterial({
+    color: 0x2f78dc,
+    side: THREE.FrontSide,
+    wireframe: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -0.5,
+    polygonOffsetUnits: -1,
+  });
+
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.frustumCulled = false;
+  mesh.renderOrder = 110;
+  return mesh;
+};
+
 __main__ = (
   world: THREE.Scene,
   camera: THREE.PerspectiveCamera,
@@ -197,22 +514,15 @@ __main__ = (
   });
 
   // your code
-  const textureLoader = new THREE.TextureLoader(new THREE.LoadingManager());
+  // const textureLoader = new THREE.TextureLoader(new THREE.LoadingManager());
 
-  camera.far = spaceInformation.EARTH_MOON_DISTANCE.apogeeKm * 1.5;
-  camera.near = 1;
+  camera.far = spaceInformation.EARTH.meanRadiusKm * 10;
+  camera.near = CAMERA_NEAR_PLANE_KM;
+
+  camera.updateProjectionMatrix();
   camera.position.set(0, 0, spaceInformation.EARTH.meanRadiusKm * 2.0);
 
   __3__.ambLight(0xffffff, 0.7);
-
-  const Earth = new THREE.Mesh(
-    new THREE.SphereGeometry(spaceInformation.EARTH.meanRadiusKm, 64, 64),
-    new THREE.MeshBasicMaterial({
-      transparent: false,
-      opacity: 1,
-      map: textureLoader.load("/cases/Fun-Artemis2/Earth (A).jpg"),
-    }),
-  );
 
   const Rocket = new THREE.Group();
   Rocket.scale.setScalar(10);
@@ -255,7 +565,9 @@ __main__ = (
 
   const cameraLookTarget = new THREE.Vector3();
   const cameraBackDirection = new THREE.Vector3();
+  const cameraDirFromEarthCenter = new THREE.Vector3();
   let cameraInitialized = false;
+  let countryLabelsGroup: THREE.Group | null = null;
 
   const createDebugLine = (color: number) => {
     const positions = new Float32Array(6);
@@ -294,7 +606,23 @@ __main__ = (
   const pitchLine = createDebugLine(0xff8a3d);
   const thrustLine = createDebugLine(0xfff34a);
 
-  world.add(Earth, Rocket, bodyUpLine, yawLine, pitchLine, thrustLine);
+  world.add(Rocket, bodyUpLine, yawLine, pitchLine, thrustLine);
+
+  // Load and add GeoJSON countries mesh
+  createCountriesMesh("./ne_110m_admin_0_countries.geojson").then(
+    (countriesMesh) => {
+      world.add(countriesMesh);
+    },
+  );
+
+  createCountryLabels("./ne_110m_admin_0_countries.geojson").then((labels) => {
+    countryLabelsGroup = labels;
+    world.add(labels);
+  });
+
+  createOcensMeshFromShpfile("./ne_110m_ocean.zip").then((oceanMesh) => {
+    world.add(oceanMesh);
+  });
 
   // ---- Flame Particle System ----
   const FLAME_COUNT = 5000;
@@ -376,9 +704,9 @@ __main__ = (
 
     if (velocityMagnitudeKmS > 0) {
       const radialUpDirection = rocketState.position.clone().normalize();
-      const { forward } = buildRocketLocalBasis(radialUpDirection);
+      const { forward, right } = buildRocketLocalBasis(radialUpDirection);
       rocketState.velocity
-        .copy(forward)
+        .copy(right)
         .setLength(Math.max(0, velocityMagnitudeKmS));
     } else {
       rocketState.velocity.set(0, 0, 0);
@@ -688,6 +1016,15 @@ __main__ = (
     setDebugLine(pitchLine, lineOrigin, pitchDirection, lineLenBase * 0.8);
     setDebugLine(thrustLine, lineOrigin, thrustDirection, lineLenBase);
 
+    if (countryLabelsGroup) {
+      cameraDirFromEarthCenter.copy(camera.position).normalize();
+      countryLabelsGroup.children.forEach((obj) => {
+        const labelDir = obj.position.clone().normalize();
+        // Dot > 0 means label is on the same hemisphere as the camera.
+        obj.visible = labelDir.dot(cameraDirFromEarthCenter) > 0.05;
+      });
+    }
+
     if (freeCameraMode) {
       // camera.up.set(0, 1, 0);
       // cameraLookTarget.set(0, 0, 0);
@@ -706,14 +1043,18 @@ __main__ = (
       altitudeT,
     );
 
-    if (!cameraInitialized) {
-      cameraBackDirection
-        .copy(camera.position)
-        .sub(rocketState.position)
-        .normalize();
-      if (cameraBackDirection.lengthSq() < 1e-8) {
-        cameraBackDirection.set(0, 0, 1);
+    const instantaneousBackDirection = camera.position
+      .clone()
+      .sub(rocketState.position);
+    if (instantaneousBackDirection.lengthSq() > 1e-8) {
+      instantaneousBackDirection.normalize();
+      if (!cameraInitialized) {
+        cameraBackDirection.copy(instantaneousBackDirection);
+      } else {
+        cameraBackDirection.lerp(instantaneousBackDirection, 0.25).normalize();
       }
+    } else if (!cameraInitialized) {
+      cameraBackDirection.set(0, 0, 1);
     }
 
     const desiredCameraPosition = rocketState.position
@@ -721,13 +1062,22 @@ __main__ = (
       .addScaledVector(radialUpDirection, upOffsetKm)
       .addScaledVector(cameraBackDirection, backOffsetKm);
 
-    const desiredLookTarget = rocketState.position.clone();
+    const desiredLookTarget = rocketState.position
+      .clone()
+      .addScaledVector(rocketState.velocity, CAMERA_LOOKAHEAD_SEC * 0.15);
 
-    const alpha = THREE.MathUtils.clamp(
+    const baseAlpha = THREE.MathUtils.clamp(
       1 - Math.exp(-CAMERA_DAMPING * Math.max(dtSec, 0)),
       0,
       1,
     );
+    const followErrorKm = camera.position.distanceTo(desiredCameraPosition);
+    const errorBoost = THREE.MathUtils.clamp(
+      followErrorKm / Math.max(1, backOffsetKm * 0.5),
+      0,
+      1,
+    );
+    const alpha = THREE.MathUtils.clamp(baseAlpha + errorBoost * 0.45, 0, 1);
 
     if (!cameraInitialized) {
       camera.position.copy(desiredCameraPosition);
@@ -736,7 +1086,8 @@ __main__ = (
       cameraInitialized = true;
     } else {
       camera.position.lerp(desiredCameraPosition, alpha);
-      cameraLookTarget.lerp(desiredLookTarget, alpha);
+      // Keep rocket centered in follow mode to avoid visible lag during fast maneuvers.
+      cameraLookTarget.copy(desiredLookTarget);
     }
 
     camera.up.set(0, 1, 0);
@@ -895,9 +1246,20 @@ __main__ = (
     );
     const _radialUp = rocketState.position.clone().normalize();
     const _velLen = rocketState.velocity.length();
-    const _velAngleDeg = _velLen > 1e-9
-      ? THREE.MathUtils.radToDeg(Math.acos(Math.max(-1, Math.min(1, _radialUp.dot(rocketState.velocity.clone().normalize())))))
-      : 0;
+    const _velAngleDeg =
+      _velLen > 1e-9
+        ? THREE.MathUtils.radToDeg(
+            Math.acos(
+              Math.max(
+                -1,
+                Math.min(
+                  1,
+                  _radialUp.dot(rocketState.velocity.clone().normalize()),
+                ),
+              ),
+            ),
+          )
+        : 0;
     __usePanel_write__(5, `velocity ∠ radial-up: ${_velAngleDeg.toFixed(2)}°`);
   }, 1);
 
