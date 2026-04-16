@@ -19,6 +19,8 @@ type PolygonCoordinate = {
 
 type PolygonData = {
   area: number;
+  center: [number, number];
+  centroid: [number, number];
   hue: [number, number, number];
   bbox: { x: number; y: number; width: number; height: number };
   extent: number;
@@ -161,14 +163,17 @@ __main__ = (
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(1024, 1024),
     new THREE.MeshBasicMaterial({
-      color: 0xdedfed,
+      color: "#deae91",
+      transparent: false,
+      opacity: 0.87,
+      side: THREE.DoubleSide,
       depthTest: false,
-      // map: textureLoader.load("./tilepic-16-2.jpeg"),
+      // map: textureLoader.load("./exg_veg_mask.png"),
     }),
   );
 
   async function createSegments() {
-    const polygons = (await fetch(`./polygons-3.json?t=${Date.now()}`).then(
+    const polygons = (await fetch(`./polygons-15.json?t=${Date.now()}`).then(
       (res) => res.json(),
     )) as PolygonData[];
 
@@ -211,7 +216,7 @@ __main__ = (
       geometry.computeBoundingSphere();
 
       const material = new THREE.ShaderMaterial({
-        wireframe: false,
+        wireframe: true,
         side: THREE.DoubleSide,
         // depthWrite: false,
         // depthTest: false,
@@ -272,6 +277,10 @@ __main__ = (
      * @param {number} clustering - Number of neighbors within 50m (default to 1).
      */
     function estimateBuildingHeight(area, solidity, extent, clustering = 1) {
+      if (area > 5000) {
+        return 1; // Likely a park, plaza, or industrial shed - flat and wide
+      }
+
       // 1. Base Floors (Start with 1 floor)
       let floors = 1.0;
 
@@ -320,14 +329,23 @@ __main__ = (
 
     polygons.forEach((polygon) => {
       console.log(polygon.label);
-      if (!"building,vegetation,road".includes(polygon.label)) return;
+      if (!"building,vegetation,road,water".includes(polygon.label)) return;
 
       if (polygon.label === "vegetation") {
-        renderVegetation(polygon);
-        return;
+        // renderVegetation(polygon);
       } else if (polygon.label === "building") {
+        if (!polygon.coordinates || polygon.coordinates.length < 3) {
+          console.warn(
+            "Skipping building with insufficient coordinates:",
+            polygon,
+          );
+          return;
+        }
 
-        // if (polygon.area > 2e4 && polygon.extent < 0.7) return;
+        if (polygon.solidity < 0.55) {
+          console.warn("Skipping building with low solidity:", polygon);
+          return;
+        }
 
         const height = estimateBuildingHeight(
           polygon.area,
@@ -374,19 +392,16 @@ __main__ = (
         mesh.add(outline);
 
         const label = document.createElement("div");
-        label.innerText = `a:${polygon.area};e:${polygon.extent.toFixed(4)};s:${polygon.solidity.toFixed(4)}`;
-        label.style.cssText = `font-size: 12px; color: #fffeaf`;
+
+        label.innerText = `a:${polygon.area.toFixed(2)} e:${polygon.extent.toFixed(2)} s:${polygon.solidity.toFixed(2)}`;
+        label.style.cssText = `font-size: 12px; color: #000`;
         const labelObj = new CSS2DObject(label);
 
-        const bbox = polygon.bbox;
-
-        const centroid = new THREE.Vector3(
-          bbox.width / 2 + bbox.x + offset.x,
-          1024 - (bbox.height / 2 + bbox.y) + offset.y,
-          0,
+        labelObj.position.set(
+          polygon.centroid[0] + offset.x,
+          1024 - polygon.centroid[1] + offset.y,
+          height + 10,
         );
-
-        labelObj.position.copy(centroid);
 
         outline.renderOrder = 131;
         mesh.renderOrder = 130;
@@ -410,6 +425,22 @@ __main__ = (
 
         roadMesh.renderOrder = 120;
         world.add(roadMesh);
+      } else if (polygon.label === "water") {
+        const waterMesh = new THREE.Mesh(
+          new THREE.ShapeGeometry(
+            new THREE.Shape(
+              polygon.coordinates.map((coord) =>
+                new THREE.Vector2(coord.x, coord.y).add(offset),
+              ),
+            ),
+          ),
+          new THREE.MeshBasicMaterial({
+            color: 0x4060a0,
+            depthWrite: false,
+          }),
+        );
+        waterMesh.renderOrder = 190;
+        world.add(waterMesh);
       }
     });
   }
