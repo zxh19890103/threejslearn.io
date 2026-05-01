@@ -72,7 +72,8 @@ type MainFunc = (
   scene: THREE.Scene,
   camera: THREE.Camera,
   renderer: THREE.WebGLRenderer,
-) => void;
+  cameraCtrls: OrbitControls | MapControls,
+) => Promise<void> | void;
 
 type Config = {
   camFov: number;
@@ -80,6 +81,7 @@ type Config = {
   camNear: number;
   camPos: Vec3;
   background: number;
+  controls: "orbit" | "map" | "fly";
 };
 
 type UsePanelConfig = {

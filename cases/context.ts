@@ -2,6 +2,7 @@ import * as THREE from "three";
 
 import * as tween from "@tweenjs/tween.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { MapControls } from "three/addons/controls/MapControls.js";
 
 import "./controls.js";
 import "./panel.js";
@@ -13,6 +14,7 @@ let camera: THREE.PerspectiveCamera;
 let renderer: THREE.WebGLRenderer;
 
 let renderer_right: THREE.WebGLRenderer;
+let cameraCtrls: OrbitControls | MapControls;
 
 const elementPgApp = document.querySelector("#PgApp")!;
 const tweenGroup = new tween.Group();
@@ -22,7 +24,7 @@ const createCamera = () => {
     __config__.camFov,
     1 / 1,
     __config__.camNear,
-    __config__.camFar
+    __config__.camFar,
   );
 
   cam.position.set(...__config__.camPos);
@@ -71,20 +73,39 @@ const setup = () => {
 
   whenClientViewResized();
 
-  const cameraCtrls = new OrbitControls(camera, renderer.domElement);
+  if (__config__.controls === "map") {
+    console.log("Using MapControls");
+    cameraCtrls = new MapControls(camera, renderer.domElement);
 
-  cameraCtrls.enablePan = true;
-  cameraCtrls.enableDamping = true;
+    cameraCtrls.enablePan = true;
+    cameraCtrls.enableDamping = true;
 
-  cameraCtrls.autoRotate = false;
-  cameraCtrls.autoRotateSpeed = 0.07;
-  cameraCtrls.update();
-
-  __updateCameraControls__ = (rs: number, zs: number) => {
-    cameraCtrls.rotateSpeed = rs;
-    cameraCtrls.zoomSpeed = zs;
+    cameraCtrls.autoRotate = false;
+    cameraCtrls.autoRotateSpeed = 0.07;
     cameraCtrls.update();
-  };
+
+    __updateCameraControls__ = (rs: number, zs: number) => {
+      cameraCtrls.rotateSpeed = rs;
+      cameraCtrls.zoomSpeed = zs;
+      cameraCtrls.update();
+    };
+  } else {
+    console.log("Using OrbitControls");
+    cameraCtrls = new OrbitControls(camera, renderer.domElement);
+
+    cameraCtrls.enablePan = true;
+    cameraCtrls.enableDamping = true;
+
+    cameraCtrls.autoRotate = false;
+    cameraCtrls.autoRotateSpeed = 0.07;
+    cameraCtrls.update();
+
+    __updateCameraControls__ = (rs: number, zs: number) => {
+      cameraCtrls.rotateSpeed = rs;
+      cameraCtrls.zoomSpeed = zs;
+      cameraCtrls.update();
+    };
+  }
 
   const clock = new THREE.Clock();
 
@@ -165,17 +186,29 @@ const setup = () => {
 };
 
 const bootstrap = () => {
+  const __main_post__ = () => {
+    __updateTHREEJs__?.(null, null);
+    __updateControlsDOM__?.();
+
+    __dev__ = (clsN: string) => {
+      document.querySelector(".Content")?.classList.toggle(clsN ?? "html");
+    };
+  };
+
   const check = () => {
     if (__main__) {
       setup();
+
       console.log("setup.");
       console.log("main found.");
-      __main__(scene, camera, renderer);
-      __updateTHREEJs__?.(null, null);
-      __updateControlsDOM__?.();
-      __dev__ = (clsN: string) => {
-        document.querySelector(".Content")?.classList.toggle(clsN ?? "html");
-      };
+
+      const __main__Promise = __main__(scene, camera, renderer, cameraCtrls);
+
+      if (__main__Promise instanceof Promise) {
+        __main__Promise.then(__main_post__);
+      } else {
+        __main_post__();
+      }
     } else {
       setTimeout(check, 30);
     }
@@ -195,7 +228,7 @@ setTimeout(bootstrap);
   const Utils = {
     ambLight: (
       c: THREE.ColorRepresentation = 0xffffff,
-      intensity: number = 0.6
+      intensity: number = 0.6,
     ) => {
       const light = new THREE.AmbientLight(c, intensity);
       scene.add(light);
@@ -203,7 +236,7 @@ setTimeout(bootstrap);
     dirLight: (
       c: THREE.ColorRepresentation = 0xffffff,
       intensity: number = 0.6,
-      direction: Vec3 = deaultLightDir
+      direction: Vec3 = deaultLightDir,
     ) => {
       const light = new THREE.DirectionalLight(c, intensity);
 
@@ -224,7 +257,7 @@ setTimeout(bootstrap);
       c: THREE.ColorRepresentation = 0xffffff,
       intensity: number = 0.6,
       dist: number = 1,
-      decay: number = 0
+      decay: number = 0,
     ) => {
       const light = new THREE.PointLight(c, intensity, dist, decay);
       scene.add(light);
@@ -287,7 +320,7 @@ setTimeout(bootstrap);
       p: Vec3,
       r: number,
       color?: THREE.ColorRepresentation,
-      wire?: boolean
+      wire?: boolean,
     ): THREE.Mesh => {
       const geometry = new THREE.SphereGeometry(r, 32, 32);
       const material = new THREE.MeshStandardMaterial({
@@ -320,7 +353,7 @@ setTimeout(bootstrap);
 
       const points = new THREE.Points(
         geometry,
-        new THREE.PointsMaterial({ color })
+        new THREE.PointsMaterial({ color }),
       );
 
       const build = () => {
@@ -447,7 +480,7 @@ __createAnimation__ = (
   to: Record<string, number>,
   duration: number,
   overFn?: VoidFunction,
-  updateFn?: VoidFunction
+  updateFn?: VoidFunction,
 ) => {
   const t = new tween.Tween(target).to(to, duration);
 

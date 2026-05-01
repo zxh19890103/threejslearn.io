@@ -2,6 +2,11 @@
 # yarn lockfile v1
 
 
+"@dgreenheck/ez-tree@^1.1.0":
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/@dgreenheck/ez-tree/-/ez-tree-1.1.0.tgz#b3426d04d536825e067eb6292c909824dc942ac3"
+  integrity sha512-6pvS6hD6B6h00dm0SnkgYeT4ABU5Y1Z9M44p1tXiV5C0eKrQy2sKECXshoaUv0qAOqYVL68w/PwadUxDFDiHUg==
+
 "@tweenjs/tween.js@*":
   version "25.0.0"
   resolved "https://registry.yarnpkg.com/@tweenjs/tween.js/-/tween.js-25.0.0.tgz#7266baebcc3affe62a3a54318a3ea82d904cd0b9"
