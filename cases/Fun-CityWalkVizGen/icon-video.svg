@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" aria-label="video icon">
+	<rect x="3" y="6" width="14" height="12" rx="2.2" stroke="black" stroke-width="1.8"/>
+	<path d="M10 9.8L14 12L10 14.2V9.8Z" fill="black"/>
+	<path d="M17 10.2L21 8V16L17 13.8V10.2Z" fill="black"/>
+</svg>

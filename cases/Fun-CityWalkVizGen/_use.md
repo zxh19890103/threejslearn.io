@@ -5,3 +5,7 @@ python photos_viz.py /path/to/photos \
   --png photos_viz.png \
   --padding 0.1
 ```
+
+```
+ln -s /opt/homebrew/lib/libcairo.2.dylib .
+```

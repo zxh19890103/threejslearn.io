@@ -1,6 +1,6 @@
 [out:json][timeout:60];
 (
-  way["highway"~"motorway|trunk|primary|secondary| tertiary|residential|unclassified"]({{bbox}});
+  way["highway"~"motorway|trunk|primary|secondary|tertiary|residential|unclassified"]({{bbox}});
   way["waterway"="river"]({{bbox}});
   way["natural=water"]({{bbox}});
   relation["natural"="water"]({{bbox}});

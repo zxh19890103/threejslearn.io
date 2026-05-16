@@ -41,7 +41,6 @@ SVG_WIDTH = 1000
 SVG_HEIGHT = 1000
 PNG_SIZE = 1000
 
-NO_POLYGON_AND_PLACES = True
 
 CIRCLE_RADIUS = 32  # 4 times bigger
 CIRCLE_STROKE_WIDTH = 8  # Adjust stroke width proportionally
@@ -58,7 +57,10 @@ HIGHLIGHT_CENTER_DOT_RADIUS = 6
 HIGHLIGHT_CENTER_DOT_FILL = "#FFFFFF"
 
 width_scaled = 4;  # Scale factor for line widths to make them more visible in the SVG
+highway_simple_filter = { "motorway", "trunk", "primary", "secondary" }
+use_highway_simple_filter = False  # Set to False to include all highway types, but it may cause visual clutter
 
+# tertiary|residential|unclassified
 HIGHWAY_WIDTHS = {
     "motorway": 6 * width_scaled,
     "trunk": 5 * width_scaled,
@@ -66,6 +68,7 @@ HIGHWAY_WIDTHS = {
     "secondary": 3 * width_scaled,
     "tertiary": 2 * width_scaled,
     "residential": 1.5 * width_scaled,
+    "unclassified": 1 * width_scaled,
     "service": 1 * width_scaled,
 }
 
@@ -81,7 +84,7 @@ GEOJSON_POLYGON_STROKE_WIDTH = 0.5 * width_scaled
 GEOJSON_LINE_STROKE_WIDTH = 2 * width_scaled
 GEOJSON_POINT_STROKE_WIDTH = 3 * width_scaled
 GEOJSON_POINT_RADIUS = 3 * width_scaled
-GEOJSON_LABEL_FONT_SIZE = 30
+GEOJSON_LABEL_FONT_SIZE = 40
 
 # default color scheme (optimized for light backgrounds)
 
@@ -99,6 +102,13 @@ HIGHLIGHT_CIRCLE_STROKE = "#F28482" # stronger coral edge
 
 CIRCLE_FILL = "#A0C4FF" # pastel blue photo marks
 CIRCLE_STROKE = "#7DA2D6" # medium blue edge
+
+PHOTO_ICON_PATH = Path(__file__).with_name("icon-photo.svg")
+PHOTO_ICON_SIZE = CIRCLE_RADIUS * 2
+PHOTO_ICON_PANEL_FILL = "#93C5FD"
+PHOTO_ICON_PANEL_STROKE = "#0F172A"
+PHOTO_ICON_DOT_FILL = "#FB7185"
+PHOTO_ICON_SCENE_FILL = "#22C55E"
 
 def _apply_dark_mode():
     global GEOJSON_POLYGON_FILL, GEOJSON_POLYGON_STROKE, GEOJSON_LINE_STROKE
@@ -121,6 +131,74 @@ def _apply_dark_mode():
     global CIRCLE_FILL, CIRCLE_STROKE
     CIRCLE_FILL = "#AED7F5"             # keep circles luminous on dark photos
     CIRCLE_STROKE = "#E0F2FF"
+
+
+def _parse_viewbox_size(viewbox: str | None) -> tuple[float, float]:
+    """Parse an SVG viewBox string and return (width, height)."""
+    if not viewbox:
+        return 24.0, 24.0
+    parts = viewbox.replace(",", " ").split()
+    if len(parts) != 4:
+        return 24.0, 24.0
+    try:
+        width = float(parts[2])
+        height = float(parts[3])
+        if width <= 0 or height <= 0:
+            return 24.0, 24.0
+        return width, height
+    except ValueError:
+        return 24.0, 24.0
+
+
+def _load_photo_icon_template() -> tuple[list[ET.Element], float, float]:
+    """Load icon-photo.svg and return (child elements, viewbox width, viewbox height)."""
+    try:
+        icon_root = ET.fromstring(PHOTO_ICON_PATH.read_text(encoding="utf-8"))
+    except (FileNotFoundError, ET.ParseError, OSError):
+        return [], 24.0, 24.0
+
+    viewbox_w, viewbox_h = _parse_viewbox_size(icon_root.get("viewBox"))
+    return list(icon_root), viewbox_w, viewbox_h
+
+
+def _clone_element(elem: ET.Element) -> ET.Element:
+    """Return a deep clone of an XML element."""
+    return ET.fromstring(ET.tostring(elem, encoding="unicode"))
+
+
+def _is_black_color(value: str | None) -> bool:
+    """Return True if the color value is effectively black."""
+    if not value:
+        return False
+    normalized = value.strip().lower().replace(" ", "")
+    return normalized in {"black", "#000", "#000000", "rgb(0,0,0)"}
+
+
+def _style_photo_icon_element(elem: ET.Element):
+    """Recolor icon parts from black to the configured photo marker palette."""
+    tag_name = elem.tag.rsplit("}", 1)[-1]
+    fill = elem.get("fill")
+    stroke = elem.get("stroke")
+
+    if tag_name == "rect":
+        if fill == "none" or _is_black_color(fill):
+            elem.set("fill", PHOTO_ICON_PANEL_FILL)
+        if _is_black_color(stroke):
+            elem.set("stroke", PHOTO_ICON_PANEL_STROKE)
+        return
+
+    if tag_name == "circle" and _is_black_color(fill):
+        elem.set("fill", PHOTO_ICON_DOT_FILL)
+        return
+
+    if tag_name == "path" and _is_black_color(fill):
+        elem.set("fill", PHOTO_ICON_SCENE_FILL)
+        return
+
+    if _is_black_color(fill):
+        elem.set("fill", CIRCLE_FILL)
+    if _is_black_color(stroke):
+        elem.set("stroke", CIRCLE_STROKE)
 
 # ── EXIF helpers ─────────────────────────────────────────────────────────────
 
@@ -343,7 +421,7 @@ def _coords_centroid(coords):
 
 
 def _append_text(svg_root: ET.Element, x: float, y: float, text_value: str):
-    """Append a styled SVG text label near the given anchor point, with Lantinghei SC font for Chinese support."""
+    """Append a styled SVG text label near the given anchor point, with Wawati SC font for Chinese support."""
     if not text_value:
         return
     text_elem = ET.SubElement(svg_root, "text")
@@ -353,7 +431,7 @@ def _append_text(svg_root: ET.Element, x: float, y: float, text_value: str):
     text_elem.set("stroke", GEOJSON_LABEL_FILL)
     text_elem.set("stroke-width", "3")
     text_elem.set("font-size", str(GEOJSON_LABEL_FONT_SIZE))
-    text_elem.set("font-family", '"Lantinghei SC", sans-serif')
+    text_elem.set("font-family", '"Wawati SC", sans-serif')
     text_elem.text = text_value
 
 def geojson_elements(geojson_path: str,
@@ -470,9 +548,11 @@ def geojson_elements(geojson_path: str,
                 elem.set("stroke", WATERWAY_LINE_STROKE)
                 width = WATERWAY_WIDTHS.get(waterway, GEOJSON_LINE_STROKE_WIDTH)
             else:
+                if use_highway_simple_filter and highway not in highway_simple_filter:
+                    continue  # skip minor roads for visual clarity
                 elem.set("stroke", GEOJSON_LINE_STROKE)
                 width = HIGHWAY_WIDTHS.get(highway, GEOJSON_LINE_STROKE_WIDTH)
-                
+
             elem.set("stroke-width", str(width))
             
             if name:
@@ -503,6 +583,9 @@ def geojson_elements(geojson_path: str,
                 width = WATERWAY_WIDTHS.get(waterway, GEOJSON_LINE_STROKE_WIDTH)
                 elem = ET.SubElement(rivers_root, "polyline")  # group waterways separately
             else:
+                if use_highway_simple_filter and highway not in highway_simple_filter:
+                    continue  # skip minor roads for visual clarity
+                
                 stroke_color = GEOJSON_LINE_STROKE
                 width = HIGHWAY_WIDTHS.get(highway, GEOJSON_LINE_STROKE_WIDTH)
                 elem = ET.SubElement(roads_root, "polyline")  # group roads separately
@@ -529,9 +612,9 @@ def build_svg(records: list[dict],
     """
     min_lon, min_lat, max_lon, max_lat = bbox
 
-    ET.register_namespace("", "http://www.w3.org/2000/svg")
-    svg = ET.Element("svg")
-    svg.set("xmlns", "http://www.w3.org/2000/svg")
+    svg_ns = "http://www.w3.org/2000/svg"
+    ET.register_namespace("", svg_ns)
+    svg = ET.Element(f"{{{svg_ns}}}svg")
     svg.set("width", str(SVG_WIDTH))
     svg.set("height", str(SVG_HEIGHT))
     svg.set("viewBox", f"0 0 {SVG_WIDTH} {SVG_HEIGHT}")
@@ -545,18 +628,18 @@ def build_svg(records: list[dict],
     # ET.SubElement(filter_elem2, "feComposite", operator="arithmetic", k1="0", k2="1", k3="0", k4="0", in2="BackgroundImage", in_="SourceGraphic")
     
     # Background
-    # bg = ET.SubElement(svg, "rect")
-    # bg.set("width", str(SVG_WIDTH))
-    # bg.set("height", str(SVG_HEIGHT))
-    # bg.set("fill", "#f8f8f8")
+    bg = ET.SubElement(svg, "rect")
+    bg.set("width", str(SVG_WIDTH))
+    bg.set("height", str(SVG_HEIGHT))
+    bg.set("fill", "#f8f8f8")
 
     # GeoJSON layer
     if geojson_path and os.path.isfile(geojson_path):
         geojson_elements(geojson_path, min_lon, min_lat, max_lon, max_lat, svg)
 
-    photos_root = ET.SubElement(svg, "g", id="photos")
     highlight_photo_root = ET.SubElement(svg, "g", id="highlight_photo")
-    
+    photos_root = ET.SubElement(svg, "g", id="photos")
+
     # Photo circles (normal)
     for rec in records:
         x, y = geo_to_svg(rec["lon"], rec["lat"], min_lon, min_lat, max_lon, max_lat)
@@ -846,7 +929,8 @@ def main():
                         help="only generate minimap for photos whose names match the search query (case-insensitive substring match)")
     parser.add_argument("--dark", type=bool, default=False,
                         help="use a dark background and color scheme for better visibility in low-light conditions")
-    
+    parser.add_argument("--simple", type=bool, default=False,
+                        help="only render major highways (motorway, trunk, primary) for visual clarity")
     args = parser.parse_args()
 
     # 1. Scan photos
@@ -944,6 +1028,10 @@ def main():
 
     if args.dark:
         _apply_dark_mode()
+
+    if args.simple:
+        global use_highway_simple_filter
+        use_highway_simple_filter = True
 
     svg_root, highlight_halo, highlight_circle, highlight_ring, highlight_center_dot = build_svg(records, bbox, osm_geojson_name)
     
