@@ -7,8 +7,8 @@ let enableGrid = false;
 let enableAxes = false;
 
 __config__.background = 0xffffff;
-__config__.camFar = 1e9;
-__config__.camNear = 0.1;
+__config__.camFar = 1e5;
+__config__.camNear = 1e2;
 __config__.controls = "map";
 __config__.camPos = [0, 0, 1e4];
 

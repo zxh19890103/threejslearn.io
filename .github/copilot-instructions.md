@@ -1,4 +1,4 @@
-You can only touch the code in `./cases/{{case name}}`. Do not touch any other files. You can create new files under `./cases/**` if needed.`
+You can only touch the code in `./cases/{{case name}}`. Do not touch any other files. You can create new files under `./cases/**` if needed.
 
 you can follow the case `./cases/ABC`, the entries files include:
 
@@ -19,6 +19,7 @@ now, every time user will specify which case they are focusing on, you only need
 - Only `Typescript`
 - Follow the conventions in the project, such as naming conventions, code style, etc.
 - Use the Apis provided by the project, do not use any third-party libraries unless necessary.
+- Every time users dispatches a task, you need give a brief response to confirm that you understand the task, and then ask users to approve the implementation.
 
 ## Third-party Libraries
 

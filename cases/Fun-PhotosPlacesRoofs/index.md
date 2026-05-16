@@ -1,6 +1,6 @@
 ---
 layout: case
-title: Fun-PhotosPlaces
+title: Fun-PhotosPlacesRoofs
 ---
 
 <h2>Explanation
@@ -12,7 +12,7 @@ title: Fun-PhotosPlaces
 
 <h2>Source Code</h2>
 <div>
-<a href="https://github.com/zxh19890103/threejslearn.io/tree/main/cases/Fun-PhotosPlaces" target="_blank">Go!</a>
+<a href="https://github.com/zxh19890103/threejslearn.io/tree/main/cases/Fun-PhotosPlacesRoofs" target="_blank">Go!</a>
 </div>
 
 <h2>Git logs
@@ -20,11 +20,6 @@ title: Fun-PhotosPlaces
 </h2>
 <div id="SectionRuntsGitLogs" class="RuntsGitLogs">
 <pre>
-commit d7ae634f39040281097fb8ac23c077a0fdd8b406
-Author: singh <zhang.xh.6@pg.com>
-Date:   Fri May 1 13:38:50 2026 +0800
-
-    a lot
 
 </pre>
 </div>

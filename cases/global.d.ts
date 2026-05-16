@@ -106,7 +106,9 @@ let __add_nextframe_fn__: (fn: NextFrameFn, per?: number) => number;
 let __remove_nextframe_fn__: (id: number) => void;
 
 const JekyllEnv: "development" | "production";
-const __renderers__: THREE.Renderer[] & { active: THREE.Renderer[] };
+const __renderers__: THREE.Renderer[] & { paused: boolean } & {
+  active: THREE.Renderer[];
+};
 
 let __config__: Config;
 let __main__: MainFunc;
@@ -326,6 +328,10 @@ interface Delaunay {
 
 declare var d3: {
   Delaunay: {
-    from: (pts: [number, number][]) => Delaunay;
+    from: (
+      pts: number[],
+      iter: (p: [number, number], i: number) => number,
+      iter2: (p: [number, number], i: number) => number,
+    ) => Delaunay;
   };
 };

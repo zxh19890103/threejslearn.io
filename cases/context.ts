@@ -125,7 +125,10 @@ const setup = () => {
 
     stats.begin();
 
-    for (const r of __renderers__.active) r.clearColor?.();
+    if (__renderers__.paused) {
+    } else {
+      for (const r of __renderers__.active) r.clearColor?.();
+    }
 
     const delta = clock.getDelta();
     cameraCtrls.update(delta);
@@ -146,8 +149,11 @@ const setup = () => {
 
     tweenGroup.update();
 
-    // Render the scene from the perspective of the camera
-    for (const r of __renderers__.active) r.render(scene, camera);
+    if (__renderers__.paused) {
+    } else {
+      // Render the scene from the perspective of the camera
+      for (const r of __renderers__.active) r.render(scene, camera);
+    }
 
     stats.end();
   };

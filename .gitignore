@@ -8,3 +8,7 @@ vendor/
 node_modules/
 .DS_Store
 .hidden.*
+.venv/
+__pycache__/
+__tmp/
+__data/
