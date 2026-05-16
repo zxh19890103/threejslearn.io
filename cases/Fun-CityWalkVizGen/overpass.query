@@ -1,9 +1,8 @@
 [out:json][timeout:60];
-// Replace {{bbox}} 23.149086,113.339958,23.175366,113.348742
 (
-  way["highway"~"motorway|trunk|primary|secondary"]({{bbox}});
+  way["highway"~"motorway|trunk|primary|secondary| tertiary|residential|unclassified"]({{bbox}});
   way["waterway"="river"]({{bbox}});
-  way["natural=water"]({{bbox}})
+  way["natural=water"]({{bbox}});
   relation["natural"="water"]({{bbox}});
 );
 out body geom;

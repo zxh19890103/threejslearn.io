@@ -16,11 +16,15 @@ import math
 import os
 import sys
 import xml.etree.ElementTree as ET
+import urllib.request
+import urllib.error
+import urllib.parse
 from fractions import Fraction
 from pathlib import Path
 
 from PIL import Image, ExifTags
 import cairosvg
+import osm2geojson
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
@@ -81,15 +85,14 @@ GEOJSON_LABEL_FONT_SIZE = 30
 
 # default color scheme (optimized for light backgrounds)
 
-GEOJSON_POINT_FILL = "#379683" # soft teal
-GEOJSON_POINT_STROKE = "#1F4E5A" # deeper teal edge
-
 GEOJSON_POLYGON_FILL = "#B7E4C7" # pastel mint
 GEOJSON_POLYGON_STROKE = "#5A8F7B" # muted mint-teal edge
 GEOJSON_LINE_STROKE = "#6FBF9E" # soft green road tone
-
 GEOJSON_LABEL_FILL = "#22223B" # deep indigo for readability
-WATERWAY_LINE_STROKE = "#74C0FC" # pastel blue water
+
+WATERWAY_LINE_STROKE = "#74aCFF" # pastel blue water
+WATERWAY_POLYGON_STROKE = "#749eFF" # pastel blue water
+WATERWAY_POLYGON_FILL = "#74aCFF" # pastel blue water
 
 HIGHLIGHT_CIRCLE_FILL = "#FFB4A2" # pastel coral highlight
 HIGHLIGHT_CIRCLE_STROKE = "#F28482" # stronger coral edge
@@ -106,8 +109,10 @@ def _apply_dark_mode():
     global GEOJSON_LABEL_FILL
     GEOJSON_LABEL_FILL = "#FFF9C4"      # warm light label tone
 
-    global WATERWAY_LINE_STROKE
+    global WATERWAY_LINE_STROKE, WATERWAY_POLYGON_STROKE, WATERWAY_POLYGON_FILL
     WATERWAY_LINE_STROKE = "#81D4FA"    # bright pastel cyan
+    WATERWAY_POLYGON_STROKE = "#749eFF" # pastel blue water
+    WATERWAY_POLYGON_FILL = "#74aCFF" # pastel blue water
 
     global HIGHLIGHT_CIRCLE_FILL, HIGHLIGHT_CIRCLE_STROKE
     HIGHLIGHT_CIRCLE_FILL = "#FFB7B2"
@@ -379,22 +384,32 @@ def geojson_elements(geojson_path: str,
         geom = feature.get("geometry")
         if not isinstance(geom, dict):
             continue
+        
         properties = feature.get("properties") or {}
         name = _feature_name(properties)
         gtype = geom.get("type")
 
         if gtype == "Polygon":
             rings = geom.get("coordinates", [])
+            
             if not isinstance(rings, list) or not rings:
                 continue
+            
+            natural = properties.get("natural")
+            
             for i, ring in enumerate(rings):
                 if not isinstance(ring, list) or not ring:
                     continue
                 pts = _ring_to_points(ring, min_lon, min_lat, max_lon, max_lat)
                 elem = ET.SubElement(landmarks_root, "polygon")
                 elem.set("points", pts)
-                elem.set("fill", GEOJSON_POLYGON_FILL)
-                elem.set("stroke", GEOJSON_POLYGON_STROKE)
+                
+                if natural == "water":
+                    elem.set("fill", WATERWAY_POLYGON_FILL)
+                    elem.set("stroke", WATERWAY_POLYGON_STROKE)
+                else:
+                    elem.set("fill", GEOJSON_POLYGON_FILL)
+                    elem.set("stroke", GEOJSON_POLYGON_STROKE)
                 elem.set("stroke-width", str(GEOJSON_POLYGON_STROKE_WIDTH))
                 if i > 0:
                     elem.set("fill", "white")
@@ -407,8 +422,12 @@ def geojson_elements(geojson_path: str,
 
         elif gtype == "MultiPolygon":
             polygons = geom.get("coordinates", [])
+            
             if not isinstance(polygons, list) or not polygons:
                 continue
+            
+            natural = properties.get("natural")
+            
             for polygon in polygons:
                 if not isinstance(polygon, list) or not polygon:
                     continue
@@ -418,11 +437,18 @@ def geojson_elements(geojson_path: str,
                     pts = _ring_to_points(ring, min_lon, min_lat, max_lon, max_lat)
                     elem = ET.SubElement(landmarks_root, "polygon")
                     elem.set("points", pts)
-                    elem.set("fill", GEOJSON_POLYGON_FILL)
-                    elem.set("stroke", GEOJSON_POLYGON_STROKE)
+                    
+                    if natural == "water":
+                        elem.set("fill", WATERWAY_POLYGON_FILL)
+                        elem.set("stroke", WATERWAY_POLYGON_STROKE)
+                    else:
+                        elem.set("fill", GEOJSON_POLYGON_FILL)
+                        elem.set("stroke", GEOJSON_POLYGON_STROKE)
+                        
                     elem.set("stroke-width", str(GEOJSON_POLYGON_STROKE_WIDTH))
                     if i > 0:
                         elem.set("fill", "white")
+                        
             if name and isinstance(polygons[0], list) and polygons[0]:
                 centroid = _coords_centroid(polygons[0][0])
                 if centroid:
@@ -509,7 +535,15 @@ def build_svg(records: list[dict],
     svg.set("width", str(SVG_WIDTH))
     svg.set("height", str(SVG_HEIGHT))
     svg.set("viewBox", f"0 0 {SVG_WIDTH} {SVG_HEIGHT}")
-
+    
+    defs = ET.SubElement(svg, "defs")
+    # # define feBlend with multiply mode for highlight ring
+    filter_elem = ET.SubElement(defs, "filter", id="highlight-blend")
+    ET.SubElement(filter_elem, "feBlend", mode="multiply", in2="BackgroundImage", in_="SourceGraphic")
+    # # define filter of feComposite with arithmetic operator for highlight halo
+    # filter_elem2 = ET.SubElement(defs, "filter", id="highlight-halo-blend")
+    # ET.SubElement(filter_elem2, "feComposite", operator="arithmetic", k1="0", k2="1", k3="0", k4="0", in2="BackgroundImage", in_="SourceGraphic")
+    
     # Background
     # bg = ET.SubElement(svg, "rect")
     # bg.set("width", str(SVG_WIDTH))
@@ -520,7 +554,6 @@ def build_svg(records: list[dict],
     if geojson_path and os.path.isfile(geojson_path):
         geojson_elements(geojson_path, min_lon, min_lat, max_lon, max_lat, svg)
 
-    
     photos_root = ET.SubElement(svg, "g", id="photos")
     highlight_photo_root = ET.SubElement(svg, "g", id="highlight_photo")
     
@@ -534,6 +567,7 @@ def build_svg(records: list[dict],
         halo.set("r", str(CIRCLE_HALO_RADIUS))
         halo.set("opacity", str(CIRCLE_HALO_OPACITY))
         halo.set("fill", CIRCLE_FILL)
+        halo.set("filter", "url(#highlight-blend)")  # apply halo blend filter for better glow effect
 
         circle = ET.SubElement(photos_root, "circle")
         circle.set("cx", f"{x:.2f}")
@@ -625,6 +659,159 @@ def get_photos_geojson_path(photos_dir: str) -> str:
     return f"__tmp/{folder_name}_photos.geojson"
 
 
+def get_osm_geojson_path(photos_dir: str) -> str:
+    """Return the OSM GeoJSON cache path in __tmp for a photo folder."""
+    folder_name = Path(photos_dir).name
+    return f"__tmp/{folder_name}_osm.geojson"
+
+
+def get_overpass_query_output_path(photos_dir: str) -> Path:
+    """Return rendered overpass query path in __tmp/<folder>/<folder>.overpass.query."""
+    folder_name = Path(photos_dir).name
+    return Path("__tmp") / folder_name / f"{folder_name}.overpass.query"
+
+
+def load_overpass_query_template() -> str:
+    """Load the template query file shipped with this case."""
+    template_path = Path(__file__).with_name("overpass.query")
+    return template_path.read_text(encoding="utf-8")
+
+
+def render_overpass_query(min_lat: float, min_lon: float, max_lat: float, max_lon: float) -> str:
+    """Render overpass.query template with bbox placeholder in S,W,N,E order."""
+    template = load_overpass_query_template()
+    bbox = f"{min_lat:.6f},{min_lon:.6f},{max_lat:.6f},{max_lon:.6f}"
+    return template.replace("{{bbox}}", bbox)
+
+
+def fetch_overpass_json(query_text: str) -> dict:
+    """Execute an Overpass interpreter query and return parsed JSON."""
+    endpoints = [
+        "https://overpass-api.de/api/interpreter",
+        "https://lz4.overpass-api.de/api/interpreter",
+        "https://overpass.kumi.systems/api/interpreter",
+        "https://overpass.openstreetmap.fr/api/interpreter",
+    ]
+
+    post_body = urllib.parse.urlencode({"data": query_text}).encode("utf-8")
+    errors = []
+
+    for endpoint in endpoints:
+        request = urllib.request.Request(
+            endpoint,
+            data=post_body,
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded; charset=utf-8",
+                "Accept": "application/json,text/plain,*/*",
+                "User-Agent": "photos-viz/1.0",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=120) as response:
+                payload = response.read().decode("utf-8")
+            return json.loads(payload)
+        except urllib.error.HTTPError as err:
+            body = ""
+            try:
+                body = err.read().decode("utf-8", errors="ignore").strip().replace("\n", " ")[:200]
+            except Exception:
+                pass
+            errors.append(f"{endpoint} -> HTTP {err.code} {body}".strip())
+        except (urllib.error.URLError, json.JSONDecodeError) as err:
+            errors.append(f"{endpoint} -> {err}")
+
+    raise RuntimeError("All Overpass endpoints failed: " + " | ".join(errors))
+
+
+def _parse_osm_ref_from_properties(properties: dict) -> tuple[str, int] | None:
+    """Best-effort extraction of (osm_type, osm_id) from feature properties."""
+    if not isinstance(properties, dict):
+        return None
+
+    osm_type = properties.get("type") or properties.get("osm_type") or properties.get("@type")
+    raw_id = properties.get("id") or properties.get("osm_id") or properties.get("@id")
+
+    if isinstance(raw_id, str) and "/" in raw_id:
+        maybe_type, maybe_id = raw_id.split("/", 1)
+        if maybe_type in {"node", "way", "relation"} and maybe_id.isdigit():
+            return maybe_type, int(maybe_id)
+
+    if isinstance(raw_id, str) and raw_id and raw_id[0] in {"n", "w", "r"} and raw_id[1:].isdigit():
+        prefix_to_type = {"n": "node", "w": "way", "r": "relation"}
+        return prefix_to_type[raw_id[0]], int(raw_id[1:])
+
+    if isinstance(raw_id, str) and raw_id.isdigit():
+        raw_id = int(raw_id)
+
+    if isinstance(raw_id, int):
+        if osm_type in {"node", "way", "relation"}:
+            return osm_type, raw_id
+
+    return None
+
+
+def _enrich_geojson_properties_from_overpass(geojson: dict, overpass_data: dict):
+    """Merge original OSM tags from Overpass elements into GeoJSON feature properties."""
+    elements = overpass_data.get("elements", []) if isinstance(overpass_data, dict) else []
+    if not isinstance(elements, list):
+        return
+
+    tags_by_ref: dict[tuple[str, int], dict] = {}
+    for element in elements:
+        if not isinstance(element, dict):
+            continue
+        etype = element.get("type")
+        eid = element.get("id")
+        tags = element.get("tags")
+        if etype in {"node", "way", "relation"} and isinstance(eid, int) and isinstance(tags, dict):
+            tags_by_ref[(etype, eid)] = tags
+
+    features = geojson.get("features", []) if isinstance(geojson, dict) else []
+    if not isinstance(features, list):
+        return
+
+    for feature in features:
+        if not isinstance(feature, dict):
+            continue
+        properties = feature.get("properties")
+        if not isinstance(properties, dict):
+            properties = {}
+            feature["properties"] = properties
+
+        osm_ref = _parse_osm_ref_from_properties(properties)
+        if not osm_ref:
+            continue
+
+        source_tags = tags_by_ref.get(osm_ref)
+        if not source_tags:
+            continue
+
+        for key, value in source_tags.items():
+            properties.setdefault(key, value)
+
+
+def convert_overpass_to_geojson(overpass_data: dict) -> dict:
+    """Convert Overpass JSON to GeoJSON using osm2geojson."""
+    if not isinstance(overpass_data, dict):
+        raise ValueError("Invalid Overpass payload.")
+
+    geojson = osm2geojson.json2geojson(overpass_data)
+    if not isinstance(geojson, dict):
+        raise ValueError("osm2geojson returned invalid data.")
+
+    if geojson.get("type") != "FeatureCollection":
+        geojson = {
+            "type": "FeatureCollection",
+            "features": geojson.get("features", []),
+        }
+
+    _enrich_geojson_properties_from_overpass(geojson, overpass_data)
+
+    geojson["usable"] = True
+    return geojson
+
+
 def export_photos_geojson(records: list[dict], output_path: str):
     """
     Write photo records to a GeoJSON FeatureCollection file.
@@ -684,26 +871,56 @@ def main():
     min_lat_deg = _mercator_to_lat(min_y_merc)
     max_lat_deg = _mercator_to_lat(max_y_merc)
 
-    osm_geojson_name = f"__tmp/{Path(args.photos_dir).name}_osm.geojson"
+    osm_geojson_name = get_osm_geojson_path(args.photos_dir)
 
-    # 4. Check for GeoJSON; if absent or usable=true, print bbox and exit
-    if not os.path.isfile(osm_geojson_name):
-        print()
-        print("  GeoJSON not found. Use the bbox below to download OSM data,")
-        print()
-        print(f"  min_lon : {min_lon:.6f}")
-        print(f"  min_lat : {min_lat_deg:.6f}")
-        print(f"  max_lon : {max_lon:.6f}")
-        print(f"  max_lat : {max_lat_deg:.6f}")
-        print()
-        print(f"  Overpass bbox (S,W,N,E) : {min_lat_deg:.6f},{min_lon:.6f},{max_lat_deg:.6f},{max_lon:.6f}")
-        print()
-        sys.exit(0)
-
-    # Check if GeoJSON is marked as usable; if not, same behavior
+    # 4. First-run bootstrap: try reading GeoJSON directly. If missing, fetch and save then exit.
     try:
         with open(osm_geojson_name, "r", encoding="utf-8") as f:
             geojson_data = json.load(f)
+    except FileNotFoundError:
+        query_output_path = get_overpass_query_output_path(args.photos_dir)
+        query_output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        try:
+            query_text = render_overpass_query(min_lat_deg, min_lon, max_lat_deg, max_lon)
+            query_output_path.write_text(query_text, encoding="utf-8")
+
+            overpass_data = fetch_overpass_json(query_text)
+            geojson_data = convert_overpass_to_geojson(overpass_data)
+
+            if not geojson_data.get("features"):
+                raise ValueError("No map features returned by Overpass API.")
+
+            with open(osm_geojson_name, "w", encoding="utf-8") as f:
+                json.dump(geojson_data, f, indent=2, ensure_ascii=False)
+
+            print()
+            print(f"  Generated query file: {query_output_path}")
+            print(f"  Downloaded OSM GeoJSON: {osm_geojson_name}")
+            print("  First-run bootstrap complete. Re-run command to generate minimaps.")
+            print()
+            sys.exit(0)
+        except (FileNotFoundError, OSError, json.JSONDecodeError, ValueError, urllib.error.URLError, RuntimeError) as err:
+            print()
+            print(f"  ERROR: Failed to bootstrap OSM GeoJSON: {err}", file=sys.stderr)
+            print(f"  Query file: {query_output_path}", file=sys.stderr)
+            print()
+            print(f"  min_lon : {min_lon:.6f}", file=sys.stderr)
+            print(f"  min_lat : {min_lat_deg:.6f}", file=sys.stderr)
+            print(f"  max_lon : {max_lon:.6f}", file=sys.stderr)
+            print(f"  max_lat : {max_lat_deg:.6f}", file=sys.stderr)
+            print()
+            print(
+                f"  Overpass bbox (S,W,N,E) : {min_lat_deg:.6f},{min_lon:.6f},{max_lat_deg:.6f},{max_lon:.6f}",
+                file=sys.stderr,
+            )
+            print()
+            sys.exit(1)
+    except json.JSONDecodeError:
+        geojson_data = {}
+
+    # Check if GeoJSON is marked as usable; if not, same behavior
+    try:
         if not geojson_data.get("usable", True):
             print()
             print("  GeoJSON marked as usable=false. Use the bbox below to download OSM data,")
