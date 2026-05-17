@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+	<g id="background">
+		<rect x="0" y="0" width="512" height="512" fill="#f5f7fb" />
+	</g>
+	<g id="ground">
+		<line x1="32" y1="420" x2="480" y2="420" stroke="#6f7b8a" stroke-width="6" stroke-linecap="round" />
+	</g>
+	<g id="person" transform="translate(256 0)" fill="none" stroke="#243447" stroke-linecap="round" stroke-linejoin="round">
+		<g id="head">
+			<circle cx="0" cy="130" r="34" fill="#f4c9a2" stroke="#243447" stroke-width="6" />
+		</g>
+		<g transform="translate(0 0)">
+			<rect x="-44" y="186" width="40" height="90" rx="12" ry="12" fill="#3c5a7a" stroke="#243447" stroke-width="5" />
+			<path d="M-44 212 Q-54 226 -48 244" stroke-width="6" />
+			<path d="M-6 212 Q4 226 -2 244" stroke-width="6" />
+		</g>
+		<g id="torso" transform="translate(0 0)">
+			<path d="M-8 168 L14 304" stroke-width="14" />
+		</g>
+		<g id="arm-left" transform="translate(0 0)">
+			<polyline points="-4,210 -44,256 -70,300" stroke-width="11" />
+		</g>
+		<g id="arm-right" transform="translate(0 0)">
+			<polyline points="8,214 48,244 76,276" stroke-width="11" />
+		</g>
+		<g id="leg-left" transform="translate(0 0)">
+			<polyline points="12,304 36,354 58,420" stroke-width="13" />
+			<line x1="48" y1="420" x2="78" y2="420" stroke-width="9" />
+		</g>
+		<g id="leg-right" transform="translate(0 0)">
+			<polyline points="4,304 -28,350 -16,402" stroke-width="13" />
+			<line x1="-30" y1="402" x2="-6" y2="402" stroke-width="9" />
+		</g>
+	</g>
+</svg>

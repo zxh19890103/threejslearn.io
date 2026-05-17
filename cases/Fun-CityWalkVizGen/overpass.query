@@ -4,5 +4,7 @@
   way["waterway"="river"]({{bbox}});
   way["natural=water"]({{bbox}});
   relation["natural"="water"]({{bbox}});
+  node["tourism"]({{bbox}});
+  node["historic"]({{bbox}});
 );
 out body geom;

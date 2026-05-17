@@ -45,7 +45,7 @@ PNG_SIZE = 1000
 CIRCLE_RADIUS = 32  # 4 times bigger
 CIRCLE_STROKE_WIDTH = 8  # Adjust stroke width proportionally
 CIRCLE_HALO_RADIUS = CIRCLE_RADIUS + 10
-CIRCLE_HALO_OPACITY = 0.18
+CIRCLE_HALO_OPACITY = 0.12
 
 HIGHLIGHT_CIRCLE_RADIUS = 50  # 4 times bigger
 HIGHLIGHT_CIRCLE_STROKE_WIDTH = 12  # Adjust stroke width proportionally
@@ -58,7 +58,9 @@ HIGHLIGHT_CENTER_DOT_FILL = "#FFFFFF"
 
 width_scaled = 4;  # Scale factor for line widths to make them more visible in the SVG
 highway_simple_filter = { "motorway", "trunk", "primary", "secondary" }
+highway_labels_filter = { "motorway", "trunk" }
 use_highway_simple_filter = False  # Set to False to include all highway types, but it may cause visual clutter
+use_svg_background = True  # Set to True to include a light background rectangle in the SVG for better contrast
 
 # tertiary|residential|unclassified
 HIGHWAY_WIDTHS = {
@@ -84,14 +86,39 @@ GEOJSON_POLYGON_STROKE_WIDTH = 0.5 * width_scaled
 GEOJSON_LINE_STROKE_WIDTH = 2 * width_scaled
 GEOJSON_POINT_STROKE_WIDTH = 3 * width_scaled
 GEOJSON_POINT_RADIUS = 3 * width_scaled
-GEOJSON_LABEL_FONT_SIZE = 40
+GEOJSON_LABEL_FONT_SIZE = 20
+LABEL_MIN_DIST = 50          # minimum pixel gap between any two labels
+GEOJSON_LABEL_FONT_FAMILY = '"Lantinghei SC", sans-serif'
+LANDMARK_DISTANCE_M_DEFAULT = 500.0
+LANDMARK_POINT_RADIUS = 12
+LANDMARK_POINT_STROKE_WIDTH = 2
+LANDMARK_POINT_COLORS = {
+    "amenity": "#F59E0B",
+    "tourism": "#3B82F6",
+    "historic": "#A855F7",
+}
+LANDMARK_POINT_STROKE_COLORS = {
+    "amenity": "#B45309",
+    "tourism": "#3B82F6",
+    "historic": "#A855F7",
+}
+LANDMARK_CATEGORY_WEIGHTS = {
+    "historic": 3.0,
+    "tourism": 2.0,
+    "amenity": 1.0,
+}
+LANDMARK_LABEL_MAX_COUNT = 32
+LANDMARK_LABEL_MAX_PER_CELL = 2
+LANDMARK_LABEL_GRID_SIZE = 150
+LANDMARK_LABEL_PADDING = 8
+LANDMARK_LABEL_PHOTO_AVOID_RADIUS = CIRCLE_HALO_RADIUS + 8
 
 # default color scheme (optimized for light backgrounds)
 
 GEOJSON_POLYGON_FILL = "#B7E4C7" # pastel mint
 GEOJSON_POLYGON_STROKE = "#5A8F7B" # muted mint-teal edge
 GEOJSON_LINE_STROKE = "#6FBF9E" # soft green road tone
-GEOJSON_LABEL_FILL = "#22223B" # deep indigo for readability
+GEOJSON_LABEL_FILL = "#374151" # calm slate for readable but quieter labels
 
 WATERWAY_LINE_STROKE = "#74aCFF" # pastel blue water
 WATERWAY_POLYGON_STROKE = "#749eFF" # pastel blue water
@@ -100,15 +127,9 @@ WATERWAY_POLYGON_FILL = "#74aCFF" # pastel blue water
 HIGHLIGHT_CIRCLE_FILL = "#FFB4A2" # pastel coral highlight
 HIGHLIGHT_CIRCLE_STROKE = "#F28482" # stronger coral edge
 
-CIRCLE_FILL = "#A0C4FF" # pastel blue photo marks
-CIRCLE_STROKE = "#7DA2D6" # medium blue edge
-
-PHOTO_ICON_PATH = Path(__file__).with_name("icon-photo.svg")
-PHOTO_ICON_SIZE = CIRCLE_RADIUS * 2
-PHOTO_ICON_PANEL_FILL = "#93C5FD"
-PHOTO_ICON_PANEL_STROKE = "#0F172A"
-PHOTO_ICON_DOT_FILL = "#FB7185"
-PHOTO_ICON_SCENE_FILL = "#22C55E"
+# soft orange 
+CIRCLE_FILL = "#FFA500" # vivid yellow photo marks for stronger map contrast
+CIRCLE_STROKE = "#FF8C00" # amber-gold edge for clear separation
 
 def _apply_dark_mode():
     global GEOJSON_POLYGON_FILL, GEOJSON_POLYGON_STROKE, GEOJSON_LINE_STROKE
@@ -117,7 +138,7 @@ def _apply_dark_mode():
     GEOJSON_LINE_STROKE = "#CFE8D6"     # light desaturated green for roads
 
     global GEOJSON_LABEL_FILL
-    GEOJSON_LABEL_FILL = "#FFF9C4"      # warm light label tone
+    GEOJSON_LABEL_FILL = "#C7CDD8"      # soft cool gray to reduce visual pull
 
     global WATERWAY_LINE_STROKE, WATERWAY_POLYGON_STROKE, WATERWAY_POLYGON_FILL
     WATERWAY_LINE_STROKE = "#81D4FA"    # bright pastel cyan
@@ -129,76 +150,20 @@ def _apply_dark_mode():
     HIGHLIGHT_CIRCLE_STROKE = "#FFF1B8"
 
     global CIRCLE_FILL, CIRCLE_STROKE
-    CIRCLE_FILL = "#AED7F5"             # keep circles luminous on dark photos
-    CIRCLE_STROKE = "#E0F2FF"
+    CIRCLE_FILL = "#FFE45E"             # luminous yellow stays visible on dark mode
+    CIRCLE_STROKE = "#FFD60A"
 
-
-def _parse_viewbox_size(viewbox: str | None) -> tuple[float, float]:
-    """Parse an SVG viewBox string and return (width, height)."""
-    if not viewbox:
-        return 24.0, 24.0
-    parts = viewbox.replace(",", " ").split()
-    if len(parts) != 4:
-        return 24.0, 24.0
-    try:
-        width = float(parts[2])
-        height = float(parts[3])
-        if width <= 0 or height <= 0:
-            return 24.0, 24.0
-        return width, height
-    except ValueError:
-        return 24.0, 24.0
-
-
-def _load_photo_icon_template() -> tuple[list[ET.Element], float, float]:
-    """Load icon-photo.svg and return (child elements, viewbox width, viewbox height)."""
-    try:
-        icon_root = ET.fromstring(PHOTO_ICON_PATH.read_text(encoding="utf-8"))
-    except (FileNotFoundError, ET.ParseError, OSError):
-        return [], 24.0, 24.0
-
-    viewbox_w, viewbox_h = _parse_viewbox_size(icon_root.get("viewBox"))
-    return list(icon_root), viewbox_w, viewbox_h
-
-
-def _clone_element(elem: ET.Element) -> ET.Element:
-    """Return a deep clone of an XML element."""
-    return ET.fromstring(ET.tostring(elem, encoding="unicode"))
-
-
-def _is_black_color(value: str | None) -> bool:
-    """Return True if the color value is effectively black."""
-    if not value:
-        return False
-    normalized = value.strip().lower().replace(" ", "")
-    return normalized in {"black", "#000", "#000000", "rgb(0,0,0)"}
-
-
-def _style_photo_icon_element(elem: ET.Element):
-    """Recolor icon parts from black to the configured photo marker palette."""
-    tag_name = elem.tag.rsplit("}", 1)[-1]
-    fill = elem.get("fill")
-    stroke = elem.get("stroke")
-
-    if tag_name == "rect":
-        if fill == "none" or _is_black_color(fill):
-            elem.set("fill", PHOTO_ICON_PANEL_FILL)
-        if _is_black_color(stroke):
-            elem.set("stroke", PHOTO_ICON_PANEL_STROKE)
-        return
-
-    if tag_name == "circle" and _is_black_color(fill):
-        elem.set("fill", PHOTO_ICON_DOT_FILL)
-        return
-
-    if tag_name == "path" and _is_black_color(fill):
-        elem.set("fill", PHOTO_ICON_SCENE_FILL)
-        return
-
-    if _is_black_color(fill):
-        elem.set("fill", CIRCLE_FILL)
-    if _is_black_color(stroke):
-        elem.set("stroke", CIRCLE_STROKE)
+    global LANDMARK_POINT_COLORS, LANDMARK_POINT_STROKE_COLORS
+    LANDMARK_POINT_COLORS = {
+        "amenity": "#FBBF24",
+        "tourism": "#60A5FA",
+        "historic": "#C084FC",
+    }
+    LANDMARK_POINT_STROKE_COLORS = {
+        "amenity": "#B45309",
+        "tourism": "#1D4ED8",
+        "historic": "#7E22CE",
+    }
 
 # ── EXIF helpers ─────────────────────────────────────────────────────────────
 
@@ -402,6 +367,151 @@ def _feature_name(properties):
     return properties.get("name:en") or properties.get("name")
 
 
+def _landmark_category(properties: dict) -> str | None:
+    """Classify an OSM feature as a landmark category based on tags."""
+    if not isinstance(properties, dict):
+        return None
+    if properties.get("tourism"):
+        return "tourism"
+    if properties.get("historic"):
+        return "historic"
+    if properties.get("amenity"):
+        return "amenity"
+    return None
+
+
+def _haversine_distance_meters(lon1: float, lat1: float, lon2: float, lat2: float) -> float:
+    """Return great-circle distance in meters between two lon/lat points."""
+    r = 6371000.0
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    d_phi = math.radians(lat2 - lat1)
+    d_lambda = math.radians(lon2 - lon1)
+
+    a = (
+        math.sin(d_phi / 2.0) ** 2
+        + math.cos(phi1) * math.cos(phi2) * math.sin(d_lambda / 2.0) ** 2
+    )
+    c = 2.0 * math.atan2(math.sqrt(a), math.sqrt(max(0.0, 1.0 - a)))
+    return r * c
+
+
+def _landmark_importance_score(properties: dict, category: str, min_distance_m: float, max_distance_m: float) -> float:
+    """Compute a deterministic importance score for selecting landmark labels."""
+    category_weight = LANDMARK_CATEGORY_WEIGHTS.get(category, 0.0)
+
+    # Nearby landmarks are more relevant. Normalize into [0, 1].
+    if max_distance_m > 0:
+        distance_score = max(0.0, min(1.0, 1.0 - (min_distance_m / max_distance_m)))
+    else:
+        distance_score = 0.0
+
+    name = _feature_name(properties)
+    name_score = 0.6 if isinstance(name, str) and len(name.strip()) >= 2 else 0.0
+    importance_bonus = 0.0
+    if properties.get("wikidata"):
+        importance_bonus += 0.6
+    if properties.get("wikipedia"):
+        importance_bonus += 0.5
+    if properties.get("heritage"):
+        importance_bonus += 0.4
+
+    return category_weight + distance_score + name_score + importance_bonus
+
+
+def _landmark_key(feature: dict) -> tuple:
+    """Build a stable dedup key for landmark point features."""
+    properties = feature.get("properties") if isinstance(feature, dict) else None
+    osm_ref = _parse_osm_ref_from_properties(properties if isinstance(properties, dict) else {})
+    if osm_ref:
+        return ("osm", osm_ref[0], osm_ref[1])
+
+    geom = feature.get("geometry") if isinstance(feature, dict) else None
+    coords = geom.get("coordinates") if isinstance(geom, dict) else None
+    if isinstance(coords, list) and len(coords) >= 2:
+        try:
+            lon = round(float(coords[0]), 7)
+            lat = round(float(coords[1]), 7)
+            return ("coord", lon, lat)
+        except (TypeError, ValueError):
+            pass
+    return ("feature", id(feature))
+
+
+def _collect_nearby_landmarks(features: list[dict], records: list[dict], distance_m: float) -> dict[tuple, dict]:
+    """Return deduplicated nearby landmark features keyed by stable landmark key."""
+    if distance_m <= 0:
+        return {}
+
+    nearby: dict[tuple, dict] = {}
+    for feature in features:
+        if not isinstance(feature, dict):
+            continue
+        geom = feature.get("geometry")
+        if not isinstance(geom, dict) or geom.get("type") != "Point":
+            continue
+
+        properties = feature.get("properties") or {}
+        category = _landmark_category(properties)
+        if category is None:
+            continue
+
+        coords = geom.get("coordinates")
+        if not isinstance(coords, list) or len(coords) < 2:
+            continue
+
+        try:
+            lon = float(coords[0])
+            lat = float(coords[1])
+        except (TypeError, ValueError):
+            continue
+
+        nearest_distance: float | None = None
+        for rec in records:
+            dist = _haversine_distance_meters(lon, lat, rec["lon"], rec["lat"])
+            if nearest_distance is None or dist < nearest_distance:
+                nearest_distance = dist
+
+        if nearest_distance is None or nearest_distance > distance_m:
+            continue
+
+        key = _landmark_key(feature)
+        score = _landmark_importance_score(properties, category, nearest_distance, distance_m)
+        existing = nearby.get(key)
+        if existing is None or score > existing["score"]:
+            nearby[key] = {
+                "feature": feature,
+                "category": category,
+                "distance_m": nearest_distance,
+                "score": score,
+            }
+
+    return nearby
+
+
+def _label_bbox(x: float, y: float, text_value: str) -> tuple[float, float, float, float]:
+    """Approximate axis-aligned label bounding box for overlap checks."""
+    width = _estimate_label_width(text_value)
+    height = GEOJSON_LABEL_FONT_SIZE * 1.1
+    left = x + 6
+    top = y - 6 - height
+    right = left + width
+    bottom = top + height
+    return left, top, right, bottom
+
+
+def _boxes_intersect(a: tuple[float, float, float, float],
+                     b: tuple[float, float, float, float],
+                     padding: float = 0.0) -> bool:
+    """Return True if two axis-aligned boxes intersect (with optional padding)."""
+    return not (
+        a[2] + padding < b[0]
+        or a[0] - padding > b[2]
+        or a[3] + padding < b[1]
+        or a[1] - padding > b[3]
+    )
+
+
 def _coords_centroid(coords):
     """Return centroid (mean lon/lat) for [[lon,lat], ...]."""
     if not isinstance(coords, list) or not coords:
@@ -420,24 +530,194 @@ def _coords_centroid(coords):
     return lon, lat
 
 
+def _coords_to_svg_points(coords, min_lon, min_lat, max_lon, max_lat) -> list[tuple[float, float]]:
+    """Convert [[lon,lat], ...] coordinates to [(x,y), ...] in SVG space."""
+    points: list[tuple[float, float]] = []
+    if not isinstance(coords, list):
+        return points
+    for coord in coords:
+        if not isinstance(coord, (list, tuple)) or len(coord) < 2:
+            continue
+        try:
+            lon = float(coord[0])
+            lat = float(coord[1])
+        except (TypeError, ValueError):
+            continue
+        points.append(geo_to_svg(lon, lat, min_lon, min_lat, max_lon, max_lat))
+    return points
+
+
+def _polyline_length(points: list[tuple[float, float]]) -> float:
+    """Return total Euclidean length of a polyline in SVG pixel units."""
+    if len(points) < 2:
+        return 0.0
+    length = 0.0
+    for idx in range(1, len(points)):
+        x0, y0 = points[idx - 1]
+        x1, y1 = points[idx]
+        length += math.hypot(x1 - x0, y1 - y0)
+    return length
+
+
+def _polyline_straightness(points: list[tuple[float, float]]) -> float:
+    """Return how straight a polyline is, as chord_length / path_length."""
+    if len(points) < 2:
+        return 0.0
+    path_length = _polyline_length(points)
+    if path_length <= 0:
+        return 0.0
+    start_x, start_y = points[0]
+    end_x, end_y = points[-1]
+    chord_length = math.hypot(end_x - start_x, end_y - start_y)
+    return chord_length / path_length
+
+
+def _polyline_midpoint(points: list[tuple[float, float]]) -> tuple[float, float] | None:
+    """Return the point at half cumulative polyline length."""
+    if len(points) < 2:
+        return None
+    total = _polyline_length(points)
+    if total <= 0:
+        return points[0]
+
+    target = total / 2.0
+    walked = 0.0
+    for idx in range(1, len(points)):
+        x0, y0 = points[idx - 1]
+        x1, y1 = points[idx]
+        seg = math.hypot(x1 - x0, y1 - y0)
+        if walked + seg >= target and seg > 0:
+            ratio = (target - walked) / seg
+            return (x0 + (x1 - x0) * ratio, y0 + (y1 - y0) * ratio)
+        walked += seg
+    return points[-1]
+
+
+def _points_close(a: tuple[float, float], b: tuple[float, float], tolerance: float = 3.0) -> bool:
+    """Return True when two projected points are within tolerance (in SVG pixels)."""
+    return math.hypot(a[0] - b[0], a[1] - b[1]) <= tolerance
+
+
+def _stitch_polylines(lines: list[list[tuple[float, float]]], tolerance: float = 3.0) -> list[list[tuple[float, float]]]:
+    """Greedily merge polyline segments by matching endpoints within tolerance."""
+    merged = [line[:] for line in lines if len(line) >= 2]
+    if not merged:
+        return merged
+
+    changed = True
+    while changed:
+        changed = False
+        i = 0
+        while i < len(merged):
+            base = merged[i]
+            j = i + 1
+            while j < len(merged):
+                candidate = merged[j]
+                if _points_close(base[-1], candidate[0], tolerance):
+                    base.extend(candidate[1:])
+                elif _points_close(base[-1], candidate[-1], tolerance):
+                    base.extend(reversed(candidate[:-1]))
+                elif _points_close(base[0], candidate[-1], tolerance):
+                    base = candidate[:-1] + base
+                elif _points_close(base[0], candidate[0], tolerance):
+                    base = list(reversed(candidate[1:])) + base
+                else:
+                    j += 1
+                    continue
+
+                merged[i] = base
+                merged.pop(j)
+                changed = True
+            i += 1
+
+    return merged
+
+
+def _estimate_label_width(text_value: str) -> float:
+    """Estimate label width in pixels to gate text-on-path placement."""
+    return max(1, len(text_value)) * GEOJSON_LABEL_FONT_SIZE * 0.55
+
+
+def _path_d_from_points(points: list[tuple[float, float]]) -> str:
+    """Build an SVG path `d` command from projected points."""
+    if len(points) < 2:
+        return ""
+    start_x, start_y = points[0]
+    segments = [f"M {start_x:.2f} {start_y:.2f}"]
+    for x, y in points[1:]:
+        segments.append(f"L {x:.2f} {y:.2f}")
+    return " ".join(segments)
+
+
+def _append_text_on_path(labels_root: ET.Element,
+                         points: list[tuple[float, float]],
+                         text_value: str,
+                         path_id: str) -> bool:
+    """Render a label along a line/river path; returns False if path is too short."""
+    if not text_value or len(points) < 2:
+        return False
+
+    required_length = _estimate_label_width(text_value) + GEOJSON_LABEL_FONT_SIZE * 1.0
+    if _polyline_length(points) < required_length:
+        return False
+
+    if _polyline_straightness(points) < 0.88:
+        return False
+
+    oriented_points = points
+    if points[-1][0] < points[0][0]:
+        oriented_points = list(reversed(points))
+
+    path_d = _path_d_from_points(oriented_points)
+    if not path_d:
+        return False
+
+    path_elem = ET.SubElement(labels_root, "path")
+    path_elem.set("id", path_id)
+    path_elem.set("d", path_d)
+    path_elem.set("fill", "none")
+    path_elem.set("stroke", "none")
+
+    text_elem = ET.SubElement(labels_root, "text")
+    text_elem.set("fill", GEOJSON_LABEL_FILL)
+    text_elem.set("stroke", GEOJSON_LABEL_FILL)
+    text_elem.set("stroke-width", "3")
+    text_elem.set("font-size", str(GEOJSON_LABEL_FONT_SIZE))
+    text_elem.set("font-family", GEOJSON_LABEL_FONT_FAMILY)
+    text_elem.set("text-anchor", "middle")
+    text_elem.set("dominant-baseline", "central")
+
+    text_path = ET.SubElement(text_elem, "textPath")
+    text_path.set("startOffset", "50%")
+    text_path.set("method", "align")
+    text_path.set("spacing", "auto")
+    text_path.set("href", f"#{path_id}")
+    text_path.set("{http://www.w3.org/1999/xlink}href", f"#{path_id}")
+    text_path.text = text_value
+
+    return True
+
+
 def _append_text(svg_root: ET.Element, x: float, y: float, text_value: str):
-    """Append a styled SVG text label near the given anchor point, with Wawati SC font for Chinese support."""
+    """Append a styled SVG text label near the given anchor point, with Yuanti SC font for Chinese support."""
     if not text_value:
         return
     text_elem = ET.SubElement(svg_root, "text")
     text_elem.set("x", f"{x + 6:.2f}")
     text_elem.set("y", f"{y - 6:.2f}")
-    text_elem.set("fill", "none")
-    text_elem.set("stroke", GEOJSON_LABEL_FILL)
+    text_elem.set("fill", GEOJSON_LABEL_FILL)
+    text_elem.set("stroke", "none")
     text_elem.set("stroke-width", "3")
     text_elem.set("font-size", str(GEOJSON_LABEL_FONT_SIZE))
-    text_elem.set("font-family", '"Wawati SC", sans-serif')
+    text_elem.set("font-family", GEOJSON_LABEL_FONT_FAMILY)
     text_elem.text = text_value
 
 def geojson_elements(geojson_path: str,
                      min_lon: float, min_lat: float,
                      max_lon: float, max_lat: float,
-                     svg_root: ET.Element):
+                     svg_root: ET.Element,
+                     records: list[dict],
+                     landmark_distance_m: float):
     """
     Parse a GeoJSON FeatureCollection and append SVG geometry + labels.
     """
@@ -451,11 +731,22 @@ def geojson_elements(geojson_path: str,
     features = data.get("features", [])
     rendered_labels = set()       # track rendered road names to avoid duplicates
     rendered_label_positions = [] # (x, y) of placed labels
-    LABEL_MIN_DIST = 100          # minimum pixel gap between any two labels
-    
+    rendered_label_boxes = []     # (left, top, right, bottom) for overlap checks
+    label_path_index = 0
+    named_line_batches = {}
+    allowed_landmarks = _collect_nearby_landmarks(features, records, landmark_distance_m)
+
+    photo_points = [
+        geo_to_svg(rec["lon"], rec["lat"], min_lon, min_lat, max_lon, max_lat)
+        for rec in records
+    ]
+    landmark_candidates = []
+    seen_landmark_keys = set()
+
     roads_root = ET.SubElement(svg_root, "g", id="roads")
     rivers_root = ET.SubElement(svg_root, "g", id="rivers")
     landmarks_root = ET.SubElement(svg_root, "g", id="landmarks")
+    landmarks_points_root = ET.SubElement(svg_root, "g", id="landmarks_points")
     labels_root = ET.SubElement(svg_root, "g", id="labels")  # separate group for labels to render on top of all geometry
     
     for feature in features:
@@ -466,14 +757,16 @@ def geojson_elements(geojson_path: str,
         properties = feature.get("properties") or {}
         name = _feature_name(properties)
         gtype = geom.get("type")
+        
+        highway = properties.get("highway")
+        waterway = properties.get("waterway")
+        natural = properties.get("natural")
 
         if gtype == "Polygon":
             rings = geom.get("coordinates", [])
             
             if not isinstance(rings, list) or not rings:
                 continue
-            
-            natural = properties.get("natural")
             
             for i, ring in enumerate(rings):
                 if not isinstance(ring, list) or not ring:
@@ -538,73 +831,230 @@ def geojson_elements(geojson_path: str,
             if not isinstance(coords, list) or not coords:
                 continue
             pts = _coords_to_polyline(coords, min_lon, min_lat, max_lon, max_lat)
-            elem = ET.SubElement(roads_root, "polyline")
-            elem.set("points", pts)
-            elem.set("fill", "none")
-            highway = properties.get("highway")
-            waterway = properties.get("waterway")
+            svg_points = _coords_to_svg_points(coords, min_lon, min_lat, max_lon, max_lat)
+            if len(svg_points) < 2:
+                continue
             
             if waterway:
-                elem.set("stroke", WATERWAY_LINE_STROKE)
+                kind = "river"
+                stroke_color = WATERWAY_LINE_STROKE
                 width = WATERWAY_WIDTHS.get(waterway, GEOJSON_LINE_STROKE_WIDTH)
             else:
                 if use_highway_simple_filter and highway not in highway_simple_filter:
                     continue  # skip minor roads for visual clarity
-                elem.set("stroke", GEOJSON_LINE_STROKE)
+                kind = "road"
+                stroke_color = GEOJSON_LINE_STROKE
                 width = HIGHWAY_WIDTHS.get(highway, GEOJSON_LINE_STROKE_WIDTH)
 
-            elem.set("stroke-width", str(width))
-            
             if name:
-                if name in rendered_labels:
-                    continue
-                centroid = _coords_centroid(coords)
-                if centroid:
-                    x, y = geo_to_svg(centroid[0], centroid[1], min_lon, min_lat, max_lon, max_lat)
-                    too_close = any(
-                        math.hypot(x - px, y - py) < LABEL_MIN_DIST
-                        for px, py in rendered_label_positions
-                    )
-                    if not too_close:
-                        _append_text(labels_root, x, y, name)
-                        rendered_labels.add(name)
-                        rendered_label_positions.append((x, y))
+                batch_key = (kind, name)
+                batch = named_line_batches.get(batch_key)
+                if batch is None:
+                    named_line_batches[batch_key] = {
+                        "stroke_color": stroke_color,
+                        "width": width,
+                        "highway": highway,
+                        "waterway": waterway,
+                        "segments": [svg_points],
+                    }
+                else:
+                    batch["width"] = max(batch["width"], width)
+                    batch["segments"].append(svg_points)
+            else:
+                target_group = rivers_root if kind == "river" else roads_root
+                elem = ET.SubElement(target_group, "polyline")
+                elem.set("points", pts)
+                elem.set("fill", "none")
+                elem.set("stroke", stroke_color)
+                elem.set("stroke-width", str(width))
 
         elif gtype == "MultiLineString":
             lines = geom.get("coordinates", [])
             if not isinstance(lines, list) or not lines:
                 continue
-            all_coords = []
-            highway = properties.get("highway")
-            waterway = properties.get("waterway")
-            elem = None
+            candidate_lines = []
+            
             if waterway:
+                kind = "river"
                 stroke_color = WATERWAY_LINE_STROKE
                 width = WATERWAY_WIDTHS.get(waterway, GEOJSON_LINE_STROKE_WIDTH)
-                elem = ET.SubElement(rivers_root, "polyline")  # group waterways separately
+                target_group = rivers_root
             else:
                 if use_highway_simple_filter and highway not in highway_simple_filter:
                     continue  # skip minor roads for visual clarity
-                
+
+                kind = "road"
                 stroke_color = GEOJSON_LINE_STROKE
                 width = HIGHWAY_WIDTHS.get(highway, GEOJSON_LINE_STROKE_WIDTH)
-                elem = ET.SubElement(roads_root, "polyline")  # group roads separately
+                target_group = roads_root
+
             for line in lines:
                 if not isinstance(line, list) or not line:
                     continue
-                pts = _coords_to_polyline(line, min_lon, min_lat, max_lon, max_lat)
-                
-                elem.set("points", pts)
-                elem.set("fill", "none")
-                elem.set("stroke", stroke_color)
-                elem.set("stroke-width", str(width))
-                all_coords.extend(line)
+                svg_points = _coords_to_svg_points(line, min_lon, min_lat, max_lon, max_lat)
+                if len(svg_points) >= 2:
+                    candidate_lines.append(svg_points)
+
+            if not candidate_lines:
+                continue
+
+            if name:
+                batch_key = (kind, name)
+                batch = named_line_batches.get(batch_key)
+                if batch is None:
+                    named_line_batches[batch_key] = {
+                        "stroke_color": stroke_color,
+                        "width": width,
+                        "highway": highway,
+                        "waterway": waterway,
+                        "segments": candidate_lines,
+                    }
+                else:
+                    batch["width"] = max(batch["width"], width)
+                    batch["segments"].extend(candidate_lines)
+            else:
+                merged_lines = _stitch_polylines(candidate_lines)
+                for merged in merged_lines:
+                    pts = " ".join(f"{x:.2f},{y:.2f}" for x, y in merged)
+                    elem = ET.SubElement(target_group, "polyline")
+                    elem.set("points", pts)
+                    elem.set("fill", "none")
+                    elem.set("stroke", stroke_color)
+                    elem.set("stroke-width", str(width))
+
+        elif gtype == "Point":
+            if not allowed_landmarks:
+                continue
+
+            category = _landmark_category(properties)
+            if category is None:
+                continue
+
+            landmark_key = _landmark_key(feature)
+            landmark_meta = allowed_landmarks.get(landmark_key)
+            if landmark_meta is None:
+                continue
+
+            if landmark_key in seen_landmark_keys:
+                continue
+            seen_landmark_keys.add(landmark_key)
+
+            coords = geom.get("coordinates", [])
+            if not isinstance(coords, list) or len(coords) < 2:
+                continue
+
+            try:
+                lon = float(coords[0])
+                lat = float(coords[1])
+            except (TypeError, ValueError):
+                continue
+
+            x, y = geo_to_svg(lon, lat, min_lon, min_lat, max_lon, max_lat)
+
+            point_elem = ET.SubElement(landmarks_points_root, "circle")
+            point_elem.set("cx", f"{x:.2f}")
+            point_elem.set("cy", f"{y:.2f}")
+            point_elem.set("r", str(LANDMARK_POINT_RADIUS))
+            point_elem.set("opacity", "0.56")
+            point_elem.set("fill", LANDMARK_POINT_COLORS.get(category, LANDMARK_POINT_COLORS["amenity"]))
+            point_elem.set("stroke", LANDMARK_POINT_STROKE_COLORS.get(category, LANDMARK_POINT_STROKE_COLORS["amenity"]))
+            point_elem.set("stroke-width", str(LANDMARK_POINT_STROKE_WIDTH))
+            landmark_candidates.append({
+                "name": name,
+                "x": x,
+                "y": y,
+                "score": landmark_meta["score"],
+            })
+
+    for (kind, name), batch in named_line_batches.items():
+        merged_lines = _stitch_polylines(batch["segments"])
+        target_group = rivers_root if kind == "river" else roads_root
+        highway = batch["highway"]
+
+        for merged in merged_lines:
+            pts = " ".join(f"{x:.2f},{y:.2f}" for x, y in merged)
+            elem = ET.SubElement(target_group, "polyline")
+            elem.set("points", pts)
+            elem.set("fill", "none")
+            elem.set("stroke", batch["stroke_color"])
+            elem.set("stroke-width", str(batch["width"]))
+
+        if name in rendered_labels:
+            continue
+        
+        if highway and highway not in highway_labels_filter:
+            continue
+        
+        merged_lines.sort(key=_polyline_length, reverse=True)
+        if not merged_lines:
+            continue
+
+        anchor = _polyline_midpoint(merged_lines[0])
+        if anchor is None:
+            continue
+
+        x, y = anchor
+        
+        too_close = any(
+            math.hypot(x - px, y - py) < LABEL_MIN_DIST
+            for px, py in rendered_label_positions
+        )
+        if too_close:
+            continue
+
+        path_id = f"label-path-{label_path_index}"
+        label_path_index += 1
+        if not _append_text_on_path(labels_root, merged_lines[0], name, path_id):
+            _append_text(labels_root, x, y, name)
+        rendered_labels.add(name)
+        rendered_label_positions.append((x, y))
+        rendered_label_boxes.append(_label_bbox(x, y, name))
+
+    # Place landmark labels by importance using greedy overlap rejection.
+    landmark_candidates.sort(key=lambda item: item["score"], reverse=True)
+    grid_counts: dict[tuple[int, int], int] = {}
+    labels_used = 0
+
+    for candidate in landmark_candidates:
+        name = candidate["name"]
+        if not name:
+            continue
+        if labels_used >= LANDMARK_LABEL_MAX_COUNT:
+            break
+
+        x = candidate["x"]
+        y = candidate["y"]
+
+        # Keep labels away from photo markers to reduce clutter near highlights.
+        near_photo = any(
+            math.hypot(x - px, y - py) < LANDMARK_LABEL_PHOTO_AVOID_RADIUS
+            for px, py in photo_points
+        )
+        if near_photo:
+            continue
+
+        label_box = _label_bbox(x, y, name)
+        if any(_boxes_intersect(label_box, existing_box, padding=LANDMARK_LABEL_PADDING) for existing_box in rendered_label_boxes):
+            continue
+
+        cell_x = int((label_box[0] + label_box[2]) / 2.0 // LANDMARK_LABEL_GRID_SIZE)
+        cell_y = int((label_box[1] + label_box[3]) / 2.0 // LANDMARK_LABEL_GRID_SIZE)
+        cell_key = (cell_x, cell_y)
+        if grid_counts.get(cell_key, 0) >= LANDMARK_LABEL_MAX_PER_CELL:
+            continue
+
+        _append_text(labels_root, x, y, name)
+        rendered_label_positions.append((x, y))
+        rendered_label_boxes.append(label_box)
+        grid_counts[cell_key] = grid_counts.get(cell_key, 0) + 1
+        labels_used += 1
                 
 # ── SVG composition ──────────────────────────────────────────────────────────
 
 def build_svg(records: list[dict],
               bbox: tuple[float, float, float, float],
-              geojson_path: str | None) -> tuple[ET.Element, ET.Element, ET.Element, ET.Element, ET.Element]:
+              geojson_path: str | None,
+              landmark_distance_m: float) -> tuple[ET.Element, ET.Element, ET.Element, ET.Element, ET.Element]:
     """
     Compose the full SVG tree once.
     Layers (bottom → top): background, GeoJSON shapes, photo circles, one movable highlight.
@@ -628,14 +1078,15 @@ def build_svg(records: list[dict],
     # ET.SubElement(filter_elem2, "feComposite", operator="arithmetic", k1="0", k2="1", k3="0", k4="0", in2="BackgroundImage", in_="SourceGraphic")
     
     # Background
-    bg = ET.SubElement(svg, "rect")
-    bg.set("width", str(SVG_WIDTH))
-    bg.set("height", str(SVG_HEIGHT))
-    bg.set("fill", "#f8f8f8")
+    if (use_svg_background):
+        bg = ET.SubElement(svg, "rect")
+        bg.set("width", str(SVG_WIDTH))
+        bg.set("height", str(SVG_HEIGHT))
+        bg.set("fill", "#f8f8f8")
 
     # GeoJSON layer
     if geojson_path and os.path.isfile(geojson_path):
-        geojson_elements(geojson_path, min_lon, min_lat, max_lon, max_lat, svg)
+        geojson_elements(geojson_path, min_lon, min_lat, max_lon, max_lat, svg, records, landmark_distance_m)
 
     highlight_photo_root = ET.SubElement(svg, "g", id="highlight_photo")
     photos_root = ET.SubElement(svg, "g", id="photos")
@@ -650,16 +1101,15 @@ def build_svg(records: list[dict],
         halo.set("r", str(CIRCLE_HALO_RADIUS))
         halo.set("opacity", str(CIRCLE_HALO_OPACITY))
         halo.set("fill", CIRCLE_FILL)
-        halo.set("filter", "url(#highlight-blend)")  # apply halo blend filter for better glow effect
 
         circle = ET.SubElement(photos_root, "circle")
         circle.set("cx", f"{x:.2f}")
         circle.set("cy", f"{y:.2f}")
         circle.set("r", str(CIRCLE_RADIUS))
-        circle.set("opacity", "0.56")
         circle.set("fill", CIRCLE_FILL)
+        circle.set("opacity", "0.32")
         circle.set("stroke", CIRCLE_STROKE)
-        circle.set("stroke-width", "3")
+        circle.set("stroke-width", "1")
 
     # Reusable highlight layers. Positions are updated per photo before export.
     highlight_halo = ET.SubElement(highlight_photo_root, "circle")
@@ -931,6 +1381,8 @@ def main():
                         help="use a dark background and color scheme for better visibility in low-light conditions")
     parser.add_argument("--simple", type=bool, default=False,
                         help="only render major highways (motorway, trunk, primary) for visual clarity")
+    parser.add_argument("--landmark-distance", type=float, default=LANDMARK_DISTANCE_M_DEFAULT,
+                        help=f"render landmarks within this distance (meters, default: {LANDMARK_DISTANCE_M_DEFAULT})")
     args = parser.parse_args()
 
     # 1. Scan photos
@@ -1033,7 +1485,12 @@ def main():
         global use_highway_simple_filter
         use_highway_simple_filter = True
 
-    svg_root, highlight_halo, highlight_circle, highlight_ring, highlight_center_dot = build_svg(records, bbox, osm_geojson_name)
+    svg_root, highlight_halo, highlight_circle, highlight_ring, highlight_center_dot = build_svg(
+        records,
+        bbox,
+        osm_geojson_name,
+        args.landmark_distance,
+    )
     
     for rec in records:
         # match search query if provided
