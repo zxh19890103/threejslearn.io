@@ -39,8 +39,7 @@ GPS_TAGS = {v: k for k, v in ExifTags.GPSTAGS.items()}  # name → tag id
 
 SVG_WIDTH = 1000
 SVG_HEIGHT = 1000
-PNG_SIZE = 1000
-
+PNG_SIZE = 1024
 
 CIRCLE_RADIUS = 32  # 4 times bigger
 CIRCLE_STROKE_WIDTH = 8  # Adjust stroke width proportionally
@@ -58,9 +57,9 @@ HIGHLIGHT_CENTER_DOT_FILL = "#FFFFFF"
 
 width_scaled = 4;  # Scale factor for line widths to make them more visible in the SVG
 highway_simple_filter = { "motorway", "trunk", "primary", "secondary" }
-highway_labels_filter = { "motorway", "trunk" }
+highway_labels_filter = { "motorway", "trunk", "primary", "secondary" }
 use_highway_simple_filter = False  # Set to False to include all highway types, but it may cause visual clutter
-use_svg_background = True  # Set to True to include a light background rectangle in the SVG for better contrast
+use_svg_background = False  # Set to True to include a light background rectangle in the SVG for better contrast
 
 # tertiary|residential|unclassified
 HIGHWAY_WIDTHS = {
@@ -86,10 +85,10 @@ GEOJSON_POLYGON_STROKE_WIDTH = 0.5 * width_scaled
 GEOJSON_LINE_STROKE_WIDTH = 2 * width_scaled
 GEOJSON_POINT_STROKE_WIDTH = 3 * width_scaled
 GEOJSON_POINT_RADIUS = 3 * width_scaled
-GEOJSON_LABEL_FONT_SIZE = 20
-LABEL_MIN_DIST = 50          # minimum pixel gap between any two labels
-GEOJSON_LABEL_FONT_FAMILY = '"Lantinghei SC", sans-serif'
-LANDMARK_DISTANCE_M_DEFAULT = 500.0
+GEOJSON_LABEL_FONT_SIZE = 40
+LABEL_MIN_DIST = 10          # minimum pixel gap between any two labels
+GEOJSON_LABEL_FONT_FAMILY = '"HanziPen SC", sans-serif'
+LANDMARK_DISTANCE_M_DEFAULT = 1000.0
 LANDMARK_POINT_RADIUS = 12
 LANDMARK_POINT_STROKE_WIDTH = 2
 LANDMARK_POINT_COLORS = {
@@ -118,7 +117,7 @@ LANDMARK_LABEL_PHOTO_AVOID_RADIUS = CIRCLE_HALO_RADIUS + 8
 GEOJSON_POLYGON_FILL = "#B7E4C7" # pastel mint
 GEOJSON_POLYGON_STROKE = "#5A8F7B" # muted mint-teal edge
 GEOJSON_LINE_STROKE = "#6FBF9E" # soft green road tone
-GEOJSON_LABEL_FILL = "#374151" # calm slate for readable but quieter labels
+GEOJSON_LABEL_FILL = "#F2F3F5" # calm slate for readable but quieter labels
 
 WATERWAY_LINE_STROKE = "#74aCFF" # pastel blue water
 WATERWAY_POLYGON_STROKE = "#749eFF" # pastel blue water
@@ -655,13 +654,7 @@ def _append_text_on_path(labels_root: ET.Element,
                          path_id: str) -> bool:
     """Render a label along a line/river path; returns False if path is too short."""
     if not text_value or len(points) < 2:
-        return False
-
-    required_length = _estimate_label_width(text_value) + GEOJSON_LABEL_FONT_SIZE * 1.0
-    if _polyline_length(points) < required_length:
-        return False
-
-    if _polyline_straightness(points) < 0.88:
+        print('[1] points not enough.')
         return False
 
     oriented_points = points
@@ -670,6 +663,7 @@ def _append_text_on_path(labels_root: ET.Element,
 
     path_d = _path_d_from_points(oriented_points)
     if not path_d:
+        print('[4] build failed.')
         return False
 
     path_elem = ET.SubElement(labels_root, "path")
@@ -677,18 +671,17 @@ def _append_text_on_path(labels_root: ET.Element,
     path_elem.set("d", path_d)
     path_elem.set("fill", "none")
     path_elem.set("stroke", "none")
-
     text_elem = ET.SubElement(labels_root, "text")
     text_elem.set("fill", GEOJSON_LABEL_FILL)
     text_elem.set("stroke", GEOJSON_LABEL_FILL)
     text_elem.set("stroke-width", "3")
-    text_elem.set("font-size", str(GEOJSON_LABEL_FONT_SIZE))
+    text_elem.set("font-size", "20")
     text_elem.set("font-family", GEOJSON_LABEL_FONT_FAMILY)
     text_elem.set("text-anchor", "middle")
     text_elem.set("dominant-baseline", "central")
 
     text_path = ET.SubElement(text_elem, "textPath")
-    text_path.set("startOffset", "50%")
+    text_path.set("startOffset", "10%")
     text_path.set("method", "align")
     text_path.set("spacing", "auto")
     text_path.set("href", f"#{path_id}")
@@ -842,6 +835,7 @@ def geojson_elements(geojson_path: str,
             else:
                 if use_highway_simple_filter and highway not in highway_simple_filter:
                     continue  # skip minor roads for visual clarity
+                
                 kind = "road"
                 stroke_color = GEOJSON_LINE_STROKE
                 width = HIGHWAY_WIDTHS.get(highway, GEOJSON_LINE_STROKE_WIDTH)
@@ -850,6 +844,7 @@ def geojson_elements(geojson_path: str,
                 batch_key = (kind, name)
                 batch = named_line_batches.get(batch_key)
                 if batch is None:
+                    # random stroke color
                     named_line_batches[batch_key] = {
                         "stroke_color": stroke_color,
                         "width": width,
@@ -882,7 +877,7 @@ def geojson_elements(geojson_path: str,
             else:
                 if use_highway_simple_filter and highway not in highway_simple_filter:
                     continue  # skip minor roads for visual clarity
-
+                
                 kind = "road"
                 stroke_color = GEOJSON_LINE_STROKE
                 width = HIGHWAY_WIDTHS.get(highway, GEOJSON_LINE_STROKE_WIDTH)
@@ -913,14 +908,7 @@ def geojson_elements(geojson_path: str,
                     batch["width"] = max(batch["width"], width)
                     batch["segments"].extend(candidate_lines)
             else:
-                merged_lines = _stitch_polylines(candidate_lines)
-                for merged in merged_lines:
-                    pts = " ".join(f"{x:.2f},{y:.2f}" for x, y in merged)
-                    elem = ET.SubElement(target_group, "polyline")
-                    elem.set("points", pts)
-                    elem.set("fill", "none")
-                    elem.set("stroke", stroke_color)
-                    elem.set("stroke-width", str(width))
+                continue
 
         elif gtype == "Point":
             if not allowed_landmarks:
@@ -978,37 +966,10 @@ def geojson_elements(geojson_path: str,
             elem.set("fill", "none")
             elem.set("stroke", batch["stroke_color"])
             elem.set("stroke-width", str(batch["width"]))
-
-        if name in rendered_labels:
-            continue
-        
-        if highway and highway not in highway_labels_filter:
-            continue
-        
-        merged_lines.sort(key=_polyline_length, reverse=True)
-        if not merged_lines:
-            continue
-
-        anchor = _polyline_midpoint(merged_lines[0])
-        if anchor is None:
-            continue
-
-        x, y = anchor
-        
-        too_close = any(
-            math.hypot(x - px, y - py) < LABEL_MIN_DIST
-            for px, py in rendered_label_positions
-        )
-        if too_close:
-            continue
-
-        path_id = f"label-path-{label_path_index}"
-        label_path_index += 1
-        if not _append_text_on_path(labels_root, merged_lines[0], name, path_id):
-            _append_text(labels_root, x, y, name)
-        rendered_labels.add(name)
-        rendered_label_positions.append((x, y))
-        rendered_label_boxes.append(_label_bbox(x, y, name))
+            
+            if highway == 'motorway' or highway == 'trunk':
+                _append_text_on_path(labels_root, merged, name, f"path{label_path_index}")
+                label_path_index += 1
 
     # Place landmark labels by importance using greedy overlap rejection.
     landmark_candidates.sort(key=lambda item: item["score"], reverse=True)
@@ -1491,6 +1452,11 @@ def main():
         osm_geojson_name,
         args.landmark_distance,
     )
+    
+    # save the svg tree to a file for debugging
+    # debug_svg_path = Path.cwd() / "__tmp" / f"{Path(args.photos_dir).name}_debug.svg"
+    # ET.ElementTree(svg_root).write(debug_svg_path, encoding="utf-8", xml_declaration=True)
+    # print(f"Debug SVG saved to {debug_svg_path}")
     
     for rec in records:
         # match search query if provided
