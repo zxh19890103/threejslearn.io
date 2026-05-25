@@ -1,0 +1,245 @@
+from PIL import ExifTags
+
+
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".tiff", ".tif", ".heif", ".heic"}
+
+GPS_IFD_TAG = 0x8825
+EXIF_IFD_TAG = 0x8769
+TAG_DATETIME_ORIGINAL = 0x9003
+TAG_DATETIME_DIGITIZED = 0x9004
+
+GPS_TAGS = {v: k for k, v in ExifTags.GPSTAGS.items()}
+
+SVG_WIDTH = 1000
+SVG_HEIGHT = 1000
+PNG_SIZE = 1024
+COVER_SVG_WIDTH = int(1980 * 1.5)
+COVER_SVG_HEIGHT = int(1080 * 1.5)
+ACTIVE_SVG_WIDTH = SVG_WIDTH
+ACTIVE_SVG_HEIGHT = SVG_HEIGHT
+ACTIVE_SVG_MARGIN_RATIO = 0.0
+ACTIVE_SVG_OFFSET_X = 0.0
+ACTIVE_SVG_OFFSET_Y = 0.0
+COVER_SAFE_MARGIN_RATIO = 0.05
+cover_map_ratio = 0.62
+
+CIRCLE_RADIUS = 32
+CIRCLE_STROKE_WIDTH = 8
+CIRCLE_HALO_RADIUS = CIRCLE_RADIUS + 10
+CIRCLE_HALO_OPACITY = 0.12
+PHOTO_STAMP_OUTER_RADIUS = CIRCLE_RADIUS + 2
+PHOTO_STAMP_INNER_RADIUS = CIRCLE_RADIUS - 8
+PHOTO_STAMP_OUTER_WIDTH = 3
+PHOTO_STAMP_INNER_OPACITY = 0.86
+PHOTO_STAMP_OUTER_OPACITY = 0.8
+PHOTO_STAMP_CENTER_DOT_RADIUS = 3
+PHOTO_STAMP_CENTER_DOT_FILL = "#F7F1E5"
+PHOTO_STAMP_CENTER_CROSS_SIZE = 5
+PHOTO_STAMP_CENTER_CROSS_WIDTH = 2
+PHOTO_STAMP_CENTER_CROSS_COLOR = "#F7F1E5"
+PHOTO_STAMP_OUTER_RING_COLOR = "#efd6c3"
+PHOTO_STAMP_OUTER_DASH = "8 6"
+
+HIGHLIGHT_CIRCLE_RADIUS = 50
+HIGHLIGHT_CIRCLE_STROKE_WIDTH = 12
+HIGHLIGHT_HALO_RADIUS = HIGHLIGHT_CIRCLE_RADIUS + 16
+HIGHLIGHT_HALO_OPACITY = 0.32
+HIGHLIGHT_RING_RADIUS = HIGHLIGHT_CIRCLE_RADIUS + 8
+HIGHLIGHT_RING_STROKE_WIDTH = 6
+HIGHLIGHT_CENTER_DOT_RADIUS = 6
+HIGHLIGHT_CENTER_DOT_FILL = "#FFFFFF"
+
+width_scaled = 4
+highway_simple_filter = {"motorway", "trunk", "primary", "secondary"}
+highway_labels_filter = {"motorway", "trunk", "primary", "secondary"}
+use_highway_simple_filter = False
+
+HIGHWAY_WIDTHS = {
+	"motorway": 6 * width_scaled,
+	"trunk": 5 * width_scaled,
+	"primary": 4 * width_scaled,
+	"secondary": 3 * width_scaled,
+	"tertiary": 2 * width_scaled,
+	"residential": 1.5 * width_scaled,
+	"unclassified": 1 * width_scaled,
+	"service": 1 * width_scaled,
+}
+
+WATERWAY_WIDTHS = {
+	"river": 2 * width_scaled,
+	"canal": 1.5 * width_scaled,
+	"stream": 1 * width_scaled,
+	"ditch": 0.5 * width_scaled,
+}
+
+GEOJSON_POLYGON_STROKE_WIDTH = 0.5 * width_scaled
+GEOJSON_LINE_STROKE_WIDTH = 2 * width_scaled
+ROAD_ENDPOINT_EXTEND_PX = 2.4
+GEOJSON_POINT_STROKE_WIDTH = 3 * width_scaled
+GEOJSON_POINT_RADIUS = 3 * width_scaled
+GEOJSON_LABEL_FONT_SIZE = 40
+LABEL_MIN_DIST = 10
+GEOJSON_LABEL_FONT_FAMILY = '"Hannotate SC", sans-serif'
+LANDMARK_DISTANCE_M_DEFAULT = 1000.0
+LANDMARK_POINT_RADIUS = 12
+LANDMARK_POINT_STROKE_WIDTH = 2
+LANDMARK_POINT_OUTER_RADIUS = 16
+LANDMARK_POINT_CENTER_DOT_RADIUS = 3
+LANDMARK_POINT_INNER_OPACITY = 0.88
+LANDMARK_POINT_OUTER_OPACITY = 0.78
+LANDMARK_POINT_CENTER_DOT_FILL = "#F7F1E5"
+
+LANDMARK_POINT_COLORS = {
+	"amenity": "#ffffff",
+	"tourism": "#ffffff",
+	"historic": "#ffffff",
+}
+
+LANDMARK_POINT_STROKE_COLORS = {
+	"amenity": "#9f9f9f",
+	"tourism": "#9f9f9f",
+	"historic": "#9f9f9f",
+}
+
+LANDMARK_CATEGORY_WEIGHTS = {
+	"historic": 3.0,
+	"tourism": 2.0,
+	"amenity": 1.0,
+}
+LANDMARK_LABEL_MAX_COUNT = 32
+LANDMARK_LABEL_MAX_PER_CELL = 2
+LANDMARK_LABEL_GRID_SIZE = 150
+LANDMARK_LABEL_PADDING = 8
+LANDMARK_LABEL_PHOTO_AVOID_RADIUS = CIRCLE_HALO_RADIUS + 8
+
+GEOJSON_POLYGON_FILL = "#C9D2CC"
+GEOJSON_POLYGON_STROKE = "#8E9A93"
+GEOJSON_LINE_STROKE = "#A7B2AB"
+
+ROAD_STROKE_COLORS = {
+	"motorway": "#d6d6d6",
+	"trunk": "#d6d6d6",
+	"primary": "#d6d6d6",
+	"secondary": "#d6d6d6",
+	"tertiary": "#d6d6d6",
+	"residential": "#d6d6d6",
+	"unclassified": "#d6d6d6",
+	"service": "#d6d6d6",
+}
+
+GEOJSON_LABEL_FILL = "#DCE1DE"
+
+WATERWAY_LINE_STROKE = "#77D5FB"
+WATERWAY_POLYGON_STROKE = "#53ABD4"
+WATERWAY_POLYGON_FILL = "#77D5FB"
+
+HIGHLIGHT_CIRCLE_FILL = "#D9B39D"
+HIGHLIGHT_CIRCLE_STROKE = "#B88E78"
+
+CIRCLE_FILL = "#CFA785"
+CIRCLE_STROKE = "#A88368"
+
+PADDING_RATIO = 0.25
+
+def _apply_cover_mode_colors():
+	global GEOJSON_POLYGON_FILL, GEOJSON_POLYGON_STROKE, GEOJSON_LINE_STROKE
+	global ROAD_STROKE_COLORS
+	GEOJSON_POLYGON_FILL = "#9CB6A8"
+	GEOJSON_POLYGON_STROKE = "#5F7C6E"
+	GEOJSON_LINE_STROKE = "#D3A487"
+	ROAD_STROKE_COLORS = {
+		"motorway": "#D3A487",
+		"trunk": "#D3A487",
+		"primary": "#D3A487",
+		"secondary": "#D3A487",
+		"tertiary": "#D3A487",
+		"residential": "#D3A487",
+		"unclassified": "#D3A487",
+		"service": "#D3A487",
+	}
+
+	global GEOJSON_LABEL_FILL
+	GEOJSON_LABEL_FILL = "#4A413A"
+
+	global WATERWAY_LINE_STROKE, WATERWAY_POLYGON_STROKE, WATERWAY_POLYGON_FILL
+	WATERWAY_LINE_STROKE = "#63A8C4"
+	WATERWAY_POLYGON_STROKE = "#4F87A0"
+	WATERWAY_POLYGON_FILL = "#82C1D8"
+
+	global CIRCLE_FILL, CIRCLE_STROKE
+	CIRCLE_FILL = "#FFB56B"
+	CIRCLE_STROKE = "#E77D3C"
+
+	global LANDMARK_POINT_COLORS, LANDMARK_POINT_STROKE_COLORS
+	LANDMARK_POINT_COLORS = {
+		"amenity": "#F2A65A",
+		"tourism": "#5BAED6",
+		"historic": "#B189D6",
+	}
+	LANDMARK_POINT_STROKE_COLORS = {
+		"amenity": "#B56D2D",
+		"tourism": "#3D7F9E",
+		"historic": "#8768A8",
+	}
+
+
+def _apply_dark_mode():
+	global GEOJSON_POLYGON_FILL, GEOJSON_POLYGON_STROKE, GEOJSON_LINE_STROKE
+	global ROAD_STROKE_COLORS
+	GEOJSON_POLYGON_FILL = "#75807A"
+	GEOJSON_POLYGON_STROKE = "#A8B3AD"
+	GEOJSON_LINE_STROKE = "#B6C1BB"
+	ROAD_STROKE_COLORS = {
+		"motorway": "#B6C1BB",
+		"trunk": "#B6C1BB",
+		"primary": "#B6C1BB",
+		"secondary": "#B6C1BB",
+		"tertiary": "#B6C1BB",
+		"residential": "#B6C1BB",
+		"unclassified": "#B6C1BB",
+		"service": "#B6C1BB",
+	}
+
+	global GEOJSON_LABEL_FILL
+	GEOJSON_LABEL_FILL = "#CDD3CF"
+
+	global WATERWAY_LINE_STROKE, WATERWAY_POLYGON_STROKE, WATERWAY_POLYGON_FILL
+	WATERWAY_LINE_STROKE = "#8EA3AF"
+	WATERWAY_POLYGON_STROKE = "#748A96"
+	WATERWAY_POLYGON_FILL = "#90A5B1"
+
+	global HIGHLIGHT_CIRCLE_FILL, HIGHLIGHT_CIRCLE_STROKE
+	HIGHLIGHT_CIRCLE_FILL = "#BEA08E"
+	HIGHLIGHT_CIRCLE_STROKE = "#D2B8A8"
+
+	global CIRCLE_FILL, CIRCLE_STROKE
+	CIRCLE_FILL = "#D4B091"
+	CIRCLE_STROKE = "#A98871"
+
+	global LANDMARK_POINT_COLORS, LANDMARK_POINT_STROKE_COLORS
+	LANDMARK_POINT_COLORS = {
+		"amenity": "#B7A386",
+		"tourism": "#91A9B7",
+		"historic": "#A194AE",
+	}
+	LANDMARK_POINT_STROKE_COLORS = {
+		"amenity": "#8D7A61",
+		"tourism": "#6D8593",
+		"historic": "#7B6F88",
+	}
+
+
+def _set_active_svg_canvas(
+	svg_w: int,
+	svg_h: int,
+	margin_ratio: float = 0.0,
+	offset_x: float = 0.0,
+	offset_y: float = 0.0,
+):
+	global ACTIVE_SVG_WIDTH, ACTIVE_SVG_HEIGHT, ACTIVE_SVG_MARGIN_RATIO
+	global ACTIVE_SVG_OFFSET_X, ACTIVE_SVG_OFFSET_Y
+	ACTIVE_SVG_WIDTH = svg_w
+	ACTIVE_SVG_HEIGHT = svg_h
+	ACTIVE_SVG_MARGIN_RATIO = max(0.0, min(0.45, margin_ratio))
+	ACTIVE_SVG_OFFSET_X = offset_x
+	ACTIVE_SVG_OFFSET_Y = offset_y

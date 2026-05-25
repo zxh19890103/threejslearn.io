@@ -11,214 +11,110 @@ Outputs:
 """
 
 import argparse
+import datetime as dt
 import json
 import math
 import os
 import sys
-import xml.etree.ElementTree as ET
-import urllib.request
 import urllib.error
-import urllib.parse
+import xml.etree.ElementTree as ET
 from fractions import Fraction
 from pathlib import Path
 
-from PIL import Image, ExifTags
-import cairosvg
-import osm2geojson
+from PIL import Image
 
-# ── Constants ────────────────────────────────────────────────────────────────
+import photos_viz_config as viz_cfg
+from photos_viz_config import *
+from photos_viz_sharing import (
+    _parse_osm_ref_from_properties,
+    convert_overpass_to_geojson,
+    export_photos_geojson,
+    export_png,
+    fetch_overpass_json,
+    get_osm_geojson_path,
+    get_overpass_query_output_path,
+    get_photos_geojson_path,
+    render_overpass_query,
+)
 
-IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".tiff", ".tif", ".heif", ".heic"}
 
-GPS_IFD_TAG = 0x8825          # pointer to GPS sub-IFD in root EXIF
-EXIF_IFD_TAG = 0x8769         # pointer to Exif sub-IFD in root EXIF
-TAG_DATETIME_ORIGINAL = 0x9003
-TAG_DATETIME_DIGITIZED = 0x9004
+# Title nearest-place lookup radius in meters.
+max_circle_distance_to_find_the_near_place = 450.0
+TITLE_CORNER_CHOICES = ("top-left", "top-right", "bottom-left", "bottom-right")
+TITLE_FONT_SIZE = 90
+TITLE_MARGIN = 42
+TITLE_LINE_HEIGHT = 1.12
+TITLE_BG_ENABLE = True
+TITLE_BG_FILL = "#000000"
+TITLE_BG_GRADIENT_ID = "title-panel-gradient"
+TITLE_BG_GRADIENT_START_OPACITY = 0.65
+TITLE_BG_GRADIENT_END_OPACITY = 0.2
+TITLE_BG_STROKE = "none"
+TITLE_BG_STROKE_OPACITY = 0.0
+TITLE_BG_STROKE_WIDTH = 0.0
+TITLE_BG_PADDING_X = 26.0
+TITLE_BG_PADDING_TOP = 18.0
+TITLE_BG_PADDING_BOTTOM = 14.0
+TITLE_BG_RADIUS = 0.0
+TITLE_BG_BOTTOM_GAP = 90.0
+TITLE_TEXT_FILL = "#FFFFFF"
+TITLE_TIME_FILL = "#FFFFFF"
+TITLE_STROKE_COLOR = "#0A0A0A"
+TITLE_STROKE_WIDTH = 0.0
+TITLE_STROKE_OPACITY = 0.0
+TITLE_TIMELINE_ENABLE = True
+TITLE_TIMELINE_GAP = 6.0
+TITLE_TIMELINE_HEIGHT = 8.0
+TITLE_TIMELINE_PADDING_X = 20.0
+TITLE_TIMELINE_TRACK_FILL = "#6E6054"
+TITLE_TIMELINE_TRACK_OPACITY = 0.55
+TITLE_TIMELINE_PROGRESS_FILL = "#FA8E41"
+TITLE_TIMELINE_PROGRESS_OPACITY = 0.95
+SPINE_STROKE = "#FA8E41"
+SPINE_STROKE_WIDTH = 12
+SPINE_OPACITY = 0.82
+SPINE_GAP_DASH_THRESHOLD_PX = 140.0
+SPINE_GAP_DASHARRAY = "20 14"
 
-GPS_TAGS = {v: k for k, v in ExifTags.GPSTAGS.items()}  # name → tag id
 
-SVG_WIDTH = 1000
-SVG_HEIGHT = 1000
-PNG_SIZE = 1024
-COVER_SVG_WIDTH = int(1980 * 1.5)
-COVER_SVG_HEIGHT = int(1080 * 1.5)
-ACTIVE_SVG_WIDTH = SVG_WIDTH
-ACTIVE_SVG_HEIGHT = SVG_HEIGHT
-ACTIVE_SVG_MARGIN_RATIO = 0.0
-ACTIVE_SVG_OFFSET_X = 0.0
-ACTIVE_SVG_OFFSET_Y = 0.0
-COVER_SAFE_MARGIN_RATIO = 0.05
-cover_map_ratio = 0.62
-
-CIRCLE_RADIUS = 32  # 4 times bigger
-CIRCLE_STROKE_WIDTH = 8  # Adjust stroke width proportionally
-CIRCLE_HALO_RADIUS = CIRCLE_RADIUS + 10
-CIRCLE_HALO_OPACITY = 0.12
-PHOTO_STAMP_OUTER_RADIUS = CIRCLE_RADIUS + 2
-PHOTO_STAMP_INNER_RADIUS = CIRCLE_RADIUS - 8
-PHOTO_STAMP_OUTER_WIDTH = 3
-PHOTO_STAMP_INNER_OPACITY = 0.86
-PHOTO_STAMP_OUTER_OPACITY = 0.8
-PHOTO_STAMP_CENTER_DOT_RADIUS = 3
-PHOTO_STAMP_CENTER_DOT_FILL = "#F7F1E5"
-PHOTO_STAMP_CENTER_CROSS_SIZE = 5
-PHOTO_STAMP_CENTER_CROSS_WIDTH = 2
-PHOTO_STAMP_CENTER_CROSS_COLOR = "#F7F1E5"
-PHOTO_STAMP_OUTER_RING_COLOR = "#efd6c3"
-PHOTO_STAMP_OUTER_DASH = "8 6"
-
-HIGHLIGHT_CIRCLE_RADIUS = 50  # 4 times bigger
-HIGHLIGHT_CIRCLE_STROKE_WIDTH = 12  # Adjust stroke width proportionally
-HIGHLIGHT_HALO_RADIUS = HIGHLIGHT_CIRCLE_RADIUS + 16
-HIGHLIGHT_HALO_OPACITY = 0.32
-HIGHLIGHT_RING_RADIUS = HIGHLIGHT_CIRCLE_RADIUS + 8
-HIGHLIGHT_RING_STROKE_WIDTH = 6
-HIGHLIGHT_CENTER_DOT_RADIUS = 6
-HIGHLIGHT_CENTER_DOT_FILL = "#FFFFFF"
-
-width_scaled = 4;  # Scale factor for line widths to make them more visible in the SVG
-highway_simple_filter = { "motorway", "trunk", "primary", "secondary" }
-highway_labels_filter = { "motorway", "trunk", "primary", "secondary" }
-use_highway_simple_filter = False  # Set to False to include all highway types, but it may cause visual clutter
-use_svg_background = False  # Set to True to include a light background rectangle in the SVG for better contrast
-
-# tertiary|residential|unclassified
-HIGHWAY_WIDTHS = {
-    "motorway": 6 * width_scaled,
-    "trunk": 5 * width_scaled,
-    "primary": 4 * width_scaled,
-    "secondary": 3 * width_scaled,
-    "tertiary": 2 * width_scaled,
-    "residential": 1.5 * width_scaled,
-    "unclassified": 1 * width_scaled,
-    "service": 1 * width_scaled,
-}
-
-WATERWAY_WIDTHS = {
-    "river": 2 * width_scaled,
-    "canal": 1.5 * width_scaled,
-    "stream": 1 * width_scaled,
-    "ditch": 0.5 * width_scaled,
-}
-
-# Define scaled versions of constants
-GEOJSON_POLYGON_STROKE_WIDTH = 0.5 * width_scaled
-GEOJSON_LINE_STROKE_WIDTH = 2 * width_scaled
-GEOJSON_POINT_STROKE_WIDTH = 3 * width_scaled
-GEOJSON_POINT_RADIUS = 3 * width_scaled
-GEOJSON_LABEL_FONT_SIZE = 40
-LABEL_MIN_DIST = 10          # minimum pixel gap between any two labels
-GEOJSON_LABEL_FONT_FAMILY = '"Hannotate SC", sans-serif'
-LANDMARK_DISTANCE_M_DEFAULT = 1000.0
-LANDMARK_POINT_RADIUS = 12
-LANDMARK_POINT_STROKE_WIDTH = 2
-LANDMARK_POINT_OUTER_RADIUS = 16
-LANDMARK_POINT_CENTER_DOT_RADIUS = 3
-LANDMARK_POINT_INNER_OPACITY = 0.88
-LANDMARK_POINT_OUTER_OPACITY = 0.78
-LANDMARK_POINT_CENTER_DOT_FILL = "#F7F1E5"
-LANDMARK_POINT_COLORS = {
-    "amenity": "#BFA27A",
-    "tourism": "#8FA8B7",
-    "historic": "#9C8FA8",
-}
-LANDMARK_POINT_STROKE_COLORS = {
-    "amenity": "#927756",
-    "tourism": "#6F8796",
-    "historic": "#7C6E88",
-}
-LANDMARK_CATEGORY_WEIGHTS = {
-    "historic": 3.0,
-    "tourism": 2.0,
-    "amenity": 1.0,
-}
-LANDMARK_LABEL_MAX_COUNT = 32
-LANDMARK_LABEL_MAX_PER_CELL = 2
-LANDMARK_LABEL_GRID_SIZE = 150
-LANDMARK_LABEL_PADDING = 8
-LANDMARK_LABEL_PHOTO_AVOID_RADIUS = CIRCLE_HALO_RADIUS + 8
-
-# default color scheme (clean, low-saturation cinematic)
-
-GEOJSON_POLYGON_FILL = "#C9D2CC"
-GEOJSON_POLYGON_STROKE = "#8E9A93"
-GEOJSON_LINE_STROKE = "#A7B2AB"
-GEOJSON_LABEL_FILL = "#DCE1DE"
-
-WATERWAY_LINE_STROKE = "#8FA7B5"
-WATERWAY_POLYGON_STROKE = "#7E98A6"
-WATERWAY_POLYGON_FILL = "#A9BCC7"
-
-HIGHLIGHT_CIRCLE_FILL = "#D9B39D"
-HIGHLIGHT_CIRCLE_STROKE = "#B88E78"
-
-CIRCLE_FILL = "#CFA785"
-CIRCLE_STROKE = "#A88368"
-
-def _apply_cover_mode_colors():
-    """Apply a dedicated medium-boost movie-cover palette."""
+def _sync_palette_from_config():
     global GEOJSON_POLYGON_FILL, GEOJSON_POLYGON_STROKE, GEOJSON_LINE_STROKE
-    GEOJSON_POLYGON_FILL = "#9CB6A8"
-    GEOJSON_POLYGON_STROKE = "#5F7C6E"
-    GEOJSON_LINE_STROKE = "#D3A487"
-
+    global ROAD_STROKE_COLORS
     global GEOJSON_LABEL_FILL
-    GEOJSON_LABEL_FILL = "#4A413A"
-
     global WATERWAY_LINE_STROKE, WATERWAY_POLYGON_STROKE, WATERWAY_POLYGON_FILL
-    WATERWAY_LINE_STROKE = "#63A8C4"
-    WATERWAY_POLYGON_STROKE = "#4F87A0"
-    WATERWAY_POLYGON_FILL = "#82C1D8"
-
+    global HIGHLIGHT_CIRCLE_FILL, HIGHLIGHT_CIRCLE_STROKE
     global CIRCLE_FILL, CIRCLE_STROKE
-    CIRCLE_FILL = "#FFB56B"
-    CIRCLE_STROKE = "#E77D3C"
-
     global LANDMARK_POINT_COLORS, LANDMARK_POINT_STROKE_COLORS
-    LANDMARK_POINT_COLORS = {
-        "amenity": "#F2A65A",
-        "tourism": "#5BAED6",
-        "historic": "#B189D6",
-    }
-    LANDMARK_POINT_STROKE_COLORS = {
-        "amenity": "#B56D2D",
-        "tourism": "#3D7F9E",
-        "historic": "#8768A8",
-    }
+
+    GEOJSON_POLYGON_FILL = viz_cfg.GEOJSON_POLYGON_FILL
+    GEOJSON_POLYGON_STROKE = viz_cfg.GEOJSON_POLYGON_STROKE
+    GEOJSON_LINE_STROKE = viz_cfg.GEOJSON_LINE_STROKE
+    ROAD_STROKE_COLORS = dict(viz_cfg.ROAD_STROKE_COLORS)
+    GEOJSON_LABEL_FILL = viz_cfg.GEOJSON_LABEL_FILL
+
+    WATERWAY_LINE_STROKE = viz_cfg.WATERWAY_LINE_STROKE
+    WATERWAY_POLYGON_STROKE = viz_cfg.WATERWAY_POLYGON_STROKE
+    WATERWAY_POLYGON_FILL = viz_cfg.WATERWAY_POLYGON_FILL
+
+    HIGHLIGHT_CIRCLE_FILL = viz_cfg.HIGHLIGHT_CIRCLE_FILL
+    HIGHLIGHT_CIRCLE_STROKE = viz_cfg.HIGHLIGHT_CIRCLE_STROKE
+    CIRCLE_FILL = viz_cfg.CIRCLE_FILL
+    CIRCLE_STROKE = viz_cfg.CIRCLE_STROKE
+
+    LANDMARK_POINT_COLORS = viz_cfg.LANDMARK_POINT_COLORS
+    LANDMARK_POINT_STROKE_COLORS = viz_cfg.LANDMARK_POINT_STROKE_COLORS
+
 
 def _apply_dark_mode():
-    global GEOJSON_POLYGON_FILL, GEOJSON_POLYGON_STROKE, GEOJSON_LINE_STROKE
-    GEOJSON_POLYGON_FILL = "#75807A"
-    GEOJSON_POLYGON_STROKE = "#A8B3AD"
-    GEOJSON_LINE_STROKE = "#B6C1BB"
+    viz_cfg._apply_dark_mode()
+    _sync_palette_from_config()
 
-    global GEOJSON_LABEL_FILL
-    GEOJSON_LABEL_FILL = "#CDD3CF"
 
-    global WATERWAY_LINE_STROKE, WATERWAY_POLYGON_STROKE, WATERWAY_POLYGON_FILL
-    WATERWAY_LINE_STROKE = "#8EA3AF"
-    WATERWAY_POLYGON_STROKE = "#748A96"
-    WATERWAY_POLYGON_FILL = "#90A5B1"
-
-    global HIGHLIGHT_CIRCLE_FILL, HIGHLIGHT_CIRCLE_STROKE
-    HIGHLIGHT_CIRCLE_FILL = "#BEA08E"
-    HIGHLIGHT_CIRCLE_STROKE = "#D2B8A8"
-
-    global CIRCLE_FILL, CIRCLE_STROKE
-    CIRCLE_FILL = "#D4B091"
-    CIRCLE_STROKE = "#A98871"
-
-    global LANDMARK_POINT_COLORS, LANDMARK_POINT_STROKE_COLORS
-    LANDMARK_POINT_COLORS = {
-        "amenity": "#B7A386",
-        "tourism": "#91A9B7",
-        "historic": "#A194AE",
-    }
-    LANDMARK_POINT_STROKE_COLORS = {
-        "amenity": "#8D7A61",
-        "tourism": "#6D8593",
-        "historic": "#7B6F88",
-    }
+def _road_stroke_color(highway: str | None) -> str:
+    """Resolve road stroke by highway category, with fallback color."""
+    if isinstance(ROAD_STROKE_COLORS, dict):
+        return ROAD_STROKE_COLORS.get(highway, GEOJSON_LINE_STROKE)
+    return GEOJSON_LINE_STROKE
 
 # ── EXIF helpers ─────────────────────────────────────────────────────────────
 
@@ -316,8 +212,6 @@ def scan_photos(folder: str) -> list[dict]:
 
 # ── Coordinate projection (Mercator) ────────────────────────────────────────
 
-PADDING_RATIO = 0.25  # default; overridable via CLI
-
 def _lat_to_mercator(lat: float) -> float:
     """
     Convert latitude (degrees) to Mercator Y coordinate.
@@ -371,187 +265,6 @@ def compute_bbox(records: list[dict], padding: float) -> tuple[float, float, flo
     return min_x_merc, min_y_merc, max_x_merc, max_y_merc
 
 
-def _set_active_svg_canvas(svg_w: int,
-                           svg_h: int,
-                           margin_ratio: float = 0.0,
-                           offset_x: float = 0.0,
-                           offset_y: float = 0.0):
-    """Set active projection canvas and safe-margin ratio used by geo_to_svg defaults."""
-    global ACTIVE_SVG_WIDTH, ACTIVE_SVG_HEIGHT, ACTIVE_SVG_MARGIN_RATIO
-    global ACTIVE_SVG_OFFSET_X, ACTIVE_SVG_OFFSET_Y
-    ACTIVE_SVG_WIDTH = svg_w
-    ACTIVE_SVG_HEIGHT = svg_h
-    ACTIVE_SVG_MARGIN_RATIO = max(0.0, min(0.45, margin_ratio))
-    ACTIVE_SVG_OFFSET_X = offset_x
-    ACTIVE_SVG_OFFSET_Y = offset_y
-
-
-def _compute_time_range(records: list[dict]) -> str:
-    """Return a concise date range from record datetimes."""
-    date_values = []
-    for rec in records:
-        raw_dt = rec.get("datetime")
-        if not isinstance(raw_dt, str) or len(raw_dt) < 10:
-            continue
-        date_part = raw_dt[:10]
-        if len(date_part) == 10 and date_part[4] == "-" and date_part[7] == "-":
-            date_values.append(date_part)
-
-    if not date_values:
-        return "Unknown time range"
-
-    start_date = min(date_values)
-    end_date = max(date_values)
-    if start_date == end_date:
-        return start_date
-    return f"{start_date} - {end_date}"
-
-
-def _wrap_cover_text(text_value: str, max_chars: int) -> list[str]:
-    """Wrap text into lines by character count without breaking words when possible."""
-    text_value = (text_value or "").strip()
-    if not text_value:
-        return []
-
-    wrapped_lines = []
-    for paragraph in text_value.splitlines():
-        paragraph = paragraph.strip()
-        if not paragraph:
-            if wrapped_lines:
-                wrapped_lines.append("")
-            continue
-
-        words = paragraph.split()
-        if len(words) <= 1:
-            raw = paragraph
-            while len(raw) > max_chars:
-                wrapped_lines.append(raw[:max_chars])
-                raw = raw[max_chars:]
-            if raw:
-                wrapped_lines.append(raw)
-            continue
-
-        current = words[0]
-        for word in words[1:]:
-            candidate = f"{current} {word}"
-            if len(candidate) <= max_chars:
-                current = candidate
-            else:
-                wrapped_lines.append(current)
-                current = word
-        wrapped_lines.append(current)
-
-    return wrapped_lines
-
-
-def _append_cover_panel(svg_root: ET.Element,
-                        canvas_width: int,
-                        canvas_height: int,
-                        panel_x: float,
-                        panel_width: float,
-                        title: str,
-                        time_range: str,
-                        description: str):
-    """Render a poster-style metadata block for cover output."""
-    del panel_x, panel_width
-
-    panel = ET.SubElement(svg_root, "g", id="cover_panel")
-    text_margin_x = canvas_width * 0.08
-    text_right = canvas_width * 0.66
-    text_max_width = max(100.0, text_right - text_margin_x)
-
-    title_text = (title or "City Walk").strip() or "City Walk"
-    desc_text = (description or "").strip()
-    cover_font_family = '"Gill Sans", "Gill Sans MT", sans-serif'
-
-    title_font = 140
-    meta_font = 62
-    desc_font = 50
-
-    top_anchor = canvas_height * 0.58
-    bottom_padding = canvas_height * 0.09
-    available_text_height = max(1.0, canvas_height - top_anchor - bottom_padding)
-
-    scale = 1.0
-    title_lines = [title_text]
-    desc_lines = []
-    current_title_font = title_font
-    current_meta_font = meta_font
-    current_desc_font = desc_font
-    while True:
-        current_title_font = max(24, int(round(title_font * scale)))
-        current_meta_font = max(20, int(round(meta_font * scale)))
-        current_desc_font = max(16, int(round(desc_font * scale)))
-
-        title_max_chars = max(6, int(text_max_width / (current_title_font * 0.58)))
-        title_lines = _wrap_cover_text(title_text, title_max_chars)
-        if not title_lines:
-            title_lines = ["City Walk"]
-
-        if desc_text:
-            desc_max_chars = max(10, int(text_max_width / (current_desc_font * 0.56)))
-            desc_lines = _wrap_cover_text(desc_text, desc_max_chars)
-        else:
-            desc_lines = []
-
-        title_block_height = len(title_lines) * current_title_font * 1.08 + current_title_font * 0.10
-        time_block_height = current_meta_font
-        desc_gap_height = current_meta_font * 1.5 if desc_lines else 0.0
-        desc_block_height = len(desc_lines) * current_desc_font * 1.28
-        total_height = title_block_height + time_block_height + desc_gap_height + desc_block_height
-
-        if total_height <= available_text_height or scale <= 0.35:
-            break
-        scale *= 0.92
-
-    total_height = 0.0
-    title_block_height = len(title_lines) * current_title_font * 1.12 + current_title_font * 0.13
-    time_block_height = current_meta_font
-    desc_gap_height = current_meta_font * 1.7 if desc_lines else 0.0
-    desc_block_height = len(desc_lines) * current_desc_font * 1.35
-    total_height = title_block_height + time_block_height + desc_gap_height + desc_block_height
-
-    cursor_y = canvas_height - bottom_padding - total_height + current_title_font
-
-    for line in title_lines:
-        title_elem = ET.SubElement(panel, "text")
-        title_elem.set("x", f"{text_margin_x:.2f}")
-        title_elem.set("y", f"{cursor_y:.2f}")
-        title_elem.set("fill", "#F4E9D8")
-        title_elem.set("font-size", str(current_title_font))
-        title_elem.set("font-weight", "700")
-        title_elem.set("font-family", '"Gill Sans", "Avenir Next Condensed", "PingFang SC", "Noto Sans CJK SC", sans-serif')
-        title_elem.text = line
-        cursor_y += current_title_font * 1.08
-
-    cursor_y += current_title_font * 0.10
-
-    time_elem = ET.SubElement(panel, "text")
-    time_elem.set("x", f"{text_margin_x:.2f}")
-    time_elem.set("y", f"{cursor_y:.2f}")
-    time_elem.set("fill", "#C9C1B3")
-    time_elem.set("font-size", str(current_meta_font))
-    time_elem.set("font-family", '"Avenir Next", "PingFang SC", "Noto Sans CJK SC", sans-serif')
-    time_elem.set("font-weight", "600")
-    time_elem.text = time_range
-
-    if not desc_lines:
-        return
-
-    cursor_y += current_meta_font * 1.5
-
-    for line in desc_lines:
-        line_elem = ET.SubElement(panel, "text")
-        line_elem.set("x", f"{text_margin_x:.2f}")
-        line_elem.set("y", f"{cursor_y:.2f}")
-        line_elem.set("fill", "#DED3C2")
-        line_elem.set("font-size", str(current_desc_font))
-        line_elem.set("font-family", '"Avenir Next", "PingFang SC", "Noto Sans CJK SC", sans-serif')
-        line_elem.set("font-weight", "500")
-        line_elem.text = line
-        cursor_y += current_desc_font * 1.28
-
-
 def geo_to_svg(lon: float, lat: float,
                min_x_merc: float, min_y_merc: float,
                max_x_merc: float, max_y_merc: float,
@@ -566,12 +279,12 @@ def geo_to_svg(lon: float, lat: float,
     y_merc = _lat_to_mercator(lat)
 
     if svg_w is None:
-        svg_w = ACTIVE_SVG_WIDTH
+        svg_w = viz_cfg.ACTIVE_SVG_WIDTH
     if svg_h is None:
-        svg_h = ACTIVE_SVG_HEIGHT
-    margin_ratio = ACTIVE_SVG_MARGIN_RATIO
-    offset_base_x = ACTIVE_SVG_OFFSET_X
-    offset_base_y = ACTIVE_SVG_OFFSET_Y
+        svg_h = viz_cfg.ACTIVE_SVG_HEIGHT
+    margin_ratio = viz_cfg.ACTIVE_SVG_MARGIN_RATIO
+    offset_base_x = viz_cfg.ACTIVE_SVG_OFFSET_X
+    offset_base_y = viz_cfg.ACTIVE_SVG_OFFSET_Y
 
     span_x = max(max_x_merc - min_x_merc, 1e-12)
     span_y = max(max_y_merc - min_y_merc, 1e-12)
@@ -611,6 +324,345 @@ def _feature_name(properties):
     if not isinstance(properties, dict):
         return None
     return properties.get("name:en") or properties.get("name")
+
+
+def _place_category(properties: dict) -> str | None:
+    """Classify feature into one of landmark/road/water for title lookup."""
+    if not isinstance(properties, dict):
+        return None
+    if properties.get("tourism") or properties.get("historic") or properties.get("amenity"):
+        return "landmark"
+    if properties.get("highway"):
+        return "road"
+    if properties.get("waterway") or properties.get("natural") == "water":
+        return "water"
+    return None
+
+
+def _iter_lonlat_points(coords):
+    """Yield all [lon, lat] points from nested GeoJSON coordinate arrays."""
+    if not isinstance(coords, list):
+        return
+    if len(coords) >= 2 and isinstance(coords[0], (int, float)) and isinstance(coords[1], (int, float)):
+        yield float(coords[0]), float(coords[1])
+        return
+    for child in coords:
+        if isinstance(child, list):
+            yield from _iter_lonlat_points(child)
+
+
+def _build_place_candidates(geojson_data: dict) -> dict[str, list[tuple[str, float, float]]]:
+    """Build searchable named place points grouped by preferred place categories."""
+    grouped: dict[str, list[tuple[str, float, float]]] = {
+        "landmark": [],
+        "road": [],
+        "water": [],
+    }
+    features = geojson_data.get("features") if isinstance(geojson_data, dict) else None
+    if not isinstance(features, list):
+        return grouped
+
+    for feature in features:
+        if not isinstance(feature, dict):
+            continue
+        properties = feature.get("properties")
+        if not isinstance(properties, dict):
+            continue
+        category = _place_category(properties)
+        if category is None:
+            continue
+        name = _feature_name(properties)
+        if not isinstance(name, str) or not name.strip():
+            continue
+        geom = feature.get("geometry")
+        if not isinstance(geom, dict):
+            continue
+        coords = geom.get("coordinates")
+        for lon, lat in _iter_lonlat_points(coords):
+            grouped[category].append((name.strip(), lon, lat))
+    return grouped
+
+
+def _find_nearest_place_name(candidates: dict[str, list[tuple[str, float, float]]], lon: float, lat: float) -> str | None:
+    """Find a single preferred nearby place name around the current photo location."""
+    for category in ("landmark", "road", "water"):
+        nearest: tuple[float, str] | None = None
+        for name, p_lon, p_lat in candidates.get(category, []):
+            dist = _haversine_distance_meters(lon, lat, p_lon, p_lat)
+            if dist > max_circle_distance_to_find_the_near_place:
+                continue
+            if nearest is None or dist < nearest[0] or (math.isclose(dist, nearest[0], rel_tol=0.0, abs_tol=1e-6) and name < nearest[1]):
+                nearest = (dist, name)
+        if nearest is not None:
+            return nearest[1]
+    return None
+
+
+def _format_title_time(datetime_str: str | None) -> str:
+    """Format EXIF datetime into `May 24 14:34`."""
+    if not isinstance(datetime_str, str) or not datetime_str.strip():
+        return ""
+    raw = datetime_str.strip()
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+        try:
+            parsed = dt.datetime.strptime(raw, fmt)
+            return parsed.strftime("%b %d %H:%M")
+        except ValueError:
+            continue
+    try:
+        parsed = dt.datetime.fromisoformat(raw)
+        return parsed.strftime("%b %d %H:%M")
+    except ValueError:
+        return ""
+
+
+def _parse_photo_datetime(datetime_str: str | None) -> dt.datetime | None:
+    """Parse EXIF datetime text into datetime object; return None on failure."""
+    if not isinstance(datetime_str, str) or not datetime_str.strip():
+        return None
+    raw = datetime_str.strip()
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+        try:
+            return dt.datetime.strptime(raw, fmt)
+        except ValueError:
+            continue
+    try:
+        return dt.datetime.fromisoformat(raw)
+    except ValueError:
+        return None
+
+
+def _build_time_progress_map(records: list[dict]) -> dict[str, float]:
+    """Build per-photo progress (0..1) within the overall capture timespan."""
+    progress: dict[str, float] = {}
+    if not records:
+        return progress
+
+    dated_items: list[tuple[str, dt.datetime]] = []
+    for rec in records:
+        rec_id = rec.get("id")
+        parsed_dt = _parse_photo_datetime(rec.get("datetime"))
+        if isinstance(rec_id, str) and parsed_dt is not None:
+            dated_items.append((rec_id, parsed_dt))
+
+    if len(dated_items) >= 2:
+        min_dt = min(item[1] for item in dated_items)
+        max_dt = max(item[1] for item in dated_items)
+        span_seconds = (max_dt - min_dt).total_seconds()
+        if span_seconds > 0:
+            for rec_id, parsed_dt in dated_items:
+                elapsed = (parsed_dt - min_dt).total_seconds()
+                progress[rec_id] = max(0.0, min(1.0, elapsed / span_seconds))
+        else:
+            for rec_id, _ in dated_items:
+                progress[rec_id] = 1.0
+
+    # Fallback for photos without parseable datetime: use record order progression.
+    missing_ids = [rec.get("id") for rec in records if isinstance(rec.get("id"), str) and rec.get("id") not in progress]
+    if missing_ids:
+        if len(missing_ids) == 1:
+            progress[missing_ids[0]] = 1.0
+        else:
+            denom = max(1, len(missing_ids) - 1)
+            for idx, rec_id in enumerate(missing_ids):
+                progress[rec_id] = idx / denom
+
+    return progress
+
+
+def _build_title_parts(rec: dict, place_candidates: dict[str, list[tuple[str, float, float]]]) -> tuple[str, str]:
+    """Return (place, time), where place may be empty if nothing nearby is found."""
+    time_part = _format_title_time(rec.get("datetime"))
+    try:
+        lon = float(rec["lon"])
+        lat = float(rec["lat"])
+    except (KeyError, TypeError, ValueError):
+        return "", time_part
+
+    place_name = _find_nearest_place_name(place_candidates, lon, lat)
+    return place_name or "", time_part
+
+
+def _wrap_title_text(text_value: str, max_chars: int) -> list[str]:
+    """Wrap text into multiple lines with word-aware fallback splitting."""
+    text_value = (text_value or "").strip()
+    if not text_value:
+        return []
+
+    if max_chars <= 1:
+        return [text_value]
+
+    words = text_value.split()
+    if not words:
+        return []
+
+    lines: list[str] = []
+    current = words[0]
+    for word in words[1:]:
+        candidate = f"{current} {word}"
+        if len(candidate) <= max_chars:
+            current = candidate
+            continue
+        lines.append(current)
+        current = word
+    lines.append(current)
+
+    folded: list[str] = []
+    for line in lines:
+        if len(line) <= max_chars:
+            folded.append(line)
+            continue
+        start = 0
+        while start < len(line):
+            folded.append(line[start:start + max_chars])
+            start += max_chars
+    return folded
+
+
+def _set_title_position_and_text(title_elem: ET.Element | None,
+                                title_bg_elem: ET.Element | None,
+                                timeline_track_elem: ET.Element | None,
+                                timeline_progress_elem: ET.Element | None,
+                                place_text: str,
+                                time_text: str,
+                                timeline_progress: float,
+                                title_corner: str,
+                                canvas_width: int,
+                                canvas_height: int):
+    """Render title as multiline place (wrapped) plus time line in selected corner."""
+    if title_elem is None:
+        return
+
+    # Clear previous tspans because this element is reused for each output frame.
+    for child in list(title_elem):
+        title_elem.remove(child)
+    title_elem.text = ""
+
+    place_text = (place_text or "").strip()
+    time_text = (time_text or "").strip()
+
+    max_width = max(120.0, canvas_width * 0.9)
+    place_font_size = TITLE_FONT_SIZE
+    min_place_font_size = 26
+    place_lines: list[str] = []
+
+    while place_font_size >= min_place_font_size:
+        max_chars = max(7, int(max_width / (place_font_size * 0.58)))
+        place_lines = _wrap_title_text(place_text, max_chars)
+        if not place_lines:
+            break
+
+        longest_line = max(len(line) for line in place_lines)
+        estimated_width = longest_line * place_font_size * 0.58
+        if len(place_lines) <= 4 and estimated_width <= max_width:
+            break
+        place_font_size -= 3
+
+    time_font_size = max(20, int(place_font_size * 0.62))
+    all_line_count = len(place_lines) + (1 if time_text else 0)
+    
+    # if text is Chinese (SC), use "Yuanti SC", otherwise use "Gill Sans".
+    if any('\u4e00' <= ch <= '\u9fff' for ch in place_text):
+        title_elem.set("font-family", '"Yuanti SC", "Helvetica Neue", Helvetica, Arial, sans-serif')    
+    else:
+        title_elem.set("font-family", '"Gill Sans", "Helvetica Neue", Helvetica, Arial, sans-serif')
+    
+    title_elem.set("font-weight", "700")
+    title_elem.set("fill", TITLE_TEXT_FILL)
+    title_elem.set("stroke", "none")
+    # Title strip is always bottom-anchored and left aligned for iMovie overlay readability.
+    title_elem.set("text-anchor", "start")
+
+    x_pos = TITLE_BG_PADDING_X
+    line_step = place_font_size * TITLE_LINE_HEIGHT
+    first_line_size = place_font_size
+    last_line_size = time_font_size if time_text else place_font_size
+    text_block_height = (
+        first_line_size * 0.82
+        + max(0, all_line_count - 1) * line_step
+        + last_line_size * 0.22
+    )
+    panel_h = text_block_height + TITLE_BG_PADDING_TOP + TITLE_BG_PADDING_BOTTOM
+    panel_y = max(0.0, canvas_height - TITLE_BG_BOTTOM_GAP - panel_h)
+    start_y = panel_y + TITLE_BG_PADDING_TOP + first_line_size * 0.82
+
+    title_elem.set("x", f"{x_pos:.2f}")
+    title_elem.set("y", f"{start_y:.2f}")
+    title_elem.set("dominant-baseline", "alphabetic")
+
+    line_index = 0
+    line_sizes: list[int] = []
+    line_texts: list[str] = []
+    for idx, line in enumerate(place_lines):
+        tspan = ET.SubElement(title_elem, "tspan")
+        tspan.set("x", f"{x_pos:.2f}")
+        tspan.set("dy", "0" if idx == 0 else f"{line_step:.2f}")
+        tspan.set("font-size", str(place_font_size))
+        tspan.text = line
+        line_index += 1
+        line_sizes.append(place_font_size)
+        line_texts.append(line)
+
+    if time_text:
+        time_tspan = ET.SubElement(title_elem, "tspan")
+        time_tspan.set("x", f"{x_pos:.2f}")
+        time_tspan.set("dy", f"{line_step:.2f}" if line_index > 0 else "0")
+        time_tspan.set("font-size", str(time_font_size))
+        time_tspan.set("fill", TITLE_TIME_FILL)
+        time_tspan.set("opacity", "0.92")
+        time_tspan.text = time_text
+        line_sizes.append(time_font_size)
+        line_texts.append(time_text)
+
+    if title_bg_elem is None:
+        return
+
+    if not TITLE_BG_ENABLE or not line_texts:
+        title_bg_elem.set("visibility", "hidden")
+        return
+
+    title_bg_elem.set("x", "0.00")
+    title_bg_elem.set("y", f"{panel_y:.2f}")
+    title_bg_elem.set("width", f"{canvas_width:.2f}")
+    title_bg_elem.set("height", f"{panel_h:.2f}")
+    title_bg_elem.set("rx", f"{TITLE_BG_RADIUS:.2f}")
+    title_bg_elem.set("ry", f"{TITLE_BG_RADIUS:.2f}")
+    title_bg_elem.set("fill", f"url(#{TITLE_BG_GRADIENT_ID})")
+    title_bg_elem.set("opacity", "1.00")
+    title_bg_elem.set("stroke", TITLE_BG_STROKE)
+    title_bg_elem.set("stroke-opacity", f"{TITLE_BG_STROKE_OPACITY:.2f}")
+    title_bg_elem.set("stroke-width", f"{TITLE_BG_STROKE_WIDTH:.2f}")
+    title_bg_elem.set("visibility", "visible")
+
+    if timeline_track_elem is None or timeline_progress_elem is None:
+        return
+
+    if not TITLE_TIMELINE_ENABLE:
+        timeline_track_elem.set("visibility", "hidden")
+        timeline_progress_elem.set("visibility", "hidden")
+        return
+
+    bar_x = max(0.0, TITLE_TIMELINE_PADDING_X)
+    bar_w = max(1.0, float(canvas_width) - 2.0 * bar_x)
+    bar_h = TITLE_TIMELINE_HEIGHT
+    bar_y = min(max(0.0, panel_y + panel_h + TITLE_TIMELINE_GAP), max(0.0, canvas_height - bar_h))
+    normalized_progress = max(0.0, min(1.0, timeline_progress))
+
+    timeline_track_elem.set("x", f"{bar_x:.2f}")
+    timeline_track_elem.set("y", f"{bar_y:.2f}")
+    timeline_track_elem.set("width", f"{bar_w:.2f}")
+    timeline_track_elem.set("height", f"{bar_h:.2f}")
+    timeline_track_elem.set("fill", TITLE_TIMELINE_TRACK_FILL)
+    timeline_track_elem.set("opacity", f"{TITLE_TIMELINE_TRACK_OPACITY:.2f}")
+    timeline_track_elem.set("visibility", "visible")
+
+    timeline_progress_elem.set("x", f"{bar_x:.2f}")
+    timeline_progress_elem.set("y", f"{bar_y:.2f}")
+    timeline_progress_elem.set("width", f"{max(0.0, bar_w * normalized_progress):.2f}")
+    timeline_progress_elem.set("height", f"{bar_h:.2f}")
+    timeline_progress_elem.set("fill", TITLE_TIMELINE_PROGRESS_FILL)
+    timeline_progress_elem.set("opacity", f"{TITLE_TIMELINE_PROGRESS_OPACITY:.2f}")
+    timeline_progress_elem.set("visibility", "visible")
 
 
 def _landmark_category(properties: dict) -> str | None:
@@ -757,22 +809,6 @@ def _boxes_intersect(a: tuple[float, float, float, float],
         or a[1] - padding > b[3]
     )
 
-def _coords_centroid(coords):
-    """Return centroid (mean lon/lat) for [[lon,lat], ...]."""
-    if not isinstance(coords, list) or not coords:
-        return None
-    valid = []
-    for coord in coords:
-        if isinstance(coord, (list, tuple)) and len(coord) >= 2:
-            try:
-                valid.append((float(coord[0]), float(coord[1])))
-            except (TypeError, ValueError):
-                continue
-    if not valid:
-        return None
-    lon = sum(v[0] for v in valid) / len(valid)
-    lat = sum(v[1] for v in valid) / len(valid)
-    return lon, lat
 
 def _coords_to_svg_points(coords, min_lon, min_lat, max_lon, max_lat) -> list[tuple[float, float]]:
     """Convert [[lon,lat], ...] coordinates to [(x,y), ...] in SVG space."""
@@ -790,6 +826,52 @@ def _coords_to_svg_points(coords, min_lon, min_lat, max_lon, max_lat) -> list[tu
         points.append(geo_to_svg(lon, lat, min_lon, min_lat, max_lon, max_lat))
     return points
 
+
+def _svg_points_to_polyline(points: list[tuple[float, float]]) -> str:
+    """Convert SVG point tuples to a polyline points string."""
+    return " ".join(f"{x:.2f},{y:.2f}" for x, y in points)
+
+
+def _extend_polyline_endpoints(points: list[tuple[float, float]], extend_px: float) -> list[tuple[float, float]]:
+    """Extend the first and last points slightly along their local directions."""
+    if len(points) < 2 or extend_px <= 0:
+        return points
+
+    extended = points[:]
+
+    start_dir = None
+    for idx in range(1, len(points)):
+        dx = points[idx][0] - points[0][0]
+        dy = points[idx][1] - points[0][1]
+        seg_len = math.hypot(dx, dy)
+        if seg_len > 1e-6:
+            start_dir = (dx / seg_len, dy / seg_len)
+            break
+
+    end_dir = None
+    for idx in range(len(points) - 2, -1, -1):
+        dx = points[-1][0] - points[idx][0]
+        dy = points[-1][1] - points[idx][1]
+        seg_len = math.hypot(dx, dy)
+        if seg_len > 1e-6:
+            end_dir = (dx / seg_len, dy / seg_len)
+            break
+
+    if start_dir is not None:
+        extended[0] = (
+            extended[0][0] - start_dir[0] * extend_px,
+            extended[0][1] - start_dir[1] * extend_px,
+        )
+
+    if end_dir is not None:
+        extended[-1] = (
+            extended[-1][0] + end_dir[0] * extend_px,
+            extended[-1][1] + end_dir[1] * extend_px,
+        )
+
+    return extended
+
+
 def _polyline_length(points: list[tuple[float, float]]) -> float:
     """Return total Euclidean length of a polyline in SVG pixel units."""
     if len(points) < 2:
@@ -801,8 +883,9 @@ def _polyline_length(points: list[tuple[float, float]]) -> float:
         length += math.hypot(x1 - x0, y1 - y0)
     return length
 
+
 def _polyline_midpoint_direction(points: list[tuple[float, float]]) -> tuple[tuple[float, float] | None, float]:
-    """Return midpoint anchor and local direction angle (degrees) using neighboring segment points."""
+    """Return midpoint anchor and local direction angle (degrees) for a line."""
     if len(points) < 2:
         return None, 0.0
 
@@ -883,12 +966,14 @@ def _stitch_polylines(lines: list[list[tuple[float, float]]], tolerance: float =
 
     return merged
 
+
 def _estimate_label_width(text_value: str) -> float:
-    """Estimate label width in pixels to gate text-on-path placement."""
+    """Estimate label width in pixels for placement checks."""
     return max(1, len(text_value)) * GEOJSON_LABEL_FONT_SIZE * 0.55
 
+
 def _append_text(svg_root: ET.Element, x: float, y: float, text_value: str):
-    """Append a styled SVG text label near the given anchor point, with support for multiple fonts."""
+    """Append a styled SVG text label near the given anchor point."""
     if not text_value:
         return
     text_elem = ET.SubElement(svg_root, "text")
@@ -915,7 +1000,7 @@ def _append_centered_rotated_text(svg_root: ET.Element,
     text_elem.set("y", f"{y:.2f}")
     text_elem.set("fill", GEOJSON_LABEL_FILL)
     text_elem.set("opacity", "0.55")
-    text_elem.set("stroke", 'none')
+    text_elem.set("stroke", "none")
     text_elem.set("stroke-width", "3")
     text_elem.set("font-size", str(GEOJSON_LABEL_FONT_SIZE))
     text_elem.set("font-family", GEOJSON_LABEL_FONT_FAMILY)
@@ -925,15 +1010,15 @@ def _append_centered_rotated_text(svg_root: ET.Element,
     text_elem.set("transform", f"rotate({angle_deg:.2f} {x:.2f} {y:.2f})")
     text_elem.text = text_value
 
+
 def geojson_elements(geojson_path: str,
                      min_lon: float, min_lat: float,
                      max_lon: float, max_lat: float,
                      svg_root: ET.Element,
                      records: list[dict],
-                     landmark_distance_m: float):
-    """
-    Parse a GeoJSON FeatureCollection and append SVG geometry + labels.
-    """
+                     landmark_distance_m: float,
+                     show_labels: bool = False):
+    """Parse a GeoJSON FeatureCollection and append SVG geometry and optional labels."""
     try:
         with open(geojson_path, encoding="utf-8") as f:
             data = json.load(f)
@@ -942,16 +1027,14 @@ def geojson_elements(geojson_path: str,
         return
 
     features = data.get("features", [])
-    rendered_labels = set()       # track rendered road names to avoid duplicates
-    rendered_label_positions = [] # (x, y) of placed labels
-    rendered_label_boxes = []     # (left, top, right, bottom) for overlap checks
+    rendered_labels = set()
+    rendered_label_boxes = []
     named_line_batches = {}
     allowed_landmarks = _collect_nearby_landmarks(features, records, landmark_distance_m)
-
     photo_points = [
         geo_to_svg(rec["lon"], rec["lat"], min_lon, min_lat, max_lon, max_lat)
         for rec in records
-    ]
+    ] if show_labels else []
     landmark_candidates = []
     seen_landmark_keys = set()
 
@@ -959,7 +1042,7 @@ def geojson_elements(geojson_path: str,
     rivers_root = ET.SubElement(svg_root, "g", id="rivers")
     landmarks_root = ET.SubElement(svg_root, "g", id="landmarks")
     landmarks_points_root = ET.SubElement(svg_root, "g", id="landmarks_points")
-    labels_root = ET.SubElement(svg_root, "g", id="labels")  # separate group for labels to render on top of all geometry
+    labels_root = ET.SubElement(svg_root, "g", id="labels")
     
     for feature in features:
         geom = feature.get("geometry")
@@ -997,12 +1080,6 @@ def geojson_elements(geojson_path: str,
                 if i > 0:
                     elem.set("fill", "white")
 
-            if name:
-                centroid = _coords_centroid(rings[0])
-                if centroid:
-                    x, y = geo_to_svg(centroid[0], centroid[1], min_lon, min_lat, max_lon, max_lat)
-                    _append_text(svg_root, x, y, name)
-
         elif gtype == "MultiPolygon":
             polygons = geom.get("coordinates", [])
             
@@ -1032,76 +1109,52 @@ def geojson_elements(geojson_path: str,
                     if i > 0:
                         elem.set("fill", "white")
                         
-            if name and isinstance(polygons[0], list) and polygons[0]:
-                centroid = _coords_centroid(polygons[0][0])
-                if centroid:
-                    x, y = geo_to_svg(centroid[0], centroid[1], min_lon, min_lat, max_lon, max_lat)
-                    _append_text(svg_root, x, y, name)
-
         elif gtype == "LineString":
             coords = geom.get("coordinates", [])
             if not isinstance(coords, list) or not coords:
                 continue
-            pts = _coords_to_polyline(coords, min_lon, min_lat, max_lon, max_lat)
             svg_points = _coords_to_svg_points(coords, min_lon, min_lat, max_lon, max_lat)
             if len(svg_points) < 2:
                 continue
             
             if waterway:
-                kind = "river"
                 stroke_color = WATERWAY_LINE_STROKE
                 width = WATERWAY_WIDTHS.get(waterway, GEOJSON_LINE_STROKE_WIDTH)
             else:
                 if use_highway_simple_filter and highway not in highway_simple_filter:
                     continue  # skip minor roads for visual clarity
                 
-                kind = "road"
-                stroke_color = GEOJSON_LINE_STROKE
+                stroke_color = _road_stroke_color(highway)
                 width = HIGHWAY_WIDTHS.get(highway, GEOJSON_LINE_STROKE_WIDTH)
+                svg_points = _extend_polyline_endpoints(svg_points, viz_cfg.ROAD_ENDPOINT_EXTEND_PX)
 
-            if name:
+            pts = _svg_points_to_polyline(svg_points)
+
+            if show_labels and name:
+                kind = "river" if waterway else "road"
                 batch_key = (kind, name)
                 batch = named_line_batches.get(batch_key)
                 if batch is None:
-                    # random stroke color
                     named_line_batches[batch_key] = {
-                        "stroke_color": stroke_color,
-                        "width": width,
                         "highway": highway,
-                        "waterway": waterway,
                         "segments": [svg_points],
                     }
                 else:
-                    batch["width"] = max(batch["width"], width)
                     batch["segments"].append(svg_points)
-            else:
-                target_group = rivers_root if kind == "river" else roads_root
-                elem = ET.SubElement(target_group, "polyline")
-                elem.set("points", pts)
-                elem.set("fill", "none")
-                elem.set("stroke", stroke_color)
-                elem.set("stroke-width", str(width))
+
+            target_group = rivers_root if waterway else roads_root
+            elem = ET.SubElement(target_group, "polyline")
+            elem.set("points", pts)
+            elem.set("fill", "none")
+            elem.set("stroke", stroke_color)
+            elem.set("stroke-width", str(width))
 
         elif gtype == "MultiLineString":
             lines = geom.get("coordinates", [])
             if not isinstance(lines, list) or not lines:
                 continue
-            candidate_lines = []
-            
-            if waterway:
-                kind = "river"
-                stroke_color = WATERWAY_LINE_STROKE
-                width = WATERWAY_WIDTHS.get(waterway, GEOJSON_LINE_STROKE_WIDTH)
-                target_group = rivers_root
-            else:
-                if use_highway_simple_filter and highway not in highway_simple_filter:
-                    continue  # skip minor roads for visual clarity
-                
-                kind = "road"
-                stroke_color = GEOJSON_LINE_STROKE
-                width = HIGHWAY_WIDTHS.get(highway, GEOJSON_LINE_STROKE_WIDTH)
-                target_group = roads_root
 
+            candidate_lines = []
             for line in lines:
                 if not isinstance(line, list) or not line:
                     continue
@@ -1109,25 +1162,44 @@ def geojson_elements(geojson_path: str,
                 if len(svg_points) >= 2:
                     candidate_lines.append(svg_points)
 
-            if not candidate_lines:
-                continue
+            if waterway:
+                stroke_color = WATERWAY_LINE_STROKE
+                width = WATERWAY_WIDTHS.get(waterway, GEOJSON_LINE_STROKE_WIDTH)
+                target_group = rivers_root
+            else:
+                if use_highway_simple_filter and highway not in highway_simple_filter:
+                    continue  # skip minor roads for visual clarity
+                
+                stroke_color = _road_stroke_color(highway)
+                width = HIGHWAY_WIDTHS.get(highway, GEOJSON_LINE_STROKE_WIDTH)
+                target_group = roads_root
 
-            if name:
+            if show_labels and name and candidate_lines:
+                kind = "river" if waterway else "road"
                 batch_key = (kind, name)
                 batch = named_line_batches.get(batch_key)
                 if batch is None:
                     named_line_batches[batch_key] = {
-                        "stroke_color": stroke_color,
-                        "width": width,
                         "highway": highway,
-                        "waterway": waterway,
                         "segments": candidate_lines,
                     }
                 else:
-                    batch["width"] = max(batch["width"], width)
                     batch["segments"].extend(candidate_lines)
-            else:
-                continue
+
+            for line in lines:
+                if not isinstance(line, list) or not line:
+                    continue
+                line_points = _coords_to_svg_points(line, min_lon, min_lat, max_lon, max_lat)
+                if len(line_points) < 2:
+                    continue
+                if not waterway:
+                    line_points = _extend_polyline_endpoints(line_points, viz_cfg.ROAD_ENDPOINT_EXTEND_PX)
+                pts = _svg_points_to_polyline(line_points)
+                elem = ET.SubElement(target_group, "polyline")
+                elem.set("points", pts)
+                elem.set("fill", "none")
+                elem.set("stroke", stroke_color)
+                elem.set("stroke-width", str(width))
 
         elif gtype == "Point":
             if not allowed_landmarks:
@@ -1181,33 +1253,35 @@ def geojson_elements(geojson_path: str,
             center_dot_elem.set("r", str(LANDMARK_POINT_CENTER_DOT_RADIUS))
             center_dot_elem.set("fill", LANDMARK_POINT_CENTER_DOT_FILL)
             center_dot_elem.set("opacity", "0.95")
-            landmark_candidates.append({
-                "name": name,
-                "x": x,
-                "y": y,
-                "score": landmark_meta["score"],
-            })
+
+            if show_labels and name:
+                landmark_candidates.append({
+                    "name": name,
+                    "x": x,
+                    "y": y,
+                    "score": landmark_meta["score"],
+                })
+
+    if not show_labels:
+        return
 
     for (kind, name), batch in named_line_batches.items():
+        if kind != "road":
+            continue
+        highway = batch.get("highway")
+        if highway not in highway_labels_filter or name in rendered_labels:
+            continue
+
         merged_lines = _stitch_polylines(batch["segments"])
-        target_group = rivers_root if kind == "river" else roads_root
-        highway = batch["highway"]
-
         for merged in merged_lines:
-            pts = " ".join(f"{x:.2f},{y:.2f}" for x, y in merged)
-            elem = ET.SubElement(target_group, "polyline")
-            elem.set("points", pts)
-            elem.set("fill", "none")
-            elem.set("stroke", batch["stroke_color"])
-            elem.set("stroke-width", str(batch["width"]))
-            
-            if highway in {"motorway", "trunk"} and name not in rendered_labels:
-                midpoint, angle_deg = _polyline_midpoint_direction(merged)
-                if midpoint is not None:
-                    _append_centered_rotated_text(labels_root, midpoint[0], midpoint[1], name, angle_deg)
-                    rendered_labels.add(name)
+            midpoint, angle_deg = _polyline_midpoint_direction(merged)
+            if midpoint is None:
+                continue
+            _append_centered_rotated_text(labels_root, midpoint[0], midpoint[1], name, angle_deg)
+            rendered_labels.add(name)
+            break
 
-    # Place landmark labels by importance using greedy overlap rejection.
+    # Place landmark labels by importance with greedy overlap rejection.
     landmark_candidates.sort(key=lambda item: item["score"], reverse=True)
     grid_counts: dict[tuple[int, int], int] = {}
     labels_used = 0
@@ -1222,7 +1296,6 @@ def geojson_elements(geojson_path: str,
         x = candidate["x"]
         y = candidate["y"]
 
-        # Keep labels away from photo markers to reduce clutter near highlights.
         near_photo = any(
             math.hypot(x - px, y - py) < LANDMARK_LABEL_PHOTO_AVOID_RADIUS
             for px, py in photo_points
@@ -1241,45 +1314,25 @@ def geojson_elements(geojson_path: str,
             continue
 
         _append_text(labels_root, x, y, name)
-        rendered_label_positions.append((x, y))
         rendered_label_boxes.append(label_box)
         grid_counts[cell_key] = grid_counts.get(cell_key, 0) + 1
         labels_used += 1
                 
 # ── SVG composition ──────────────────────────────────────────────────────────
 
-def build_svg(records: list[dict],
-              bbox: tuple[float, float, float, float],
-              geojson_path: str | None,
-              landmark_distance_m: float,
-              cover_mode: bool = False,
-              cover_title: str = "",
-              cover_desc: str = "",
-              cover_time_range: str = "") -> tuple[ET.Element, ET.Element | None, ET.Element | None, ET.Element | None, ET.Element | None]:
+def build_svg_minimap(records: list[dict],
+                      bbox: tuple[float, float, float, float],
+                      geojson_path: str | None,
+                      landmark_distance_m: float) -> tuple[ET.Element, ET.Element | None, ET.Element | None, ET.Element | None, ET.Element | None, ET.Element | None, ET.Element | None, ET.Element | None, ET.Element | None]:
     """
     Compose the full SVG tree once.
-    Layers (bottom → top): background, GeoJSON shapes, photo circles, one movable highlight.
-    Returns: (svg_root, highlight_halo, highlight_circle, highlight_ring, highlight_center_dot)
+    Layers (bottom → top): background, GeoJSON shapes, route spine, one movable highlight, title.
+    Returns: (svg_root, highlight_halo, highlight_circle, highlight_ring, highlight_center_dot, title_bg_elem, timeline_track_elem, timeline_progress_elem, title_elem)
     """
     min_lon, min_lat, max_lon, max_lat = bbox
-    canvas_width = COVER_SVG_WIDTH if cover_mode else SVG_WIDTH
-    canvas_height = COVER_SVG_HEIGHT if cover_mode else SVG_HEIGHT
-    canvas_margin = 0.03 if cover_mode else 0.0
-    map_offset_x = 0.0
-    map_offset_y = 0.0
-    map_width = canvas_width
-    map_height = canvas_height
-    panel_x = canvas_width
-    panel_width = 0.0
-
-    if cover_mode:
-        map_width = canvas_width
-        panel_x = 0.0
-        panel_width = canvas_width
-        # Shift projected map center from 50% to ~62% of cover width.
-        map_offset_x = canvas_width * 0.12
-
-    _set_active_svg_canvas(map_width, map_height, canvas_margin, map_offset_x, map_offset_y)
+    canvas_width = SVG_WIDTH
+    canvas_height = SVG_HEIGHT
+    viz_cfg._set_active_svg_canvas(canvas_width, canvas_height, 0.0, 0.0, 0.0)
 
     svg_ns = "http://www.w3.org/2000/svg"
     ET.register_namespace("", svg_ns)
@@ -1289,178 +1342,105 @@ def build_svg(records: list[dict],
     svg.set("viewBox", f"0 0 {canvas_width} {canvas_height}")
     
     defs = ET.SubElement(svg, "defs")
+    title_panel_gradient = ET.SubElement(defs, "linearGradient", id=TITLE_BG_GRADIENT_ID)
+    title_panel_gradient.set("x1", "0%")
+    title_panel_gradient.set("y1", "0%")
+    title_panel_gradient.set("x2", "100%")
+    title_panel_gradient.set("y2", "0%")
+    gradient_start = ET.SubElement(title_panel_gradient, "stop")
+    gradient_start.set("offset", "0%")
+    gradient_start.set("stop-color", TITLE_BG_FILL)
+    gradient_start.set("stop-opacity", f"{TITLE_BG_GRADIENT_START_OPACITY:.2f}")
+    gradient_end = ET.SubElement(title_panel_gradient, "stop")
+    gradient_end.set("offset", "100%")
+    gradient_end.set("stop-color", TITLE_BG_FILL)
+    gradient_end.set("stop-opacity", f"{TITLE_BG_GRADIENT_END_OPACITY:.2f}")
+
     # # define feBlend with multiply mode for highlight ring
     filter_elem = ET.SubElement(defs, "filter", id="highlight-blend")
     ET.SubElement(filter_elem, "feBlend", mode="multiply", in2="BackgroundImage", in_="SourceGraphic")
     # # define filter of feComposite with arithmetic operator for highlight halo
     # filter_elem2 = ET.SubElement(defs, "filter", id="highlight-halo-blend")
     # ET.SubElement(filter_elem2, "feComposite", operator="arithmetic", k1="0", k2="1", k3="0", k4="0", in2="BackgroundImage", in_="SourceGraphic")
-    
-    # Background
-    if cover_mode or use_svg_background:
-        bg = ET.SubElement(svg, "rect")
-        bg.set("width", str(canvas_width))
-        bg.set("height", str(canvas_height))
-        bg.set("fill", "#d8d1c4" if cover_mode else "#f8f8f8")
-
-    if cover_mode:
-        overlay_grad = ET.SubElement(defs, "linearGradient", id="cover-text-gradient")
-        overlay_grad.set("x1", "0")
-        overlay_grad.set("y1", "0")
-        overlay_grad.set("x2", "0")
-        overlay_grad.set("y2", "1")
-        ET.SubElement(overlay_grad, "stop", offset="0%", style="stop-color:#0f0f0d;stop-opacity:0.12")
-        ET.SubElement(overlay_grad, "stop", offset="52%", style="stop-color:#0f0f0d;stop-opacity:0.18")
-        ET.SubElement(overlay_grad, "stop", offset="100%", style="stop-color:#0f0f0d;stop-opacity:0.80")
-
-        vignette_grad = ET.SubElement(defs, "radialGradient", id="cover-vignette")
-        vignette_grad.set("cx", "50%")
-        vignette_grad.set("cy", "45%")
-        vignette_grad.set("r", "72%")
-        ET.SubElement(vignette_grad, "stop", offset="55%", style="stop-color:#000000;stop-opacity:0")
-        ET.SubElement(vignette_grad, "stop", offset="100%", style="stop-color:#000000;stop-opacity:0.28")
-
-    if cover_mode:
-        _append_cover_panel(
-            svg,
-            canvas_width,
-            canvas_height,
-            panel_x,
-            panel_width,
-            cover_title,
-            cover_time_range,
-            cover_desc,
-        )
 
     # GeoJSON layer
     if geojson_path and os.path.isfile(geojson_path):
-        geojson_elements(geojson_path, min_lon, min_lat, max_lon, max_lat, svg, records, landmark_distance_m)
-
-    if cover_mode:
-        text_grad_overlay = ET.SubElement(svg, "rect")
-        text_grad_overlay.set("x", "0")
-        text_grad_overlay.set("y", "0")
-        text_grad_overlay.set("width", str(canvas_width))
-        text_grad_overlay.set("height", str(canvas_height))
-        text_grad_overlay.set("fill", "url(#cover-text-gradient)")
-
-        vignette_overlay = ET.SubElement(svg, "rect")
-        vignette_overlay.set("x", "0")
-        vignette_overlay.set("y", "0")
-        vignette_overlay.set("width", str(canvas_width))
-        vignette_overlay.set("height", str(canvas_height))
-        vignette_overlay.set("fill", "url(#cover-vignette)")
-
-    highlight_photo_root = ET.SubElement(svg, "g", id="highlight_photo")
-    photos_root = ET.SubElement(svg, "g", id="photos")
-
-    # Photo markers: passport-stamp style to express visited locations.
-    point_halo_radius = CIRCLE_HALO_RADIUS * (1.25 if cover_mode else 1.05)
-    point_halo_opacity = 0.24 if cover_mode else CIRCLE_HALO_OPACITY
-    stamp_outer_radius = PHOTO_STAMP_OUTER_RADIUS * (1.16 if cover_mode else 1.0)
-    stamp_inner_radius = PHOTO_STAMP_INNER_RADIUS * (1.16 if cover_mode else 1.0)
-    stamp_outer_width = PHOTO_STAMP_OUTER_WIDTH if cover_mode else max(2, PHOTO_STAMP_OUTER_WIDTH - 1)
-    stamp_inner_opacity = 0.9 if cover_mode else PHOTO_STAMP_INNER_OPACITY
-    stamp_outer_opacity = 0.86 if cover_mode else PHOTO_STAMP_OUTER_OPACITY
-    center_dot_radius = PHOTO_STAMP_CENTER_DOT_RADIUS * (1.1 if cover_mode else 1.0)
-    cross_size = PHOTO_STAMP_CENTER_CROSS_SIZE * (1.1 if cover_mode else 1.0)
-    cross_width = PHOTO_STAMP_CENTER_CROSS_WIDTH
-
-    for rec in records:
-        x, y = geo_to_svg(rec["lon"], rec["lat"], min_lon, min_lat, max_lon, max_lat)
-
-        halo = ET.SubElement(photos_root, "circle")
-        halo.set("cx", f"{x:.2f}")
-        halo.set("cy", f"{y:.2f}")
-        halo.set("r", f"{point_halo_radius:.2f}")
-        halo.set("opacity", str(point_halo_opacity))
-        halo.set("fill", CIRCLE_FILL)
-
-        outer_ring = ET.SubElement(photos_root, "circle")
-        outer_ring.set("cx", f"{x:.2f}")
-        outer_ring.set("cy", f"{y:.2f}")
-        outer_ring.set("r", f"{stamp_outer_radius:.2f}")
-        outer_ring.set("fill", "none")
-        outer_ring.set("stroke", "none")
-        outer_ring.set("stroke-width", str(stamp_outer_width))
-        outer_ring.set("stroke-dasharray", PHOTO_STAMP_OUTER_DASH)
-        outer_ring.set("opacity", str(stamp_outer_opacity))
-
-        inner_core = ET.SubElement(photos_root, "circle")
-        inner_core.set("cx", f"{x:.2f}")
-        inner_core.set("cy", f"{y:.2f}")
-        inner_core.set("r", f"{stamp_inner_radius:.2f}")
-        inner_core.set("fill", CIRCLE_FILL)
-        inner_core.set("stroke", "none")
-        inner_core.set("opacity", str(stamp_inner_opacity))
-
-        center_dot = ET.SubElement(photos_root, "circle")
-        center_dot.set("cx", f"{x:.2f}")
-        center_dot.set("cy", f"{y:.2f}")
-        center_dot.set("r", f"{center_dot_radius:.2f}")
-        center_dot.set("fill", PHOTO_STAMP_CENTER_DOT_FILL)
-        center_dot.set("opacity", "0.96")
-
-        cross_h = ET.SubElement(photos_root, "line")
-        cross_h.set("x1", f"{x - cross_size:.2f}")
-        cross_h.set("y1", f"{y:.2f}")
-        cross_h.set("x2", f"{x + cross_size:.2f}")
-        cross_h.set("y2", f"{y:.2f}")
-        cross_h.set("stroke", PHOTO_STAMP_CENTER_CROSS_COLOR)
-        cross_h.set("stroke-width", str(cross_width))
-        cross_h.set("opacity", "0.92")
-
-        cross_v = ET.SubElement(photos_root, "line")
-        cross_v.set("x1", f"{x:.2f}")
-        cross_v.set("y1", f"{y - cross_size:.2f}")
-        cross_v.set("x2", f"{x:.2f}")
-        cross_v.set("y2", f"{y + cross_size:.2f}")
-        cross_v.set("stroke", PHOTO_STAMP_CENTER_CROSS_COLOR)
-        cross_v.set("stroke-width", str(cross_width))
-        cross_v.set("opacity", "0.92")
-
-    highlight_halo = None
-    highlight_circle = None
-    highlight_ring = None
-    highlight_center_dot = None
-
-    if not cover_mode:
-        # Reusable highlight layers. Positions are updated per photo before export.
-        highlight_halo = ET.SubElement(highlight_photo_root, "circle")
-        highlight_halo.set("opacity", str(HIGHLIGHT_HALO_OPACITY))
-        highlight_halo.set("r", str(HIGHLIGHT_HALO_RADIUS))
-        highlight_halo.set("fill", HIGHLIGHT_CIRCLE_FILL)
-
-        highlight_circle = ET.SubElement(highlight_photo_root, "circle")
-        highlight_circle.set("opacity", "0.58")
-        highlight_circle.set("r", str(HIGHLIGHT_CIRCLE_RADIUS))
-        highlight_circle.set("fill", HIGHLIGHT_CIRCLE_FILL)
-        highlight_circle.set("stroke", HIGHLIGHT_CIRCLE_STROKE)
-        highlight_circle.set("stroke-width", str(HIGHLIGHT_CIRCLE_STROKE_WIDTH))
-
-        highlight_ring = ET.SubElement(highlight_photo_root, "circle")
-        highlight_ring.set("fill", "none")
-        highlight_ring.set("r", str(HIGHLIGHT_RING_RADIUS))
-        highlight_ring.set("stroke", HIGHLIGHT_CIRCLE_STROKE)
-        highlight_ring.set("stroke-width", str(HIGHLIGHT_RING_STROKE_WIDTH))
-
-        highlight_center_dot = ET.SubElement(highlight_photo_root, "circle")
-        highlight_center_dot.set("r", str(HIGHLIGHT_CENTER_DOT_RADIUS))
-        highlight_center_dot.set("fill", HIGHLIGHT_CENTER_DOT_FILL)
-
-    if cover_mode:
-        _append_cover_panel(
+        geojson_elements(
+            geojson_path,
+            min_lon,
+            min_lat,
+            max_lon,
+            max_lat,
             svg,
-            canvas_width,
-            canvas_height,
-            panel_x,
-            panel_width,
-            cover_title,
-            cover_time_range,
-            cover_desc,
+            records,
+            landmark_distance_m,
+            show_labels=False,
         )
 
-    return svg, highlight_halo, highlight_circle, highlight_ring, highlight_center_dot
+    spine_root = ET.SubElement(svg, "g", id="spine")
+    highlight_photo_root = ET.SubElement(svg, "g", id="highlight_photo")
+    title_root = ET.SubElement(svg, "g", id="title")
+
+    if len(records) >= 2:
+        spine_points: list[tuple[float, float]] = []
+        for rec in records:
+            x, y = geo_to_svg(rec["lon"], rec["lat"], min_lon, min_lat, max_lon, max_lat)
+            spine_points.append((x, y))
+
+        for idx in range(1, len(spine_points)):
+            x1, y1 = spine_points[idx - 1]
+            x2, y2 = spine_points[idx]
+            seg_len = math.hypot(x2 - x1, y2 - y1)
+
+            seg = ET.SubElement(spine_root, "line")
+            seg.set("x1", f"{x1:.2f}")
+            seg.set("y1", f"{y1:.2f}")
+            seg.set("x2", f"{x2:.2f}")
+            seg.set("y2", f"{y2:.2f}")
+            seg.set("stroke", SPINE_STROKE)
+            seg.set("stroke-width", str(SPINE_STROKE_WIDTH))
+            seg.set("stroke-linecap", "round")
+            seg.set("opacity", f"{SPINE_OPACITY:.2f}")
+            if seg_len >= SPINE_GAP_DASH_THRESHOLD_PX:
+                seg.set("stroke-dasharray", SPINE_GAP_DASHARRAY)
+
+    title_bg_elem = ET.SubElement(title_root, "rect")
+    title_bg_elem.set("visibility", "hidden")
+    timeline_track_elem = ET.SubElement(title_root, "rect")
+    timeline_track_elem.set("visibility", "hidden")
+    timeline_progress_elem = ET.SubElement(title_root, "rect")
+    timeline_progress_elem.set("visibility", "hidden")
+    title_elem = ET.SubElement(title_root, "text")
+
+    # Reusable highlight layers. Positions are updated per photo before export.
+    highlight_scale = 0.58
+    highlight_fill = "#FF7A1A"
+    highlight_stroke = "#FF3D00"
+
+    highlight_halo = ET.SubElement(highlight_photo_root, "circle")
+    highlight_halo.set("opacity", "0.44")
+    highlight_halo.set("r", f"{HIGHLIGHT_HALO_RADIUS * highlight_scale:.2f}")
+    highlight_halo.set("fill", highlight_fill)
+
+    highlight_circle = ET.SubElement(highlight_photo_root, "circle")
+    highlight_circle.set("opacity", "0.82")
+    highlight_circle.set("r", f"{HIGHLIGHT_CIRCLE_RADIUS * highlight_scale:.2f}")
+    highlight_circle.set("fill", highlight_fill)
+    highlight_circle.set("stroke", highlight_stroke)
+    highlight_circle.set("stroke-width", f"{HIGHLIGHT_CIRCLE_STROKE_WIDTH * 0.68:.2f}")
+
+    highlight_ring = ET.SubElement(highlight_photo_root, "circle")
+    highlight_ring.set("fill", "none")
+    highlight_ring.set("r", f"{HIGHLIGHT_RING_RADIUS * highlight_scale:.2f}")
+    highlight_ring.set("stroke", highlight_stroke)
+    highlight_ring.set("stroke-width", f"{HIGHLIGHT_RING_STROKE_WIDTH * 0.66:.2f}")
+    highlight_ring.set("opacity", "0.95")
+
+    highlight_center_dot = ET.SubElement(highlight_photo_root, "circle")
+    highlight_center_dot.set("r", f"{max(2.0, HIGHLIGHT_CENTER_DOT_RADIUS * 0.72):.2f}")
+    highlight_center_dot.set("fill", "#FFF1E6")
+
+    return svg, highlight_halo, highlight_circle, highlight_ring, highlight_center_dot, title_bg_elem, timeline_track_elem, timeline_progress_elem, title_elem
 
 
 def set_highlight_position(highlight_halo: ET.Element | None,
@@ -1486,217 +1466,6 @@ def set_highlight_position(highlight_halo: ET.Element | None,
     highlight_center_dot.set("cy", f"{y:.2f}")
 
 
-# ── GeoJSON export ──────────────────────────────────────────────────────────
-
-def records_to_geojson(records: list[dict]) -> dict:
-    """
-    Convert photo records to a GeoJSON FeatureCollection.
-    Each record becomes a Point feature with properties.
-    """
-    features = []
-    for rec in records:
-        feature = {
-            "type": "Feature",
-            "properties": {
-                "id": rec["id"],
-                "datetime": rec["datetime"],
-            },
-            "geometry": {
-                "type": "Point",
-                "coordinates": [rec["lon"], rec["lat"]],
-            },
-        }
-        features.append(feature)
-    return {
-        "type": "FeatureCollection",
-        "features": features,
-    }
-
-
-def get_photos_geojson_path(photos_dir: str) -> str:
-    """
-    Extract folder name from photos_dir and return <folder_name>_photos.geojson.
-    E.g., /path/to/photos → __tmp/photos_photos.geojson
-    """
-    folder_name = Path(photos_dir).name
-    return f"__tmp/{folder_name}_photos.geojson"
-
-
-def get_osm_geojson_path(photos_dir: str) -> str:
-    """Return the OSM GeoJSON cache path in __tmp for a photo folder."""
-    folder_name = Path(photos_dir).name
-    return f"__tmp/{folder_name}_osm.geojson"
-
-
-def get_overpass_query_output_path(photos_dir: str) -> Path:
-    """Return rendered overpass query path in __tmp/<folder>/<folder>.overpass.query."""
-    folder_name = Path(photos_dir).name
-    return Path("__tmp") / folder_name / f"{folder_name}.overpass.query"
-
-
-def load_overpass_query_template() -> str:
-    """Load the template query file shipped with this case."""
-    template_path = Path(__file__).with_name("overpass.query")
-    return template_path.read_text(encoding="utf-8")
-
-
-def render_overpass_query(min_lat: float, min_lon: float, max_lat: float, max_lon: float) -> str:
-    """Render overpass.query template with bbox placeholder in S,W,N,E order."""
-    template = load_overpass_query_template()
-    bbox = f"{min_lat:.6f},{min_lon:.6f},{max_lat:.6f},{max_lon:.6f}"
-    return template.replace("{{bbox}}", bbox)
-
-
-def fetch_overpass_json(query_text: str) -> dict:
-    """Execute an Overpass interpreter query and return parsed JSON."""
-    endpoints = [
-        "https://overpass-api.de/api/interpreter",
-        "https://lz4.overpass-api.de/api/interpreter",
-        "https://overpass.kumi.systems/api/interpreter",
-        "https://overpass.openstreetmap.fr/api/interpreter",
-    ]
-
-    post_body = urllib.parse.urlencode({"data": query_text}).encode("utf-8")
-    errors = []
-
-    for endpoint in endpoints:
-        request = urllib.request.Request(
-            endpoint,
-            data=post_body,
-            headers={
-                "Content-Type": "application/x-www-form-urlencoded; charset=utf-8",
-                "Accept": "application/json,text/plain,*/*",
-                "User-Agent": "photos-viz/1.0",
-            },
-            method="POST",
-        )
-        try:
-            with urllib.request.urlopen(request, timeout=120) as response:
-                payload = response.read().decode("utf-8")
-            return json.loads(payload)
-        except urllib.error.HTTPError as err:
-            body = ""
-            try:
-                body = err.read().decode("utf-8", errors="ignore").strip().replace("\n", " ")[:200]
-            except Exception:
-                pass
-            errors.append(f"{endpoint} -> HTTP {err.code} {body}".strip())
-        except (urllib.error.URLError, json.JSONDecodeError) as err:
-            errors.append(f"{endpoint} -> {err}")
-
-    raise RuntimeError("All Overpass endpoints failed: " + " | ".join(errors))
-
-
-def _parse_osm_ref_from_properties(properties: dict) -> tuple[str, int] | None:
-    """Best-effort extraction of (osm_type, osm_id) from feature properties."""
-    if not isinstance(properties, dict):
-        return None
-
-    osm_type = properties.get("type") or properties.get("osm_type") or properties.get("@type")
-    raw_id = properties.get("id") or properties.get("osm_id") or properties.get("@id")
-
-    if isinstance(raw_id, str) and "/" in raw_id:
-        maybe_type, maybe_id = raw_id.split("/", 1)
-        if maybe_type in {"node", "way", "relation"} and maybe_id.isdigit():
-            return maybe_type, int(maybe_id)
-
-    if isinstance(raw_id, str) and raw_id and raw_id[0] in {"n", "w", "r"} and raw_id[1:].isdigit():
-        prefix_to_type = {"n": "node", "w": "way", "r": "relation"}
-        return prefix_to_type[raw_id[0]], int(raw_id[1:])
-
-    if isinstance(raw_id, str) and raw_id.isdigit():
-        raw_id = int(raw_id)
-
-    if isinstance(raw_id, int):
-        if osm_type in {"node", "way", "relation"}:
-            return osm_type, raw_id
-
-    return None
-
-
-def _enrich_geojson_properties_from_overpass(geojson: dict, overpass_data: dict):
-    """Merge original OSM tags from Overpass elements into GeoJSON feature properties."""
-    elements = overpass_data.get("elements", []) if isinstance(overpass_data, dict) else []
-    if not isinstance(elements, list):
-        return
-
-    tags_by_ref: dict[tuple[str, int], dict] = {}
-    for element in elements:
-        if not isinstance(element, dict):
-            continue
-        etype = element.get("type")
-        eid = element.get("id")
-        tags = element.get("tags")
-        if etype in {"node", "way", "relation"} and isinstance(eid, int) and isinstance(tags, dict):
-            tags_by_ref[(etype, eid)] = tags
-
-    features = geojson.get("features", []) if isinstance(geojson, dict) else []
-    if not isinstance(features, list):
-        return
-
-    for feature in features:
-        if not isinstance(feature, dict):
-            continue
-        properties = feature.get("properties")
-        if not isinstance(properties, dict):
-            properties = {}
-            feature["properties"] = properties
-
-        osm_ref = _parse_osm_ref_from_properties(properties)
-        if not osm_ref:
-            continue
-
-        source_tags = tags_by_ref.get(osm_ref)
-        if not source_tags:
-            continue
-
-        for key, value in source_tags.items():
-            properties.setdefault(key, value)
-
-
-def convert_overpass_to_geojson(overpass_data: dict) -> dict:
-    """Convert Overpass JSON to GeoJSON using osm2geojson."""
-    if not isinstance(overpass_data, dict):
-        raise ValueError("Invalid Overpass payload.")
-
-    geojson = osm2geojson.json2geojson(overpass_data)
-    if not isinstance(geojson, dict):
-        raise ValueError("osm2geojson returned invalid data.")
-
-    if geojson.get("type") != "FeatureCollection":
-        geojson = {
-            "type": "FeatureCollection",
-            "features": geojson.get("features", []),
-        }
-
-    _enrich_geojson_properties_from_overpass(geojson, overpass_data)
-
-    geojson["usable"] = True
-    return geojson
-
-
-def export_photos_geojson(records: list[dict], output_path: str):
-    """
-    Write photo records to a GeoJSON FeatureCollection file.
-    """
-    geojson_data = records_to_geojson(records)
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(geojson_data, f, indent=2, ensure_ascii=False)
-
-
-# ── PNG export ───────────────────────────────────────────────────────────────
-
-def export_png(svg_content: str, png_path: str, width: int = PNG_SIZE, height: int = PNG_SIZE):
-    """Rasterize SVG to a width×height PNG using CairoSVG with transparency."""
-    cairosvg.svg2png(
-        bytestring=svg_content.encode("utf-8"),
-        write_to=png_path,
-        output_width=width,
-        output_height=height,
-        background_color="rgba(0,0,0,0)"  # Transparent background
-    )
-
-
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
 def main():
@@ -1709,16 +1478,12 @@ def main():
                         help="only generate minimap for photos whose names match the search query (case-insensitive substring match)")
     parser.add_argument("--dark", type=bool, default=False,
                         help="use a dark background and color scheme for better visibility in low-light conditions")
-    parser.add_argument("--simple", type=bool, default=False,
+    parser.add_argument("--simple", type=bool, default=True,
                         help="only render major highways (motorway, trunk, primary) for visual clarity")
     parser.add_argument("--landmark-distance", type=float, default=LANDMARK_DISTANCE_M_DEFAULT,
                         help=f"render landmarks within this distance (meters, default: {LANDMARK_DISTANCE_M_DEFAULT})")
-    parser.add_argument("--cover", type=int, default=0, choices=[0, 1],
-                          help="set to 1 to generate a single movie cover PNG with background and no highlight circle")
-    parser.add_argument("--cover-title", default="",
-                        help="cover title shown in right text panel when --cover 1")
-    parser.add_argument("--cover-desc", default="",
-                        help="short cover description shown in right text panel when --cover 1")
+    parser.add_argument("--title-corner", choices=TITLE_CORNER_CHOICES, default="top-left",
+                        help="corner placement for title text (top-left, top-right, bottom-left, bottom-right)")
     args = parser.parse_args()
 
     # 1. Scan photos
@@ -1817,50 +1582,42 @@ def main():
     if args.dark:
         _apply_dark_mode()
 
-    cover_mode = args.cover == 1
-    if cover_mode:
-        _apply_cover_mode_colors()
-
-    cover_time_range = _compute_time_range(records)
-
     if args.simple:
         global use_highway_simple_filter
         use_highway_simple_filter = True
 
-    svg_root, highlight_halo, highlight_circle, highlight_ring, highlight_center_dot = build_svg(
+    place_candidates = _build_place_candidates(geojson_data)
+
+    svg_root, highlight_halo, highlight_circle, highlight_ring, highlight_center_dot, title_bg_elem, timeline_track_elem, timeline_progress_elem, title_elem = build_svg_minimap(
         records,
         bbox,
         osm_geojson_name,
         args.landmark_distance,
-        cover_mode=cover_mode,
-        cover_title=args.cover_title,
-        cover_desc=args.cover_desc,
-        cover_time_range=cover_time_range,
     )
-    
-    # save the svg tree to a file for debugging
-    # debug_svg_path = Path.cwd() / "__tmp" / f"{Path(args.photos_dir).name}_debug.svg"
-    # ET.ElementTree(svg_root).write(debug_svg_path, encoding="utf-8", xml_declaration=True)
-    # print(f"Debug SVG saved to {debug_svg_path}")
+    time_progress_map = _build_time_progress_map(records)
     
     filtered_records = [
         rec for rec in records
         if not args.search or args.search.lower() in rec["id"].lower()
     ]
 
-    if cover_mode:
-        svg_content = ET.tostring(svg_root, encoding="unicode", xml_declaration=False)
-        cover_png = output_dir / f"{Path(args.photos_dir).name}_map_cover.png"
-        export_png(svg_content, str(cover_png), width=COVER_SVG_WIDTH, height=COVER_SVG_HEIGHT)
-        print(f"Cover saved → {cover_png}")
-        print(
-            f"Generated 1 cover file in {output_dir}  ({COVER_SVG_WIDTH}×{COVER_SVG_HEIGHT}px)"
-        )
-        return
-
     generated_count = 0
     for rec in filtered_records:
         set_highlight_position(highlight_halo, highlight_circle, highlight_ring, highlight_center_dot, rec, bbox)
+        place_text, time_text = _build_title_parts(rec, place_candidates)
+        rec_progress = time_progress_map.get(rec.get("id"), 0.0)
+        _set_title_position_and_text(
+            title_elem,
+            title_bg_elem,
+            timeline_track_elem,
+            timeline_progress_elem,
+            place_text,
+            time_text,
+            rec_progress,
+            args.title_corner,
+            SVG_WIDTH,
+            SVG_HEIGHT,
+        )
         svg_content = ET.tostring(svg_root, encoding="unicode", xml_declaration=False)
         output_png = output_dir / f"{Path(rec['id']).stem}_map.png"
         export_png(svg_content, str(output_png))
