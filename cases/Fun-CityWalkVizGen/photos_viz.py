@@ -25,6 +25,7 @@ from PIL import Image
 
 import photos_viz_config as viz_cfg
 from photos_viz_config import *
+from photos_viz_geometry import distance_to_geometry_m
 from photos_viz_sharing import (
     _parse_osm_ref_from_properties,
     convert_overpass_to_geojson,
@@ -40,6 +41,7 @@ from photos_viz_sharing import (
 
 # Title nearest-place lookup radius in meters.
 max_circle_distance_to_find_the_near_place = 450.0
+TITLE_NEAREST_DEBUG = False
 TITLE_CORNER_CHOICES = ("top-left", "top-right", "bottom-left", "bottom-right")
 TITLE_FONT_SIZE = 90
 TITLE_MARGIN = 42
@@ -351,9 +353,9 @@ def _iter_lonlat_points(coords):
             yield from _iter_lonlat_points(child)
 
 
-def _build_place_candidates(geojson_data: dict) -> dict[str, list[tuple[str, float, float]]]:
-    """Build searchable named place points grouped by preferred place categories."""
-    grouped: dict[str, list[tuple[str, float, float]]] = {
+def _build_place_candidates(geojson_data: dict) -> dict[str, list[tuple[str, str, object]]]:
+    """Build named place geometry candidates grouped by preferred categories."""
+    grouped: dict[str, list[tuple[str, str, object]]] = {
         "landmark": [],
         "road": [],
         "water": [],
@@ -377,24 +379,56 @@ def _build_place_candidates(geojson_data: dict) -> dict[str, list[tuple[str, flo
         geom = feature.get("geometry")
         if not isinstance(geom, dict):
             continue
+        geom_type = geom.get("type")
         coords = geom.get("coordinates")
-        for lon, lat in _iter_lonlat_points(coords):
-            grouped[category].append((name.strip(), lon, lat))
+        if not isinstance(geom_type, str):
+            continue
+
+        grouped[category].append((name.strip(), geom_type, coords))
     return grouped
 
 
-def _find_nearest_place_name(candidates: dict[str, list[tuple[str, float, float]]], lon: float, lat: float) -> str | None:
-    """Find a single preferred nearby place name around the current photo location."""
+def _nearest_candidate_in_category(candidates: list[tuple[str, str, object]], lon: float, lat: float) -> tuple[str, float] | None:
+    """Return the nearest candidate in a category within the lookup radius."""
+    nearest_name: str | None = None
+    nearest_distance: float | None = None
+
+    for name, geom_type, coords in candidates:
+        dist = distance_to_geometry_m(lon, lat, geom_type, coords)
+        if dist is None or dist > max_circle_distance_to_find_the_near_place:
+            continue
+
+        if nearest_distance is None or dist < nearest_distance - 1e-6:
+            nearest_name = name
+            nearest_distance = dist
+        elif math.isclose(dist, nearest_distance, rel_tol=0.0, abs_tol=1e-6) and nearest_name is not None and name < nearest_name:
+            nearest_name = name
+
+    if nearest_name is None or nearest_distance is None:
+        return None
+    return nearest_name, nearest_distance
+
+
+def _find_nearest_place_name(candidates: dict[str, list[tuple[str, str, object]]], lon: float, lat: float) -> str | None:
+    """Find nearest nearby place name using category-prioritized lookup."""
     for category in ("landmark", "road", "water"):
-        nearest: tuple[float, str] | None = None
-        for name, p_lon, p_lat in candidates.get(category, []):
-            dist = _haversine_distance_meters(lon, lat, p_lon, p_lat)
-            if dist > max_circle_distance_to_find_the_near_place:
-                continue
-            if nearest is None or dist < nearest[0] or (math.isclose(dist, nearest[0], rel_tol=0.0, abs_tol=1e-6) and name < nearest[1]):
-                nearest = (dist, name)
-        if nearest is not None:
-            return nearest[1]
+        nearest = _nearest_candidate_in_category(candidates.get(category, []), lon, lat)
+        if nearest is None:
+            continue
+
+        nearest_name, nearest_distance = nearest
+        if TITLE_NEAREST_DEBUG:
+            print(
+                f"[title-nearest] category={category} lon={lon:.6f} lat={lat:.6f} name={nearest_name} dist_m={nearest_distance:.2f}",
+                file=sys.stderr,
+            )
+        return nearest_name
+
+    if TITLE_NEAREST_DEBUG:
+        print(
+            f"[title-nearest] category=none lon={lon:.6f} lat={lat:.6f}",
+            file=sys.stderr,
+        )
     return None
 
 
@@ -470,7 +504,7 @@ def _build_time_progress_map(records: list[dict]) -> dict[str, float]:
     return progress
 
 
-def _build_title_parts(rec: dict, place_candidates: dict[str, list[tuple[str, float, float]]]) -> tuple[str, str]:
+def _build_title_parts(rec: dict, place_candidates: dict[str, list[tuple[str, str, object]]]) -> tuple[str, str]:
     """Return (place, time), where place may be empty if nothing nearby is found."""
     time_part = _format_title_time(rec.get("datetime"))
     try:
@@ -827,6 +861,51 @@ def _coords_to_svg_points(coords, min_lon, min_lat, max_lon, max_lat) -> list[tu
     return points
 
 
+def _polygon_outer_ring_centroid(rings) -> tuple[float, float] | None:
+    """Return centroid of polygon outer ring in lon/lat; fallback to average when degenerate."""
+    if not isinstance(rings, list) or not rings:
+        return None
+
+    outer = rings[0]
+    if not isinstance(outer, list):
+        return None
+
+    points: list[tuple[float, float]] = []
+    for coord in outer:
+        if not isinstance(coord, (list, tuple)) or len(coord) < 2:
+            continue
+        try:
+            points.append((float(coord[0]), float(coord[1])))
+        except (TypeError, ValueError):
+            continue
+
+    if len(points) < 3:
+        return None
+
+    if points[0] != points[-1]:
+        points.append(points[0])
+
+    area2 = 0.0
+    cx_acc = 0.0
+    cy_acc = 0.0
+    for idx in range(len(points) - 1):
+        x0, y0 = points[idx]
+        x1, y1 = points[idx + 1]
+        cross = x0 * y1 - x1 * y0
+        area2 += cross
+        cx_acc += (x0 + x1) * cross
+        cy_acc += (y0 + y1) * cross
+
+    if abs(area2) <= 1e-12:
+        avg_lon = sum(p[0] for p in points[:-1]) / max(1, len(points) - 1)
+        avg_lat = sum(p[1] for p in points[:-1]) / max(1, len(points) - 1)
+        return avg_lon, avg_lat
+
+    cx = cx_acc / (3.0 * area2)
+    cy = cy_acc / (3.0 * area2)
+    return cx, cy
+
+
 def _svg_points_to_polyline(points: list[tuple[float, float]]) -> str:
     """Convert SVG point tuples to a polyline points string."""
     return " ".join(f"{x:.2f},{y:.2f}" for x, y in points)
@@ -1080,6 +1159,35 @@ def geojson_elements(geojson_path: str,
                 if i > 0:
                     elem.set("fill", "white")
 
+            if show_labels and name:
+                category = _landmark_category(properties)
+                if category is not None:
+                    min_distance: float | None = None
+                    for rec in records:
+                        try:
+                            rec_lon = float(rec["lon"])
+                            rec_lat = float(rec["lat"])
+                        except (KeyError, TypeError, ValueError):
+                            continue
+
+                        dist = distance_to_geometry_m(rec_lon, rec_lat, "Polygon", rings)
+                        if dist is None:
+                            continue
+                        if min_distance is None or dist < min_distance:
+                            min_distance = dist
+
+                    if min_distance is not None and min_distance <= landmark_distance_m:
+                        centroid = _polygon_outer_ring_centroid(rings)
+                        if centroid is not None:
+                            x, y = geo_to_svg(centroid[0], centroid[1], min_lon, min_lat, max_lon, max_lat)
+                            score = _landmark_importance_score(properties, category, min_distance, landmark_distance_m)
+                            landmark_candidates.append({
+                                "name": name,
+                                "x": x,
+                                "y": y,
+                                "score": score,
+                            })
+
         elif gtype == "MultiPolygon":
             polygons = geom.get("coordinates", [])
             
@@ -1108,6 +1216,7 @@ def geojson_elements(geojson_path: str,
                     elem.set("stroke-width", str(GEOJSON_POLYGON_STROKE_WIDTH))
                     if i > 0:
                         elem.set("fill", "white")
+            # Intentionally skip MultiPolygon landmark labels to reduce noisy anchors.
                         
         elif gtype == "LineString":
             coords = geom.get("coordinates", [])

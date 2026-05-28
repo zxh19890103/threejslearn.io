@@ -2,9 +2,19 @@
 (
   way["highway"~"motorway|trunk|primary|secondary|tertiary|residential|unclassified"]({{bbox}});
   way["waterway"="river"]({{bbox}});
-  way["natural=water"]({{bbox}});
+  
+  way["natural"="water"]({{bbox}});
   relation["natural"="water"]({{bbox}});
-  node["tourism"]({{bbox}});
-  node["historic"]({{bbox}});
+
+  node["tourism"~"attraction|museum|artwork|viewpoint|zoo|theme_park|gallery|hotel"]({{bbox}});
+  node["historic"~"monument|memorial|castle|fort|ruins|archaeological_site|yes"]({{bbox}});
+  node["amenity"~"place_of_worship|theatre|arts_centre|library|townhall|university"]({{bbox}});
+
+  way["tourism"~"attraction|museum|zoo|theme_park|gallery"]({{bbox}});
+  way["historic"~"monument|memorial|castle|fort|ruins|archaeological_site"]({{bbox}});
+  way["amenity"~"place_of_worship|theatre|arts_centre|library|townhall|university"]({{bbox}});
+
+  relation["tourism"~"attraction|museum|zoo|theme_park|gallery"]({{bbox}});
+  relation["historic"~"monument|memorial|castle|fort|ruins|archaeological_site"]({{bbox}});
 );
 out body geom;

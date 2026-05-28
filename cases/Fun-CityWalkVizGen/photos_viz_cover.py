@@ -2,9 +2,10 @@ import argparse
 from datetime import datetime
 import json
 from math import asin, cos, radians, sin, sqrt
-import random
 import sys
 import urllib.error
+import urllib.parse
+import urllib.request
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -73,6 +74,75 @@ def _compute_total_distance_km(records: list[dict]) -> float:
 
 	return total_m / 1000.0
 
+
+def _sorted_route_records(records: list[dict]) -> list[dict]:
+	"""Return records sorted by datetime, falling back to original input order."""
+	ordered: list[tuple[datetime | None, int, dict]] = []
+	for idx, rec in enumerate(records):
+		lat_raw = rec.get("lat")
+		lon_raw = rec.get("lon")
+		if not isinstance(lat_raw, (int, float)) or not isinstance(lon_raw, (int, float)):
+			continue
+
+		dt_value = None
+		raw_dt = rec.get("datetime")
+		if isinstance(raw_dt, str):
+			dt_value = _parse_record_datetime(raw_dt)
+
+		ordered.append((dt_value, idx, rec))
+
+	ordered.sort(key=lambda item: (item[0] is None, item[0] or datetime.max, item[1]))
+	return [item[2] for item in ordered]
+
+
+def _append_start_end_badges(
+	svg_root: ET.Element,
+	start_rec: dict,
+	end_rec: dict,
+	min_lon: float,
+	min_lat: float,
+	max_lon: float,
+	max_lat: float,
+):
+	"""Draw start/end badges replacing the first and last route markers."""
+	badges_root = ET.SubElement(svg_root, "g", id="start_end_badges")
+
+	def _draw_badge(rec: dict, label: str, fill_color: str, stroke_color: str, halo_color: str):
+		x, y = mini.geo_to_svg(rec["lon"], rec["lat"], min_lon, min_lat, max_lon, max_lat)
+		badge_halo_radius = 44
+		badge_core_radius = 26
+		badge_font_size = 30
+
+		halo = ET.SubElement(badges_root, "circle")
+		halo.set("cx", f"{x:.2f}")
+		halo.set("cy", f"{y:.2f}")
+		halo.set("r", str(badge_halo_radius))
+		halo.set("fill", halo_color)
+		halo.set("opacity", "0.34")
+
+		core = ET.SubElement(badges_root, "circle")
+		core.set("cx", f"{x:.2f}")
+		core.set("cy", f"{y:.2f}")
+		core.set("r", str(badge_core_radius))
+		core.set("fill", fill_color)
+		core.set("stroke", stroke_color)
+		core.set("stroke-width", "4")
+		core.set("opacity", "0.96")
+
+		label_elem = ET.SubElement(badges_root, "text")
+		label_elem.set("x", f"{x:.2f}")
+		label_elem.set("y", f"{y + 0.8:.2f}")
+		label_elem.set("fill", "#FFFFFF")
+		label_elem.set("font-size", str(badge_font_size))
+		label_elem.set("font-family", '"Avenir Next", "PingFang SC", "Noto Sans CJK SC", sans-serif')
+		label_elem.set("font-weight", "700")
+		label_elem.set("text-anchor", "middle")
+		label_elem.set("dominant-baseline", "central")
+		label_elem.text = label
+
+	_draw_badge(start_rec, "S", "#23B26D", "#0E8248", "#4BE59A")
+	_draw_badge(end_rec, "E", "#FF7A3D", "#D84D12", "#FFB089")
+
 def _compute_time_range(records: list[dict]) -> str:
 	"""Return formatted time range: same-day shows times, multi-day shows date span."""
 	def _fmt_date(dt_value: datetime) -> str:
@@ -98,6 +168,196 @@ def _compute_time_range(records: list[dict]) -> str:
 		return f"{date_label}  {start_dt.strftime('%H:%M')} ~ {end_dt.strftime('%H:%M')}"
 
 	return f"{_fmt_date(start_dt)} ~ {_fmt_date(end_dt)}"
+
+
+def _load_cover_meta(meta_path: Path) -> dict[str, str]:
+	"""Load key/value metadata from _meta.md."""
+	try:
+		raw_text = meta_path.read_text(encoding="utf-8")
+	except OSError:
+		return {}
+
+	meta: dict[str, str] = {}
+	for raw_line in raw_text.splitlines():
+		line = raw_line.strip()
+		if not line or line.startswith("#") or ":" not in line:
+			continue
+		key, value = line.split(":", 1)
+		meta[key.strip().lower()] = value.strip()
+
+	return meta
+
+
+def _save_cover_meta(meta_path: Path, meta: dict[str, str]):
+	"""Persist cover metadata for future CLI runs."""
+	ordered_keys = [
+		"title",
+		"desc",
+		"subtitle",
+		"location_source",
+		"location_confidence",
+		"location_center_lat",
+		"location_center_lon",
+		"location_updated_at",
+	]
+
+	lines = ["# Cover Meta"]
+	for key in ordered_keys:
+		value = (meta.get(key) or "").strip()
+		lines.append(f"{key}: {value}")
+	lines.append("")
+
+	content = "\n".join([
+		*lines,
+	])
+	meta_path.write_text(content, encoding="utf-8")
+
+
+def _compute_center_latlon(records: list[dict]) -> tuple[float, float] | None:
+	"""Return simple centroid (lat, lon) across valid photo records."""
+	lat_values: list[float] = []
+	lon_values: list[float] = []
+	for rec in records:
+		lat_raw = rec.get("lat")
+		lon_raw = rec.get("lon")
+		if isinstance(lat_raw, (int, float)) and isinstance(lon_raw, (int, float)):
+			lat_values.append(float(lat_raw))
+			lon_values.append(float(lon_raw))
+
+	if not lat_values:
+		return None
+
+	return sum(lat_values) / len(lat_values), sum(lon_values) / len(lon_values)
+
+
+def _build_subtitle_from_address(address: dict) -> tuple[str, str]:
+	"""Build subtitle and confidence from reverse-geocoded address fields."""
+	city_candidates = [
+		"city",
+		"state",
+		"town",
+		"municipality",
+		"village",
+		"county",
+	]
+ 
+	neighborhood_candidates = [
+		"neighbourhood",
+		"suburb",
+		"city_district",
+		"borough",
+		"district",
+	]
+
+	city = ""
+	neighborhood = ""
+
+	for key in city_candidates:
+		value = address.get(key)
+		if isinstance(value, str) and value.strip():
+			city = value.strip()
+			break
+
+	for key in neighborhood_candidates:
+		value = address.get(key)
+		if isinstance(value, str) and value.strip():
+			neighborhood = value.strip()
+			break
+
+	if city and neighborhood and city.lower() != neighborhood.lower():
+		return f"{city} · {neighborhood}", "high"
+	if city:
+		return city, "medium"
+	if neighborhood:
+		return neighborhood, "medium"
+	return "", "low"
+
+
+def _is_english_text(value: str) -> bool:
+	"""Return True when text is ASCII-only (English-safe fallback)."""
+	if not value:
+		return False
+	return value.isascii()
+
+
+def _reverse_geocode_subtitle(lat: float, lon: float) -> tuple[str, str, str]:
+	"""Reverse geocode (lat, lon) to subtitle, source and confidence."""
+	query = urllib.parse.urlencode(
+		{
+			"format": "jsonv2",
+			"lat": f"{lat:.6f}",
+			"lon": f"{lon:.6f}",
+			"zoom": "14",
+			"addressdetails": "1",
+			"accept-language": "en",
+		}
+	)
+
+	url = f"https://nominatim.openstreetmap.org/reverse?{query}"
+ 
+	print(f"Reverse geocoding for cover subtitle: {url}")
+ 
+	request = urllib.request.Request(
+		url,
+		headers={
+			"User-Agent": "threejslearn-citywalk-cover/1.0",
+			"Accept-Language": "en",
+		},
+	)
+
+	with urllib.request.urlopen(request, timeout=8) as resp:
+		payload = json.load(resp)
+
+	address = payload.get("address")
+	if not isinstance(address, dict):
+		return "", "reverse_geocoding_api", "low"
+
+	subtitle, confidence = _build_subtitle_from_address(address)
+	# if not _is_english_text(subtitle):
+	# 	subtitle = ""
+	# 	confidence = "low"
+	return subtitle, "reverse_geocoding_api", confidence
+
+
+def _resolve_cover_subtitle(records: list[dict], meta: dict[str, str]) -> tuple[str, dict[str, str]]:
+	"""Resolve subtitle with cache-first strategy and reverse-geocode fallback."""
+	center = _compute_center_latlon(records)
+	if center is None:
+		return "", meta
+
+	center_lat, center_lon = center
+	cached_subtitle = (meta.get("subtitle") or "").strip()
+	cached_lat_raw = (meta.get("location_center_lat") or "").strip()
+	cached_lon_raw = (meta.get("location_center_lon") or "").strip()
+
+	try:
+		cached_lat = float(cached_lat_raw)
+		cached_lon = float(cached_lon_raw)
+	except ValueError:
+		cached_lat = None
+		cached_lon = None
+
+	if (
+		cached_subtitle
+		and _is_english_text(cached_subtitle)
+		and cached_lat is not None
+		and cached_lon is not None
+		and abs(cached_lat - center_lat) <= 0.0005
+		and abs(cached_lon - center_lon) <= 0.0005
+	):
+		return cached_subtitle, meta
+
+	try:
+		subtitle, source, confidence = _reverse_geocode_subtitle(center_lat, center_lon)
+		meta["subtitle"] = subtitle
+		meta["location_source"] = source
+		meta["location_confidence"] = confidence
+		meta["location_center_lat"] = f"{center_lat:.6f}"
+		meta["location_center_lon"] = f"{center_lon:.6f}"
+		meta["location_updated_at"] = datetime.now().isoformat(timespec="seconds")
+		return subtitle, meta
+	except (urllib.error.URLError, OSError, ValueError, TimeoutError, json.JSONDecodeError):
+		return (cached_subtitle if _is_english_text(cached_subtitle) else ""), meta
 
 
 def _wrap_cover_text(text_value: str, max_chars: int) -> list[str]:
@@ -144,6 +404,7 @@ def _append_cover_panel(
 	panel_x: float,
 	panel_width: float,
 	title: str,
+	subtitle: str,
 	time_range: str,
 	description: str,
 ):
@@ -156,11 +417,13 @@ def _append_cover_panel(
 	text_max_width = max(100.0, text_right - text_margin_x)
 
 	title_text = (title or "City Walk").strip() or "City Walk"
+	subtitle_text = (subtitle or "").strip()
 	desc_text = (description or "").strip()
 
-	title_font = 200
-	meta_font = 124
-	desc_font = 108
+	title_font = 400
+	subtitle_font = 300
+	meta_font = 248
+	desc_font = 216
 
 	top_anchor = canvas_height * 0.52
 	bottom_padding = canvas_height * 0.07
@@ -168,12 +431,15 @@ def _append_cover_panel(
 
 	scale = 1.0
 	title_lines = [title_text]
+	subtitle_lines = []
 	desc_lines = []
 	current_title_font = title_font
+	current_subtitle_font = subtitle_font
 	current_meta_font = meta_font
 	current_desc_font = desc_font
 	while True:
 		current_title_font = max(24, int(round(title_font * scale)))
+		current_subtitle_font = max(20, int(round(subtitle_font * scale)))
 		current_meta_font = max(20, int(round(meta_font * scale)))
 		current_desc_font = max(16, int(round(desc_font * scale)))
 
@@ -182,6 +448,12 @@ def _append_cover_panel(
 		if not title_lines:
 			title_lines = ["City Walk"]
 
+		if subtitle_text:
+			subtitle_max_chars = max(8, int(text_max_width / (current_subtitle_font * 0.56)))
+			subtitle_lines = _wrap_cover_text(subtitle_text, subtitle_max_chars)
+		else:
+			subtitle_lines = []
+
 		if desc_text:
 			desc_max_chars = max(10, int(text_max_width / (current_desc_font * 0.56)))
 			desc_lines = _wrap_cover_text(desc_text, desc_max_chars)
@@ -189,20 +461,38 @@ def _append_cover_panel(
 			desc_lines = []
 
 		title_block_height = len(title_lines) * current_title_font * 1.08 + current_title_font * 0.10
+		subtitle_gap_height = current_meta_font * 0.62 if subtitle_lines else 0.0
+		subtitle_block_height = len(subtitle_lines) * current_subtitle_font * 1.18
 		time_block_height = current_meta_font
 		desc_gap_height = current_meta_font * 1.5 if desc_lines else 0.0
 		desc_block_height = len(desc_lines) * current_desc_font * 1.28
-		total_height = title_block_height + time_block_height + desc_gap_height + desc_block_height
+		total_height = (
+			title_block_height
+			+ subtitle_gap_height
+			+ subtitle_block_height
+			+ time_block_height
+			+ desc_gap_height
+			+ desc_block_height
+		)
 
 		if total_height <= available_text_height or scale <= 0.35:
 			break
 		scale *= 0.92
 
 	title_block_height = len(title_lines) * current_title_font * 1.12 + current_title_font * 0.13
+	subtitle_gap_height = current_meta_font * 0.70 if subtitle_lines else 0.0
+	subtitle_block_height = len(subtitle_lines) * current_subtitle_font * 1.24
 	time_block_height = current_meta_font
 	desc_gap_height = current_meta_font * 1.7 if desc_lines else 0.0
 	desc_block_height = len(desc_lines) * current_desc_font * 1.35
-	total_height = title_block_height + time_block_height + desc_gap_height + desc_block_height
+	total_height = (
+		title_block_height
+		+ subtitle_gap_height
+		+ subtitle_block_height
+		+ time_block_height
+		+ desc_gap_height
+		+ desc_block_height
+	)
 
 	panel_pad_x = canvas_width * 0.045
 	panel_pad_top = current_title_font * 0.40
@@ -231,51 +521,41 @@ def _append_cover_panel(
 		"gradientTransform",
 		f"translate({mask_cx:.2f} {mask_cy:.2f}) scale({mask_rx:.2f} {mask_ry:.2f})",
 	)
-	ET.SubElement(text_mask_grad, "stop", offset="0%", style="stop-color:#000000;stop-opacity:0.38")
+	ET.SubElement(text_mask_grad, "stop", offset="0%", style="stop-color:#000000;stop-opacity:0.58")
 	ET.SubElement(text_mask_grad, "stop", offset="46%", style="stop-color:#000000;stop-opacity:0.32")
-	ET.SubElement(text_mask_grad, "stop", offset="76%", style="stop-color:#000000;stop-opacity:0.10")
+	ET.SubElement(text_mask_grad, "stop", offset="76%", style="stop-color:#000000;stop-opacity:0.12")
 	ET.SubElement(text_mask_grad, "stop", offset="100%", style="stop-color:#000000;stop-opacity:0")
 
-	poly_left = panel_left - panel_width_px * 0.24
-	poly_right = panel_left + panel_width_px * 1.02
-	poly_top = panel_top - panel_height_px * 0.14
-	poly_bottom = panel_top + panel_height_px * 1.12
-	rng = random.Random()
+	# Build a rounded, deterministic mask around the full text block with modest padding.
+	text_block_top = canvas_height - bottom_padding - total_height
+	text_block_bottom = canvas_height - bottom_padding
+	pad_x = max(20.0, current_title_font * 0.15)
+	pad_top = max(18.0, current_title_font * 0.20)
+	pad_bottom = max(18.0, current_desc_font * 0.22)
 
-	def _clamp(v: float, lo: float, hi: float) -> float:
-		return max(lo, min(hi, v))
+	poly_left = max(0.0, text_margin_x - pad_x)
+	poly_right = min(float(canvas_width), text_right + pad_x * 0.55)
+	poly_top = max(0.0, text_block_top - pad_top)
+	poly_bottom = min(float(canvas_height), text_block_bottom + pad_bottom)
 
-	poly_points = []
-	poly_points.append((poly_left, panel_top + panel_height_px * (0.24 + rng.uniform(-0.03, 0.04))))
+	mask_w = max(1.0, poly_right - poly_left)
+	mask_h = max(1.0, poly_bottom - poly_top)
+	corner_r = max(18.0, min(mask_w, mask_h) * 0.18)
 
-	top_count = 16
-	for i in range(top_count):
-		t = i / (top_count - 1)
-		x = panel_left + panel_width_px * (0.02 + 0.94 * t) + panel_width_px * rng.uniform(-0.015, 0.015)
-		# Keep top bumps soft; avoid sharp spikes.
-		y = panel_top - panel_height_px * (0.025 + rng.uniform(0.01, 0.06))
-		poly_points.append((_clamp(x, poly_left, poly_right), _clamp(y, poly_top, poly_bottom)))
-
-	right_count = 5
-	for i in range(right_count):
-		t = i / (right_count - 1)
-		x = panel_left + panel_width_px * (0.98 + rng.uniform(-0.025, 0.01))
-		y = panel_top + panel_height_px * (0.24 + 0.66 * t + rng.uniform(-0.02, 0.02))
-		poly_points.append((_clamp(x, poly_left, poly_right), _clamp(y, poly_top, poly_bottom)))
-
-	bottom_count = 9
-	for i in range(bottom_count):
-		t = i / (bottom_count - 1)
-		x = panel_left + panel_width_px * (0.92 - 0.78 * t + rng.uniform(-0.02, 0.02))
-		y = panel_top + panel_height_px * (1.04 + rng.uniform(0.0, 0.08))
-		poly_points.append((_clamp(x, poly_left, poly_right), _clamp(y, poly_top, poly_bottom)))
-
-	left_count = 5
-	for i in range(left_count):
-		t = i / (left_count - 1)
-		x = panel_left + panel_width_px * (0.10 + rng.uniform(-0.04, 0.02))
-		y = panel_top + panel_height_px * (0.90 - 0.54 * t + rng.uniform(-0.02, 0.02))
-		poly_points.append((_clamp(x, poly_left, poly_right), _clamp(y, poly_top, poly_bottom)))
+	poly_points = [
+		(poly_left + corner_r, poly_top),
+		(poly_left + mask_w * 0.38, poly_top),
+		(poly_right - corner_r, poly_top),
+		(poly_right, poly_top + corner_r),
+		(poly_right, poly_top + mask_h * 0.42),
+		(poly_right, poly_bottom - corner_r),
+		(poly_right - corner_r, poly_bottom),
+		(poly_left + mask_w * 0.55, poly_bottom),
+		(poly_left + corner_r, poly_bottom),
+		(poly_left, poly_bottom - corner_r),
+		(poly_left, poly_top + mask_h * 0.46),
+		(poly_left, poly_top + corner_r),
+	]
 	points_str = " ".join(f"{px:.2f},{py:.2f}" for px, py in poly_points)
 
 	text_safe_mask = ET.SubElement(panel, "polygon")
@@ -300,6 +580,23 @@ def _append_cover_panel(
 		cursor_y += current_title_font * 1.08
 
 	cursor_y += current_title_font * 0.10
+
+	if subtitle_lines:
+		cursor_y += current_meta_font * 0.62
+		for line in subtitle_lines:
+			subtitle_elem = ET.SubElement(panel, "text")
+			subtitle_elem.set("x", f"{text_margin_x:.2f}")
+			subtitle_elem.set("y", f"{cursor_y:.2f}")
+			subtitle_elem.set("fill", "#FFF5DF")
+			subtitle_elem.set("font-size", str(current_subtitle_font))
+			subtitle_elem.set("font-family", '"Avenir Next", "PingFang SC", "Noto Sans CJK SC", sans-serif')
+			subtitle_elem.set("font-weight", "600")
+			subtitle_elem.set("stroke", "none")
+			subtitle_elem.set("stroke-opacity", "0.36")
+			subtitle_elem.set("stroke-width", "2.0")
+			subtitle_elem.set("paint-order", "stroke fill")
+			subtitle_elem.text = line
+			cursor_y += current_subtitle_font * 1.18
 
 	time_elem = ET.SubElement(panel, "text")
 	time_elem.set("x", f"{text_margin_x:.2f}")
@@ -341,6 +638,7 @@ def build_svg_cover(
 	geojson_path: str | None,
 	landmark_distance_m: float,
 	cover_title: str,
+	cover_subtitle: str,
 	cover_desc: str,
 	cover_time_range: str,
 ) -> ET.Element:
@@ -385,16 +683,17 @@ def build_svg_cover(
 	ET.SubElement(vignette_grad, "stop", offset="55%", style="stop-color:#000000;stop-opacity:0")
 	ET.SubElement(vignette_grad, "stop", offset="100%", style="stop-color:#000000;stop-opacity:0.10")
 
-	_append_cover_panel(
-		svg,
-		canvas_width,
-		canvas_height,
-		0.0,
-		canvas_width,
-		cover_title,
-		cover_time_range,
-		cover_desc,
-	)
+	# _append_cover_panel(
+	# 	svg,
+	# 	canvas_width,
+	# 	canvas_height,
+	# 	0.0,
+	# 	canvas_width,
+	# 	cover_title,
+	# 	cover_subtitle,
+	# 	cover_time_range,
+	# 	cover_desc,
+	# )
 
 	if geojson_path and Path(geojson_path).is_file():
 		mini.geojson_elements(
@@ -442,7 +741,14 @@ def build_svg_cover(
 	center_dot_fill = "#2fbe72"
 	cross_color = "#1370e3"
 
+	ordered_records = _sorted_route_records(records)
+	start_rec = ordered_records[0]
+	end_rec = ordered_records[-1]
+
 	for rec in records:
+		if rec is start_rec or rec is end_rec:
+			continue
+
 		x, y = mini.geo_to_svg(rec["lon"], rec["lat"], min_lon, min_lat, max_lon, max_lat)
 
 		halo = ET.SubElement(photos_root, "circle")
@@ -494,6 +800,16 @@ def build_svg_cover(
 		cross_v.set("stroke-width", str(cross_width))
 		cross_v.set("opacity", "0.92")
 
+	_append_start_end_badges(
+		svg,
+		start_rec,
+		end_rec,
+		min_lon,
+		min_lat,
+		max_lon,
+		max_lat,
+	)
+
 	_append_cover_panel(
 		svg,
 		canvas_width,
@@ -501,6 +817,7 @@ def build_svg_cover(
 		0.0,
 		canvas_width,
 		cover_title,
+		cover_subtitle,
 		cover_time_range,
 		cover_desc,
 	)
@@ -509,140 +826,165 @@ def build_svg_cover(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate a movie-cover PNG from EXIF photo locations.")
-    parser.add_argument("photos_dir", help="Directory containing Pixel 9 photos.")
+	parser = argparse.ArgumentParser(description="Generate a movie-cover PNG from EXIF photo locations.")
+	parser.add_argument("photos_dir", help="Directory containing Pixel 9 photos.")
 
-    parser.add_argument("--padding", type=float, default=mini.PADDING_RATIO,
-                        help=f"Bbox padding fraction (default: {mini.PADDING_RATIO}).")
-    parser.add_argument("--dark", type=bool, default=False,
-                        help="use a dark background and color scheme for better visibility in low-light conditions")
-    parser.add_argument("--simple", type=bool, default=False,
-                        help="only render major highways (motorway, trunk, primary) for visual clarity")
-    parser.add_argument("--landmark-distance", type=float, default=mini.LANDMARK_DISTANCE_M_DEFAULT,
-                        help=f"render landmarks within this distance (meters, default: {mini.LANDMARK_DISTANCE_M_DEFAULT})")
-    args = parser.parse_args()
+	parser.add_argument("--padding", type=float, default=mini.PADDING_RATIO,
+						help=f"Bbox padding fraction (default: {mini.PADDING_RATIO}).")
+	parser.add_argument("--dark", type=bool, default=False,
+						help="use a dark background and color scheme for better visibility in low-light conditions")
+	parser.add_argument("--simple", type=bool, default=False,
+						help="only render major highways (motorway, trunk, primary) for visual clarity")
+	parser.add_argument("--landmark-distance", type=float, default=mini.LANDMARK_DISTANCE_M_DEFAULT,
+						help=f"render landmarks within this distance (meters, default: {mini.LANDMARK_DISTANCE_M_DEFAULT})")
+	args = parser.parse_args()
 
-    print()
-    cover_title = input("Cover title (leave blank to use default): ").strip()
-    cover_desc = input("Cover description (optional): ").strip()
-    print()
+	output_dir = Path.cwd() / "__tmp" / Path(args.photos_dir).name
+	meta_path = output_dir / "_meta.md"
+	meta = _load_cover_meta(meta_path)
+	saved_title = (meta.get("title") or "").strip()
+	saved_desc = (meta.get("desc") or "").strip()
 
-    print(f"Scanning photos in: {args.photos_dir}")
-    records = mini.scan_photos(args.photos_dir)
-    if not records:
-        print("ERROR: No geotagged photos found.", file=sys.stderr)
-        sys.exit(1)
-    print(f"Found {len(records)} geotagged photo(s).")
+	print()
+	print(f"Last title: {saved_title or '(none)'}")
+	print(f"Last desc : {saved_desc or '(none)'}")
+	print()
 
-    photos_geojson_path = mini.get_photos_geojson_path(args.photos_dir)
-    mini.export_photos_geojson(records, photos_geojson_path)
-    print(f"Photos exported -> {photos_geojson_path}")
+	cover_title = input("Cover title (leave blank to keep last): ").strip()
+	cover_desc = input("Cover description (leave blank to keep last): ").strip()
 
-    bbox = mini.compute_bbox(records, args.padding)
-    min_x_merc, min_y_merc, max_x_merc, max_y_merc = bbox
-    min_lon = mini._mercator_to_lon(min_x_merc)
-    max_lon = mini._mercator_to_lon(max_x_merc)
-    min_lat_deg = mini._mercator_to_lat(min_y_merc)
-    max_lat_deg = mini._mercator_to_lat(max_y_merc)
+	if not cover_title:
+		cover_title = saved_title
+	if not cover_desc:
+		cover_desc = saved_desc
+	print()
 
-    osm_geojson_name = mini.get_osm_geojson_path(args.photos_dir)
+	print(f"Scanning photos in: {args.photos_dir}")
+	records = mini.scan_photos(args.photos_dir)
+	if not records:
+		print("ERROR: No geotagged photos found.", file=sys.stderr)
+		sys.exit(1)
+	print(f"Found {len(records)} geotagged photo(s).")
 
-    try:
-        with open(osm_geojson_name, "r", encoding="utf-8") as f:
-            geojson_data = json.load(f)
-    except FileNotFoundError:
-        query_output_path = mini.get_overpass_query_output_path(args.photos_dir)
-        query_output_path.parent.mkdir(parents=True, exist_ok=True)
+	cover_subtitle, meta = _resolve_cover_subtitle(records, meta)
+	if cover_subtitle:
+		print(f"Auto subtitle: {cover_subtitle}")
 
-        try:
-            query_text = mini.render_overpass_query(min_lat_deg, min_lon, max_lat_deg, max_lon)
-            query_output_path.write_text(query_text, encoding="utf-8")
+	photos_geojson_path = mini.get_photos_geojson_path(args.photos_dir)
+	mini.export_photos_geojson(records, photos_geojson_path)
+	print(f"Photos exported -> {photos_geojson_path}")
 
-            overpass_data = mini.fetch_overpass_json(query_text)
-            geojson_data = mini.convert_overpass_to_geojson(overpass_data)
+	bbox = mini.compute_bbox(records, args.padding)
+	min_x_merc, min_y_merc, max_x_merc, max_y_merc = bbox
+	min_lon = mini._mercator_to_lon(min_x_merc)
+	max_lon = mini._mercator_to_lon(max_x_merc)
+	min_lat_deg = mini._mercator_to_lat(min_y_merc)
+	max_lat_deg = mini._mercator_to_lat(max_y_merc)
 
-            if not geojson_data.get("features"):
-                raise ValueError("No map features returned by Overpass API.")
+	osm_geojson_name = mini.get_osm_geojson_path(args.photos_dir)
 
-            with open(osm_geojson_name, "w", encoding="utf-8") as f:
-                json.dump(geojson_data, f, indent=2, ensure_ascii=False)
+	try:
+		with open(osm_geojson_name, "r", encoding="utf-8") as f:
+			geojson_data = json.load(f)
+	except FileNotFoundError:
+		query_output_path = mini.get_overpass_query_output_path(args.photos_dir)
+		query_output_path.parent.mkdir(parents=True, exist_ok=True)
 
-            print()
-            print(f"  Generated query file: {query_output_path}")
-            print(f"  Downloaded OSM GeoJSON: {osm_geojson_name}")
-            print("  First-run bootstrap complete. Re-run command to generate minimaps.")
-            print()
-            sys.exit(0)
-        except (FileNotFoundError, OSError, json.JSONDecodeError, ValueError, urllib.error.URLError, RuntimeError) as err:
-            print()
-            print(f"  ERROR: Failed to bootstrap OSM GeoJSON: {err}", file=sys.stderr)
-            print(f"  Query file: {query_output_path}", file=sys.stderr)
-            print()
-            print(f"  min_lon : {min_lon:.6f}", file=sys.stderr)
-            print(f"  min_lat : {min_lat_deg:.6f}", file=sys.stderr)
-            print(f"  max_lon : {max_lon:.6f}", file=sys.stderr)
-            print(f"  max_lat : {max_lat_deg:.6f}", file=sys.stderr)
-            print()
-            print(
-                f"  Overpass bbox (S,W,N,E) : {min_lat_deg:.6f},{min_lon:.6f},{max_lat_deg:.6f},{max_lon:.6f}",
-                file=sys.stderr,
-            )
-            print()
-            sys.exit(1)
-    except json.JSONDecodeError:
-        geojson_data = {}
+		try:
+			query_text = mini.render_overpass_query(min_lat_deg, min_lon, max_lat_deg, max_lon)
+			query_output_path.write_text(query_text, encoding="utf-8")
 
-    try:
-        if not geojson_data.get("usable", True):
-            print()
-            print("  GeoJSON marked as usable=false. Use the bbox below to download OSM data,")
-            print(f"  update it, and set usable=true in {osm_geojson_name}")
-            print()
-            print(f"  min_lon : {min_lon:.6f}")
-            print(f"  min_lat : {min_lat_deg:.6f}")
-            print(f"  max_lon : {max_lon:.6f}")
-            print(f"  max_lat : {max_lat_deg:.6f}")
-            print()
-            print(f"  Overpass bbox (S,W,N,E) : {min_lat_deg:.6f},{min_lon:.6f},{max_lat_deg:.6f},{max_lon:.6f}")
-            print()
-            sys.exit(0)
-    except (json.JSONDecodeError, IOError):
-        pass
+			overpass_data = mini.fetch_overpass_json(query_text)
+			geojson_data = mini.convert_overpass_to_geojson(overpass_data)
 
-    print(f"Loading GeoJSON: {osm_geojson_name}")
-    output_dir = Path.cwd() / "__tmp" / Path(args.photos_dir).name
-    output_dir.mkdir(parents=True, exist_ok=True)
+			if not geojson_data.get("features"):
+				raise ValueError("No map features returned by Overpass API.")
 
-    if args.dark:
-        mini._apply_dark_mode()
+			with open(osm_geojson_name, "w", encoding="utf-8") as f:
+				json.dump(geojson_data, f, indent=2, ensure_ascii=False)
 
-    viz_cfg._apply_cover_mode_colors()
-    mini._sync_palette_from_config()
+			print()
+			print(f"  Generated query file: {query_output_path}")
+			print(f"  Downloaded OSM GeoJSON: {osm_geojson_name}")
+			print("  First-run bootstrap complete. Re-run command to generate minimaps.")
+			print()
+			sys.exit(0)
+		except (FileNotFoundError, OSError, json.JSONDecodeError, ValueError, urllib.error.URLError, RuntimeError) as err:
+			print()
+			print(f"  ERROR: Failed to bootstrap OSM GeoJSON: {err}", file=sys.stderr)
+			print(f"  Query file: {query_output_path}", file=sys.stderr)
+			print()
+			print(f"  min_lon : {min_lon:.6f}", file=sys.stderr)
+			print(f"  min_lat : {min_lat_deg:.6f}", file=sys.stderr)
+			print(f"  max_lon : {max_lon:.6f}", file=sys.stderr)
+			print(f"  max_lat : {max_lat_deg:.6f}", file=sys.stderr)
+			print()
+			print(
+				f"  Overpass bbox (S,W,N,E) : {min_lat_deg:.6f},{min_lon:.6f},{max_lat_deg:.6f},{max_lon:.6f}",
+				file=sys.stderr,
+			)
+			print()
+			sys.exit(1)
+	except json.JSONDecodeError:
+		geojson_data = {}
 
-    if args.simple:
-        mini.use_highway_simple_filter = True
+	try:
+		if not geojson_data.get("usable", True):
+			print()
+			print("  GeoJSON marked as usable=false. Use the bbox below to download OSM data,")
+			print(f"  update it, and set usable=true in {osm_geojson_name}")
+			print()
+			print(f"  min_lon : {min_lon:.6f}")
+			print(f"  min_lat : {min_lat_deg:.6f}")
+			print(f"  max_lon : {max_lon:.6f}")
+			print(f"  max_lat : {max_lat_deg:.6f}")
+			print()
+			print(f"  Overpass bbox (S,W,N,E) : {min_lat_deg:.6f},{min_lon:.6f},{max_lat_deg:.6f},{max_lon:.6f}")
+			print()
+			sys.exit(0)
+	except (json.JSONDecodeError, IOError):
+		pass
 
-    cover_time_range = _compute_time_range(records)
-    total_km = _compute_total_distance_km(records)
-    cover_time_range = f"{cover_time_range}  ·  {total_km:.1f} km"
+	print(f"Loading GeoJSON: {osm_geojson_name}")
+	output_dir.mkdir(parents=True, exist_ok=True)
 
-    svg_root = build_svg_cover(
-        records,
-        bbox,
-        osm_geojson_name,
-        args.landmark_distance,
+	if args.dark:
+		mini._apply_dark_mode()
+
+	viz_cfg._apply_cover_mode_colors()
+	mini._sync_palette_from_config()
+
+	if args.simple:
+		mini.use_highway_simple_filter = True
+
+	cover_time_range = _compute_time_range(records)
+	total_km = _compute_total_distance_km(records)
+	cover_time_range = f"{cover_time_range}  ·  {total_km:.1f} km"
+
+	svg_root = build_svg_cover(
+		records,
+		bbox,
+		osm_geojson_name,
+		args.landmark_distance,
 		cover_title,
+		cover_subtitle,
 		cover_desc,
-        cover_time_range,
-    )
+		cover_time_range,
+	)
 
-    svg_content = ET.tostring(svg_root, encoding="unicode", xml_declaration=False)
-    cover_png = output_dir / f"{Path(args.photos_dir).name}_map_cover.png"
-    mini.export_png(svg_content, str(cover_png), width=mini.COVER_SVG_WIDTH, height=mini.COVER_SVG_HEIGHT)
-    print(f"Cover saved -> {cover_png}")
-    print(
-        f"Generated 1 cover file in {output_dir}  ({mini.COVER_SVG_WIDTH}x{mini.COVER_SVG_HEIGHT}px)"
-    )
+	svg_content = ET.tostring(svg_root, encoding="unicode", xml_declaration=False)
+	cover_png = output_dir / f"{Path(args.photos_dir).name}_map_cover.png"
+	mini.export_png(svg_content, str(cover_png), width=mini.COVER_SVG_WIDTH, height=mini.COVER_SVG_HEIGHT)
+	print(f"Cover saved -> {cover_png}")
+
+	meta["title"] = cover_title
+	meta["desc"] = cover_desc
+	_save_cover_meta(meta_path, meta)
+	print(f"Meta saved -> {meta_path}")
+
+	print(
+		f"Generated 1 cover file in {output_dir}  ({mini.COVER_SVG_WIDTH}x{mini.COVER_SVG_HEIGHT}px)"
+	)
 
 
 if __name__ == "__main__":
