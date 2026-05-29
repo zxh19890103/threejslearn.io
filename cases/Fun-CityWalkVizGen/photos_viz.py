@@ -82,7 +82,7 @@ SPINE_GAP_DASHARRAY = "20 14"
 def _sync_palette_from_config():
     global GEOJSON_POLYGON_FILL, GEOJSON_POLYGON_STROKE, GEOJSON_LINE_STROKE
     global ROAD_STROKE_COLORS
-    global GEOJSON_LABEL_FILL
+    global GEOJSON_LABEL_FILL, LANDMARK_LABEL_FILL
     global WATERWAY_LINE_STROKE, WATERWAY_POLYGON_STROKE, WATERWAY_POLYGON_FILL
     global HIGHLIGHT_CIRCLE_FILL, HIGHLIGHT_CIRCLE_STROKE
     global CIRCLE_FILL, CIRCLE_STROKE
@@ -93,6 +93,7 @@ def _sync_palette_from_config():
     GEOJSON_LINE_STROKE = viz_cfg.GEOJSON_LINE_STROKE
     ROAD_STROKE_COLORS = dict(viz_cfg.ROAD_STROKE_COLORS)
     GEOJSON_LABEL_FILL = viz_cfg.GEOJSON_LABEL_FILL
+    LANDMARK_LABEL_FILL = viz_cfg.LANDMARK_LABEL_FILL
 
     WATERWAY_LINE_STROKE = viz_cfg.WATERWAY_LINE_STROKE
     WATERWAY_POLYGON_STROKE = viz_cfg.WATERWAY_POLYGON_STROKE
@@ -823,8 +824,8 @@ def _collect_nearby_landmarks(features: list[dict], records: list[dict], distanc
 
 def _label_bbox(x: float, y: float, text_value: str) -> tuple[float, float, float, float]:
     """Approximate axis-aligned label bounding box for overlap checks."""
-    width = _estimate_label_width(text_value)
-    height = GEOJSON_LABEL_FONT_SIZE * 1.1
+    width = _estimate_label_width(text_value, _landmark_label_font_size())
+    height = _landmark_label_font_size() * 1.1
     left = x + 6
     top = y - 6 - height
     right = left + width
@@ -1046,22 +1047,34 @@ def _stitch_polylines(lines: list[list[tuple[float, float]]], tolerance: float =
     return merged
 
 
-def _estimate_label_width(text_value: str) -> float:
+def _landmark_label_font_size() -> int:
+    """Return landmark label font size."""
+    return max(12, int(round(GEOJSON_LABEL_FONT_SIZE * 1.2)))
+
+
+def _estimate_label_width(text_value: str, font_size: float | None = None) -> float:
     """Estimate label width in pixels for placement checks."""
-    return max(1, len(text_value)) * GEOJSON_LABEL_FONT_SIZE * 0.55
+    size = GEOJSON_LABEL_FONT_SIZE if font_size is None else font_size
+    return max(1, len(text_value)) * size * 0.55
+
+
+def _normalize_landmark_label_one_line(text_value: str) -> str:
+    """Normalize a landmark label into a single line without truncation."""
+    return " ".join(text_value.split())
 
 
 def _append_text(svg_root: ET.Element, x: float, y: float, text_value: str):
     """Append a styled SVG text label near the given anchor point."""
     if not text_value:
         return
+    landmark_font_size = _landmark_label_font_size()
     text_elem = ET.SubElement(svg_root, "text")
     text_elem.set("x", f"{x + 6:.2f}")
     text_elem.set("y", f"{y - 6:.2f}")
-    text_elem.set("fill", GEOJSON_LABEL_FILL)
+    text_elem.set("fill", LANDMARK_LABEL_FILL)
     text_elem.set("stroke", "none")
-    text_elem.set("stroke-width", "3")
-    text_elem.set("font-size", str(GEOJSON_LABEL_FONT_SIZE))
+    text_elem.set("stroke-width", "0")
+    text_elem.set("font-size", str(landmark_font_size))
     text_elem.set("font-family", GEOJSON_LABEL_FONT_FAMILY)
     text_elem.text = text_value
 
@@ -1396,7 +1409,7 @@ def geojson_elements(geojson_path: str,
     labels_used = 0
 
     for candidate in landmark_candidates:
-        name = candidate["name"]
+        name = _normalize_landmark_label_one_line(candidate["name"])
         if not name:
             continue
         if labels_used >= LANDMARK_LABEL_MAX_COUNT:

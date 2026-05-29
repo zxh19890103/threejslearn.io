@@ -13,6 +13,11 @@ import photos_viz as mini
 import photos_viz_config as viz_cfg
 
 
+PRIMARY_COVER_IMAGE_NAME = "Gemini_Generated_Image_i3xq43i3xq43i3xq.png"
+PRIMARY_COVER_IMAGE_DIAMETER_PX = 288
+PRIMARY_COVER_IMAGE_MARGIN_PX = 48
+
+
 def _parse_record_datetime(raw_dt: str) -> datetime | None:
 	raw = (raw_dt or "").strip().replace("T", " ")
 
@@ -397,6 +402,128 @@ def _wrap_cover_text(text_value: str, max_chars: int) -> list[str]:
 	return wrapped_lines
 
 
+def _stable_noise(seed: float) -> float:
+	"""Return a deterministic pseudo-random value in [0, 1)."""
+	value = sin(seed * 12.9898 + 78.233) * 43758.5453
+	return value - int(value)
+
+
+def _convex_hull(points: list[tuple[float, float]]) -> list[tuple[float, float]]:
+	"""Compute a convex hull using the monotonic chain algorithm."""
+	unique_points = sorted(set(points))
+	if len(unique_points) <= 1:
+		return unique_points
+
+	def _cross(o: tuple[float, float], a: tuple[float, float], b: tuple[float, float]) -> float:
+		return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+
+	lower: list[tuple[float, float]] = []
+	for point in unique_points:
+		while len(lower) >= 2 and _cross(lower[-2], lower[-1], point) <= 0:
+			lower.pop()
+		lower.append(point)
+
+	upper: list[tuple[float, float]] = []
+	for point in reversed(unique_points):
+		while len(upper) >= 2 and _cross(upper[-2], upper[-1], point) <= 0:
+			upper.pop()
+		upper.append(point)
+
+	return lower[:-1] + upper[:-1]
+
+
+def _build_text_mask_hulls(
+	poly_left: float,
+	poly_top: float,
+	poly_right: float,
+	poly_bottom: float,
+	canvas_width: int,
+	canvas_height: int,
+	variant_seed: float,
+) -> list[list[tuple[float, float]]]:
+	"""Build multiple oversized convex hulls around the text block."""
+	mask_w = max(1.0, poly_right - poly_left)
+	mask_h = max(1.0, poly_bottom - poly_top)
+	center_x = poly_left + mask_w * 0.5
+	center_y = poly_top + mask_h * 0.5
+
+	hulls: list[list[tuple[float, float]]] = []
+	for hull_idx in range(6):
+		points: list[tuple[float, float]] = []
+		point_count = 12 + hull_idx * 2
+		base_rx = mask_w * (0.58 + hull_idx * 0.12)
+		base_ry = mask_h * (0.55 + hull_idx * 0.11)
+		jitter_x = mask_w * (0.18 + hull_idx * 0.02)
+		jitter_y = mask_h * (0.22 + hull_idx * 0.03)
+
+		for point_idx in range(point_count):
+			angle_ratio = point_idx / point_count
+			angle = 6.283185307179586 * angle_ratio
+			seed = variant_seed + hull_idx * 19.17 + point_idx * 7.13
+			radial_scale = 0.72 + _stable_noise(seed) * 0.72
+			x_bias = (_stable_noise(seed + 0.9) - 0.5) * jitter_x
+			y_bias = (_stable_noise(seed + 1.7) - 0.5) * jitter_y
+			x = center_x + cos(angle) * base_rx * radial_scale + x_bias
+			y = center_y + sin(angle) * base_ry * radial_scale + y_bias
+			points.append((max(0.0, min(float(canvas_width), x)), max(0.0, min(float(canvas_height), y))))
+
+		anchor_points = [
+			(poly_left - mask_w * (0.08 + hull_idx * 0.02), poly_top + mask_h * 0.08),
+			(poly_left + mask_w * 0.16, poly_top - mask_h * (0.12 + hull_idx * 0.03)),
+			(poly_right - mask_w * 0.12, poly_top - mask_h * (0.10 + hull_idx * 0.02)),
+			(poly_right + mask_w * (0.06 + hull_idx * 0.03), center_y - mask_h * 0.18),
+			(poly_right + mask_w * (0.10 + hull_idx * 0.03), poly_bottom - mask_h * 0.08),
+			(poly_left + mask_w * 0.62, poly_bottom + mask_h * (0.12 + hull_idx * 0.03)),
+			(poly_left + mask_w * 0.10, poly_bottom + mask_h * (0.09 + hull_idx * 0.03)),
+			(poly_left - mask_w * (0.12 + hull_idx * 0.03), center_y + mask_h * 0.16),
+		]
+		for point in anchor_points:
+			points.append(
+				(
+					max(0.0, min(float(canvas_width), point[0])),
+					max(0.0, min(float(canvas_height), point[1])),
+				)
+			)
+
+		hull = _convex_hull(points)
+		if len(hull) >= 3:
+			hulls.append(hull)
+
+	return hulls
+
+
+def _composite_primary_cover_image(png_path: Path):
+	"""Overlay a circular top-left image onto the rendered primary cover PNG."""
+	image_path = Path(__file__).with_name(PRIMARY_COVER_IMAGE_NAME)
+	if not image_path.is_file() or not png_path.is_file():
+		return
+
+	try:
+		from PIL import Image, ImageDraw, ImageOps  # type: ignore[import-not-found]
+	except ImportError:
+		print("[warn] Pillow is unavailable; skipping primary cover image overlay.")
+		return
+
+	with Image.open(png_path).convert("RGBA") as cover_image:
+		with Image.open(image_path).convert("RGBA") as overlay_image:
+			cover_size = cover_image.size
+			diameter = min(PRIMARY_COVER_IMAGE_DIAMETER_PX, cover_size[0] // 4, cover_size[1] // 4)
+			diameter = max(128, diameter)
+			overlay_square = ImageOps.fit(
+				overlay_image,
+				(diameter, diameter),
+				method=getattr(Image, "Resampling", Image).LANCZOS,
+				centering=(0.5, 0.5),
+			)
+
+			mask = Image.new("L", (diameter, diameter), 0)
+			ImageDraw.Draw(mask).ellipse((0, 0, diameter - 1, diameter - 1), fill=255)
+
+			paste_position = (PRIMARY_COVER_IMAGE_MARGIN_PX, PRIMARY_COVER_IMAGE_MARGIN_PX)
+			cover_image.paste(overlay_square, paste_position, mask)
+			cover_image.save(png_path)
+
+
 def _append_cover_panel(
 	svg_root: ET.Element,
 	canvas_width: int,
@@ -407,26 +534,48 @@ def _append_cover_panel(
 	subtitle: str,
 	time_range: str,
 	description: str,
+	cover_variant: str = "primary",
 ):
 	"""Render a poster-style metadata block for cover output."""
 	del panel_x, panel_width
 
+	if cover_variant == "map_only":
+		return
+
+	show_primary = cover_variant == "primary"
+	show_desc = cover_variant == "secondary"
+	center_overlay = show_primary or show_desc
+	center_desc = show_desc and not show_primary
+
 	panel = ET.SubElement(svg_root, "g", id="cover_panel")
-	text_margin_x = canvas_width * 0.08
-	text_right = canvas_width * 0.92
+	if center_overlay:
+		text_margin_x = canvas_width * 0.22
+		text_right = canvas_width * 0.78
+		text_anchor = "middle"
+		text_x = canvas_width * 0.5
+	else:
+		text_margin_x = canvas_width * 0.08
+		text_right = canvas_width * 0.92
+		text_anchor = "start"
+		text_x = text_margin_x
 	text_max_width = max(100.0, text_right - text_margin_x)
 
-	title_text = (title or "City Walk").strip() or "City Walk"
-	subtitle_text = (subtitle or "").strip()
-	desc_text = (description or "").strip()
+	title_text = ((title or "City Walk").strip() or "City Walk") if show_primary else ""
+	subtitle_text = (subtitle or "").strip() if show_primary else ""
+	time_text = (time_range or "").strip() if show_primary else ""
+	desc_text = (description or "").strip() if show_desc else ""
+	time_label_text = time_text
+	distance_label_text = ""
+	if show_primary and "·" in time_text:
+		time_label_text, distance_label_text = [part.strip() for part in time_text.split("·", 1)]
 
 	title_font = 400
-	subtitle_font = 300
-	meta_font = 248
+	subtitle_font = 240
+	meta_font = 190
 	desc_font = 216
 
-	top_anchor = canvas_height * 0.52
-	bottom_padding = canvas_height * 0.07
+	top_anchor = canvas_height * 0.52 if not center_overlay else canvas_height * 0.18
+	bottom_padding = canvas_height * 0.07 if not center_overlay else canvas_height * 0.18
 	available_text_height = max(1.0, canvas_height - top_anchor - bottom_padding)
 
 	scale = 1.0
@@ -443,28 +592,31 @@ def _append_cover_panel(
 		current_meta_font = max(20, int(round(meta_font * scale)))
 		current_desc_font = max(16, int(round(desc_font * scale)))
 
-		title_max_chars = max(6, int(text_max_width / (current_title_font * 0.58)))
-		title_lines = _wrap_cover_text(title_text, title_max_chars)
-		if not title_lines:
-			title_lines = ["City Walk"]
+		if show_primary:
+			title_max_chars = max(6, int(text_max_width / (current_title_font * 0.58)))
+			title_lines = _wrap_cover_text(title_text, title_max_chars)
+			if not title_lines:
+				title_lines = ["City Walk"]
+		else:
+			title_lines = []
 
-		if subtitle_text:
+		if show_primary and subtitle_text:
 			subtitle_max_chars = max(8, int(text_max_width / (current_subtitle_font * 0.56)))
 			subtitle_lines = _wrap_cover_text(subtitle_text, subtitle_max_chars)
 		else:
 			subtitle_lines = []
 
-		if desc_text:
+		if show_desc and desc_text:
 			desc_max_chars = max(10, int(text_max_width / (current_desc_font * 0.56)))
 			desc_lines = _wrap_cover_text(desc_text, desc_max_chars)
 		else:
 			desc_lines = []
 
-		title_block_height = len(title_lines) * current_title_font * 1.08 + current_title_font * 0.10
+		title_block_height = len(title_lines) * current_title_font * 1.08 + current_title_font * 0.10 if title_lines else 0.0
 		subtitle_gap_height = current_meta_font * 0.62 if subtitle_lines else 0.0
 		subtitle_block_height = len(subtitle_lines) * current_subtitle_font * 1.18
-		time_block_height = current_meta_font
-		desc_gap_height = current_meta_font * 1.5 if desc_lines else 0.0
+		time_block_height = (current_meta_font * 1.08 if time_label_text else 0.0) + (current_meta_font * 0.82 if distance_label_text else 0.0)
+		desc_gap_height = current_meta_font * 1.5 if desc_lines and show_primary else 0.0
 		desc_block_height = len(desc_lines) * current_desc_font * 1.28
 		total_height = (
 			title_block_height
@@ -479,11 +631,11 @@ def _append_cover_panel(
 			break
 		scale *= 0.92
 
-	title_block_height = len(title_lines) * current_title_font * 1.12 + current_title_font * 0.13
+	title_block_height = len(title_lines) * current_title_font * 1.12 + current_title_font * 0.13 if title_lines else 0.0
 	subtitle_gap_height = current_meta_font * 0.70 if subtitle_lines else 0.0
 	subtitle_block_height = len(subtitle_lines) * current_subtitle_font * 1.24
-	time_block_height = current_meta_font
-	desc_gap_height = current_meta_font * 1.7 if desc_lines else 0.0
+	time_block_height = (current_meta_font * 1.12 if time_label_text else 0.0) + (current_meta_font * 0.84 if distance_label_text else 0.0)
+	desc_gap_height = current_meta_font * 1.7 if desc_lines and show_primary else 0.0
 	desc_block_height = len(desc_lines) * current_desc_font * 1.35
 	total_height = (
 		title_block_height
@@ -497,10 +649,16 @@ def _append_cover_panel(
 	panel_pad_x = canvas_width * 0.045
 	panel_pad_top = current_title_font * 0.40
 	panel_pad_bottom = current_desc_font * 0.75
-	panel_left = max(0.0, text_margin_x - panel_pad_x)
-	panel_top = max(0.0, canvas_height - bottom_padding - total_height - panel_pad_top)
-	panel_width_px = min(canvas_width - panel_left, canvas_width * 0.90)
-	panel_height_px = min(canvas_height - panel_top, total_height + panel_pad_top + panel_pad_bottom)
+	if center_overlay:
+		panel_width_px = min(canvas_width * 0.68, text_max_width + panel_pad_x * 2.4)
+		panel_height_px = min(canvas_height * 0.58, total_height + panel_pad_top + panel_pad_bottom)
+		panel_left = max(0.0, (canvas_width - panel_width_px) * 0.5)
+		panel_top = max(0.0, (canvas_height - panel_height_px) * 0.5)
+	else:
+		panel_left = max(0.0, text_margin_x - panel_pad_x)
+		panel_top = max(0.0, canvas_height - bottom_padding - total_height - panel_pad_top)
+		panel_width_px = min(canvas_width - panel_left, canvas_width * 0.90)
+		panel_height_px = min(canvas_height - panel_top, total_height + panel_pad_top + panel_pad_bottom)
 
 	defs_node = svg_root.find("defs")
 	if defs_node is None:
@@ -510,9 +668,9 @@ def _append_cover_panel(
 	text_mask_grad_id = f"cover-text-safe-poly-{grad_idx}"
 	text_mask_grad = ET.SubElement(defs_node, "radialGradient", id=text_mask_grad_id)
 	text_mask_grad.set("gradientUnits", "userSpaceOnUse")
-	mask_cx = panel_left + panel_width_px * 0.30
+	mask_cx = panel_left + panel_width_px * (0.50 if center_overlay else 0.30)
 	mask_cy = panel_top + panel_height_px * 0.52
-	mask_rx = max(panel_width_px * 0.86, 1.0)
+	mask_rx = max(panel_width_px * (0.94 if center_overlay else 0.86), 1.0)
 	mask_ry = max(panel_height_px * 0.92, 1.0)
 	text_mask_grad.set("cx", "0")
 	text_mask_grad.set("cy", "0")
@@ -527,8 +685,12 @@ def _append_cover_panel(
 	ET.SubElement(text_mask_grad, "stop", offset="100%", style="stop-color:#000000;stop-opacity:0")
 
 	# Build a rounded, deterministic mask around the full text block with modest padding.
-	text_block_top = canvas_height - bottom_padding - total_height
-	text_block_bottom = canvas_height - bottom_padding
+	if center_overlay:
+		text_block_top = (canvas_height - total_height) * 0.5
+		text_block_bottom = text_block_top + total_height
+	else:
+		text_block_top = canvas_height - bottom_padding - total_height
+		text_block_bottom = canvas_height - bottom_padding
 	pad_x = max(20.0, current_title_font * 0.15)
 	pad_top = max(18.0, current_title_font * 0.20)
 	pad_bottom = max(18.0, current_desc_font * 0.22)
@@ -537,41 +699,39 @@ def _append_cover_panel(
 	poly_right = min(float(canvas_width), text_right + pad_x * 0.55)
 	poly_top = max(0.0, text_block_top - pad_top)
 	poly_bottom = min(float(canvas_height), text_block_bottom + pad_bottom)
+	variant_seed = float(len(title_lines) * 11 + len(subtitle_lines) * 17 + len(desc_lines) * 23 + len(time_text) * 5 + current_title_font)
+	mask_hulls = _build_text_mask_hulls(
+		poly_left,
+		poly_top,
+		poly_right,
+		poly_bottom,
+		canvas_width,
+		canvas_height,
+		variant_seed,
+	)
+	for hull_idx, hull_points in enumerate(mask_hulls):
+		points_str = " ".join(f"{px:.2f},{py:.2f}" for px, py in hull_points)
+		text_safe_mask = ET.SubElement(panel, "polygon")
+		text_safe_mask.set("points", points_str)
+		text_safe_mask.set("fill", f"url(#{text_mask_grad_id})")
+		text_safe_mask.set("opacity", f"{max(0.18, 0.54 - hull_idx * 0.06):.2f}")
 
-	mask_w = max(1.0, poly_right - poly_left)
-	mask_h = max(1.0, poly_bottom - poly_top)
-	corner_r = max(18.0, min(mask_w, mask_h) * 0.18)
-
-	poly_points = [
-		(poly_left + corner_r, poly_top),
-		(poly_left + mask_w * 0.38, poly_top),
-		(poly_right - corner_r, poly_top),
-		(poly_right, poly_top + corner_r),
-		(poly_right, poly_top + mask_h * 0.42),
-		(poly_right, poly_bottom - corner_r),
-		(poly_right - corner_r, poly_bottom),
-		(poly_left + mask_w * 0.55, poly_bottom),
-		(poly_left + corner_r, poly_bottom),
-		(poly_left, poly_bottom - corner_r),
-		(poly_left, poly_top + mask_h * 0.46),
-		(poly_left, poly_top + corner_r),
-	]
-	points_str = " ".join(f"{px:.2f},{py:.2f}" for px, py in poly_points)
-
-	text_safe_mask = ET.SubElement(panel, "polygon")
-	text_safe_mask.set("points", points_str)
-	text_safe_mask.set("fill", f"url(#{text_mask_grad_id})")
-
-	cursor_y = canvas_height - bottom_padding - total_height + current_title_font
+	if center_desc:
+		cursor_y = panel_top + (panel_height_px - desc_block_height) * 0.5 + current_desc_font * 0.92
+	else:
+		cursor_y = text_block_top
+	if title_lines:
+		cursor_y += current_title_font
 
 	for line in title_lines:
 		title_elem = ET.SubElement(panel, "text")
-		title_elem.set("x", f"{text_margin_x:.2f}")
+		title_elem.set("x", f"{text_x:.2f}")
 		title_elem.set("y", f"{cursor_y:.2f}")
 		title_elem.set("fill", "#FFFDF8")
 		title_elem.set("font-size", str(current_title_font))
 		title_elem.set("font-weight", "700")
 		title_elem.set("font-family", '"Gill Sans", "Avenir Next Condensed", "PingFang SC", "Noto Sans CJK SC", sans-serif')
+		title_elem.set("text-anchor", text_anchor)
 		title_elem.set("stroke", "none")
 		title_elem.set("stroke-opacity", "0.42")
 		title_elem.set("stroke-width", "2.6")
@@ -579,18 +739,20 @@ def _append_cover_panel(
 		title_elem.text = line
 		cursor_y += current_title_font * 1.08
 
-	cursor_y += current_title_font * 0.10
+	if title_lines:
+		cursor_y += current_title_font * 0.10
 
 	if subtitle_lines:
 		cursor_y += current_meta_font * 0.62
 		for line in subtitle_lines:
 			subtitle_elem = ET.SubElement(panel, "text")
-			subtitle_elem.set("x", f"{text_margin_x:.2f}")
+			subtitle_elem.set("x", f"{text_x:.2f}")
 			subtitle_elem.set("y", f"{cursor_y:.2f}")
-			subtitle_elem.set("fill", "#FFF5DF")
+			subtitle_elem.set("fill", "#FFF9EF")
 			subtitle_elem.set("font-size", str(current_subtitle_font))
-			subtitle_elem.set("font-family", '"Avenir Next", "PingFang SC", "Noto Sans CJK SC", sans-serif')
+			subtitle_elem.set("font-family", '"Avenir Next", "Helvetica Neue", "PingFang SC", "Noto Sans CJK SC", sans-serif')
 			subtitle_elem.set("font-weight", "600")
+			subtitle_elem.set("text-anchor", text_anchor)
 			subtitle_elem.set("stroke", "none")
 			subtitle_elem.set("stroke-opacity", "0.36")
 			subtitle_elem.set("stroke-width", "2.0")
@@ -598,32 +760,52 @@ def _append_cover_panel(
 			subtitle_elem.text = line
 			cursor_y += current_subtitle_font * 1.18
 
-	time_elem = ET.SubElement(panel, "text")
-	time_elem.set("x", f"{text_margin_x:.2f}")
-	time_elem.set("y", f"{cursor_y:.2f}")
-	time_elem.set("fill", "#FFF7E8")
-	time_elem.set("font-size", str(current_meta_font))
-	time_elem.set("font-family", '"Avenir Next", "PingFang SC", "Noto Sans CJK SC", sans-serif')
-	time_elem.set("font-weight", "600")
-	time_elem.set("stroke", "none")
-	time_elem.set("stroke-opacity", "0.38")
-	time_elem.set("stroke-width", "2.1")
-	time_elem.set("paint-order", "stroke fill")
-	time_elem.text = time_range
+	if time_label_text:
+		time_elem = ET.SubElement(panel, "text")
+		time_elem.set("x", f"{text_x:.2f}")
+		time_elem.set("y", f"{cursor_y:.2f}")
+		time_elem.set("fill", "#FFF9F2")
+		time_elem.set("font-size", str(current_meta_font))
+		time_elem.set("font-family", '"SF Pro Text", "Avenir Next", "Helvetica Neue", "PingFang SC", "Noto Sans CJK SC", sans-serif')
+		time_elem.set("font-weight", "600")
+		time_elem.set("text-anchor", text_anchor)
+		time_elem.set("stroke", "none")
+		time_elem.set("stroke-opacity", "0.38")
+		time_elem.set("stroke-width", "2.1")
+		time_elem.set("paint-order", "stroke fill")
+		time_elem.text = time_label_text
+		cursor_y += current_meta_font * 1.08
+
+	if distance_label_text:
+		distance_elem = ET.SubElement(panel, "text")
+		distance_elem.set("x", f"{text_x:.2f}")
+		distance_elem.set("y", f"{cursor_y:.2f}")
+		distance_elem.set("fill", "#FFF3DB")
+		distance_elem.set("font-size", str(max(16, int(current_meta_font * 0.82))))
+		distance_elem.set("font-family", '"SF Pro Text", "Avenir Next", "Helvetica Neue", "PingFang SC", "Noto Sans CJK SC", sans-serif')
+		distance_elem.set("font-weight", "500")
+		distance_elem.set("text-anchor", text_anchor)
+		distance_elem.set("stroke", "none")
+		distance_elem.set("stroke-opacity", "0.32")
+		distance_elem.set("stroke-width", "1.8")
+		distance_elem.set("paint-order", "stroke fill")
+		distance_elem.text = distance_label_text
 
 	if not desc_lines:
 		return
 
-	cursor_y += current_meta_font * 1.5
+		if show_primary:
+			cursor_y += current_meta_font * 1.5
 
 	for line in desc_lines:
 		line_elem = ET.SubElement(panel, "text")
-		line_elem.set("x", f"{text_margin_x:.2f}")
+		line_elem.set("x", f"{text_x:.2f}")
 		line_elem.set("y", f"{cursor_y:.2f}")
 		line_elem.set("fill", "#FFF2E1")
 		line_elem.set("font-size", str(current_desc_font))
-		line_elem.set("font-family", '"Avenir Next", "PingFang SC", "Noto Sans CJK SC", sans-serif')
+		line_elem.set("font-family", '"Gill Sans", "Avenir Next", "PingFang SC", "Noto Sans CJK SC", sans-serif')
 		line_elem.set("font-weight", "500")
+		line_elem.set("text-anchor", text_anchor)
 		line_elem.set("stroke", "none")
 		line_elem.set("stroke-opacity", "0.36")
 		line_elem.set("stroke-width", "1.9")
@@ -641,6 +823,7 @@ def build_svg_cover(
 	cover_subtitle: str,
 	cover_desc: str,
 	cover_time_range: str,
+	cover_variant: str = "primary",
 ) -> ET.Element:
 	min_lon, min_lat, max_lon, max_lat = bbox
 	canvas_width = mini.COVER_SVG_WIDTH
@@ -820,6 +1003,7 @@ def build_svg_cover(
 		cover_subtitle,
 		cover_time_range,
 		cover_desc,
+		cover_variant=cover_variant,
 	)
 
 	return svg
@@ -961,21 +1145,29 @@ def main():
 	total_km = _compute_total_distance_km(records)
 	cover_time_range = f"{cover_time_range}  ·  {total_km:.1f} km"
 
-	svg_root = build_svg_cover(
-		records,
-		bbox,
-		osm_geojson_name,
-		args.landmark_distance,
-		cover_title,
-		cover_subtitle,
-		cover_desc,
-		cover_time_range,
-	)
+	cover_outputs = [
+		("primary", f"{Path(args.photos_dir).name}_map_cover.png"),
+		("secondary", f"{Path(args.photos_dir).name}_map_cover_secondary.png"),
+		("map_only", f"{Path(args.photos_dir).name}_map_cover_maponly.png"),
+	]
 
-	svg_content = ET.tostring(svg_root, encoding="unicode", xml_declaration=False)
-	cover_png = output_dir / f"{Path(args.photos_dir).name}_map_cover.png"
-	mini.export_png(svg_content, str(cover_png), width=mini.COVER_SVG_WIDTH, height=mini.COVER_SVG_HEIGHT)
-	print(f"Cover saved -> {cover_png}")
+	for cover_variant, output_name in cover_outputs:
+		svg_root = build_svg_cover(
+			records,
+			bbox,
+			osm_geojson_name,
+			args.landmark_distance,
+			cover_title,
+			cover_subtitle,
+			cover_desc,
+			cover_time_range,
+			cover_variant=cover_variant,
+		)
+
+		svg_content = ET.tostring(svg_root, encoding="unicode", xml_declaration=False)
+		cover_png = output_dir / output_name
+		mini.export_png(svg_content, str(cover_png), width=mini.COVER_SVG_WIDTH, height=mini.COVER_SVG_HEIGHT)
+		print(f"Cover saved -> {cover_png}")
 
 	meta["title"] = cover_title
 	meta["desc"] = cover_desc
@@ -983,7 +1175,7 @@ def main():
 	print(f"Meta saved -> {meta_path}")
 
 	print(
-		f"Generated 1 cover file in {output_dir}  ({mini.COVER_SVG_WIDTH}x{mini.COVER_SVG_HEIGHT}px)"
+		f"Generated 3 cover files in {output_dir}  ({mini.COVER_SVG_WIDTH}x{mini.COVER_SVG_HEIGHT}px)"
 	)
 
 

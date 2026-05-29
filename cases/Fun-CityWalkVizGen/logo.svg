@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" width="100%" height="100%" role="img" aria-label="Abstract non-crossing walking legs in circular scene">
+  <defs>
+    <clipPath id="clipCircle">
+      <circle cx="400" cy="400" r="390"/>
+    </clipPath>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#95d2ff"/>
+      <stop offset="100%" stop-color="#f0fbff"/>
+    </linearGradient>
+    <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#79c55b"/>
+      <stop offset="100%" stop-color="#4f8e3d"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="50%" cy="50%" r="60%">
+      <stop offset="0%" stop-color="#ffe88a"/>
+      <stop offset="100%" stop-color="#ffb44c"/>
+    </radialGradient>
+  </defs>
+
+  <g clip-path="url(#clipCircle)">
+    <rect width="800" height="800" fill="url(#sky)"/>
+    <circle cx="400" cy="585" r="98" fill="url(#sun)"/>
+
+    <path d="M0 560 C130 540 260 580 400 560 C540 540 670 580 800 560 L800 800 L0 800 Z" fill="url(#ground)"/>
+    <path d="M0 610 C160 590 300 626 440 606 C580 586 700 622 800 608 L800 640 L0 640 Z" fill="#3f7c34"/>
+
+    <g stroke="#2d6a2b" stroke-width="4" stroke-linecap="round" fill="none">
+      <path d="M70 610 L76 584 L84 610"/>
+      <path d="M150 620 L156 592 L164 620"/>
+      <path d="M236 612 L242 586 L250 612"/>
+      <path d="M320 622 L326 594 L334 622"/>
+      <path d="M404 614 L410 588 L418 614"/>
+      <path d="M488 622 L494 594 L502 622"/>
+      <path d="M574 612 L580 586 L588 612"/>
+      <path d="M658 620 L664 592 L672 620"/>
+      <path d="M738 610 L744 584 L752 610"/>
+    </g>
+
+    <g id="legs" fill="none" stroke="#111" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M300 22 L330 350 L275 780" stroke-width="52"/>
+      <path d="M500 22 L470 350 L545 780" stroke-width="52"/>
+      <path d="M275 780 L190 780" stroke-width="28"/>
+      <path d="M545 780 L640 780" stroke-width="28"/>
+      <path d="M300 22 L500 22" stroke-width="20" opacity="0.9"/>
+    </g>
+  </g>
+
+  <circle cx="400" cy="400" r="390" fill="none" stroke="#1a1a1a" stroke-width="8"/>
+</svg>
