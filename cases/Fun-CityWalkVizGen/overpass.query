@@ -1,10 +1,10 @@
-[out:json][timeout:60];
+[out:json][timeout:180];
 (
   way["highway"~"motorway|trunk|primary|secondary|tertiary|residential|unclassified"]({{bbox}});
   way["waterway"="river"]({{bbox}});
   
-  way["natural"="water"]({{bbox}});
-  relation["natural"="water"]({{bbox}});
+  way["natural"="water"]["water"="lake"]({{bbox}});
+  relation["natural"="water"]["water"="lake"]({{bbox}});
 
   node["tourism"~"attraction|museum|artwork|viewpoint|zoo|theme_park|gallery|hotel"]({{bbox}});
   node["historic"~"monument|memorial|castle|fort|ruins|archaeological_site|yes"]({{bbox}});

@@ -198,6 +198,7 @@ def _save_cover_meta(meta_path: Path, meta: dict[str, str]):
 	ordered_keys = [
 		"title",
 		"desc",
+		"from_date",
 		"subtitle",
 		"location_source",
 		"location_confidence",
@@ -326,12 +327,15 @@ def _reverse_geocode_subtitle(lat: float, lon: float) -> tuple[str, str, str]:
 
 def _resolve_cover_subtitle(records: list[dict], meta: dict[str, str]) -> tuple[str, dict[str, str]]:
 	"""Resolve subtitle with cache-first strategy and reverse-geocode fallback."""
+	cached_subtitle = (meta.get("subtitle") or "").strip()
+	if cached_subtitle:
+		return cached_subtitle, meta
+
 	center = _compute_center_latlon(records)
 	if center is None:
 		return "", meta
 
 	center_lat, center_lon = center
-	cached_subtitle = (meta.get("subtitle") or "").strip()
 	cached_lat_raw = (meta.get("location_center_lat") or "").strip()
 	cached_lon_raw = (meta.get("location_center_lon") or "").strip()
 
@@ -341,16 +345,6 @@ def _resolve_cover_subtitle(records: list[dict], meta: dict[str, str]) -> tuple[
 	except ValueError:
 		cached_lat = None
 		cached_lon = None
-
-	if (
-		cached_subtitle
-		and _is_english_text(cached_subtitle)
-		and cached_lat is not None
-		and cached_lon is not None
-		and abs(cached_lat - center_lat) <= 0.0005
-		and abs(cached_lon - center_lon) <= 0.0005
-	):
-		return cached_subtitle, meta
 
 	try:
 		subtitle, source, confidence = _reverse_geocode_subtitle(center_lat, center_lon)
@@ -400,7 +394,6 @@ def _wrap_cover_text(text_value: str, max_chars: int) -> list[str]:
 		wrapped_lines.append(current)
 
 	return wrapped_lines
-
 
 def _stable_noise(seed: float) -> float:
 	"""Return a deterministic pseudo-random value in [0, 1)."""
@@ -491,39 +484,6 @@ def _build_text_mask_hulls(
 
 	return hulls
 
-
-def _composite_primary_cover_image(png_path: Path):
-	"""Overlay a circular top-left image onto the rendered primary cover PNG."""
-	image_path = Path(__file__).with_name(PRIMARY_COVER_IMAGE_NAME)
-	if not image_path.is_file() or not png_path.is_file():
-		return
-
-	try:
-		from PIL import Image, ImageDraw, ImageOps  # type: ignore[import-not-found]
-	except ImportError:
-		print("[warn] Pillow is unavailable; skipping primary cover image overlay.")
-		return
-
-	with Image.open(png_path).convert("RGBA") as cover_image:
-		with Image.open(image_path).convert("RGBA") as overlay_image:
-			cover_size = cover_image.size
-			diameter = min(PRIMARY_COVER_IMAGE_DIAMETER_PX, cover_size[0] // 4, cover_size[1] // 4)
-			diameter = max(128, diameter)
-			overlay_square = ImageOps.fit(
-				overlay_image,
-				(diameter, diameter),
-				method=getattr(Image, "Resampling", Image).LANCZOS,
-				centering=(0.5, 0.5),
-			)
-
-			mask = Image.new("L", (diameter, diameter), 0)
-			ImageDraw.Draw(mask).ellipse((0, 0, diameter - 1, diameter - 1), fill=255)
-
-			paste_position = (PRIMARY_COVER_IMAGE_MARGIN_PX, PRIMARY_COVER_IMAGE_MARGIN_PX)
-			cover_image.paste(overlay_square, paste_position, mask)
-			cover_image.save(png_path)
-
-
 def _append_cover_panel(
 	svg_root: ET.Element,
 	canvas_width: int,
@@ -548,9 +508,15 @@ def _append_cover_panel(
 	center_desc = show_desc and not show_primary
 
 	panel = ET.SubElement(svg_root, "g", id="cover_panel")
+ 
 	if center_overlay:
-		text_margin_x = canvas_width * 0.22
-		text_right = canvas_width * 0.78
+		if show_primary:
+			text_margin_x = canvas_width * 0.14
+			text_right = canvas_width - text_margin_x
+		else:
+			text_margin_x = canvas_width * 0.22
+			text_right = canvas_width * 0.78
+   
 		text_anchor = "middle"
 		text_x = canvas_width * 0.5
 	else:
@@ -558,10 +524,14 @@ def _append_cover_panel(
 		text_right = canvas_width * 0.92
 		text_anchor = "start"
 		text_x = text_margin_x
+  
 	text_max_width = max(100.0, text_right - text_margin_x)
-
-	title_text = ((title or "City Walk").strip() or "City Walk") if show_primary else ""
-	subtitle_text = (subtitle or "").strip() if show_primary else ""
+ 
+	raw_title_text = (title or "").strip() if show_primary else ""
+	raw_subtitle_text = (subtitle or "").strip() if show_primary else ""
+	use_subtitle_as_title = show_primary and (not raw_title_text) and bool(raw_subtitle_text)
+	title_text = raw_subtitle_text if use_subtitle_as_title else raw_title_text
+	subtitle_text = "" if use_subtitle_as_title else raw_subtitle_text
 	time_text = (time_range or "").strip() if show_primary else ""
 	desc_text = (description or "").strip() if show_desc else ""
 	time_label_text = time_text
@@ -569,9 +539,10 @@ def _append_cover_panel(
 	if show_primary and "·" in time_text:
 		time_label_text, distance_label_text = [part.strip() for part in time_text.split("·", 1)]
 
-	title_font = 400
-	subtitle_font = 240
-	meta_font = 190
+	title_font = 160
+	subtitle_font = 110
+	meta_font = 90
+ 
 	desc_font = 216
 
 	top_anchor = canvas_height * 0.52 if not center_overlay else canvas_height * 0.18
@@ -593,16 +564,14 @@ def _append_cover_panel(
 		current_desc_font = max(16, int(round(desc_font * scale)))
 
 		if show_primary:
-			title_max_chars = max(6, int(text_max_width / (current_title_font * 0.58)))
-			title_lines = _wrap_cover_text(title_text, title_max_chars)
-			if not title_lines:
-				title_lines = ["City Walk"]
+			# title_max_chars = max(6, int(text_max_width / (current_title_font * 0.58)))
+			title_lines = [title_text] if title_text else []
 		else:
 			title_lines = []
 
 		if show_primary and subtitle_text:
-			subtitle_max_chars = max(8, int(text_max_width / (current_subtitle_font * 0.56)))
-			subtitle_lines = _wrap_cover_text(subtitle_text, subtitle_max_chars)
+			# subtitle_max_chars = max(8, int(text_max_width / (current_subtitle_font * 0.56)))
+			subtitle_lines = [subtitle_text] # _wrap_cover_text(subtitle_text, subtitle_max_chars)
 		else:
 			subtitle_lines = []
 
@@ -650,7 +619,10 @@ def _append_cover_panel(
 	panel_pad_top = current_title_font * 0.40
 	panel_pad_bottom = current_desc_font * 0.75
 	if center_overlay:
-		panel_width_px = min(canvas_width * 0.68, text_max_width + panel_pad_x * 2.4)
+		if show_primary:
+			panel_width_px = min(canvas_width * 0.618, text_max_width + panel_pad_x * 2.8)
+		else:
+			panel_width_px = min(canvas_width * 0.68, text_max_width + panel_pad_x * 2.4)
 		panel_height_px = min(canvas_height * 0.58, total_height + panel_pad_top + panel_pad_bottom)
 		panel_left = max(0.0, (canvas_width - panel_width_px) * 0.5)
 		panel_top = max(0.0, (canvas_height - panel_height_px) * 0.5)
@@ -750,7 +722,7 @@ def _append_cover_panel(
 			subtitle_elem.set("y", f"{cursor_y:.2f}")
 			subtitle_elem.set("fill", "#FFF9EF")
 			subtitle_elem.set("font-size", str(current_subtitle_font))
-			subtitle_elem.set("font-family", '"Avenir Next", "Helvetica Neue", "PingFang SC", "Noto Sans CJK SC", sans-serif')
+			subtitle_elem.set("font-family", '"Yuanti SC", "Avenir Next", "Helvetica Neue", "PingFang SC", "Noto Sans CJK SC", sans-serif')
 			subtitle_elem.set("font-weight", "600")
 			subtitle_elem.set("text-anchor", text_anchor)
 			subtitle_elem.set("stroke", "none")
@@ -766,7 +738,7 @@ def _append_cover_panel(
 		time_elem.set("y", f"{cursor_y:.2f}")
 		time_elem.set("fill", "#FFF9F2")
 		time_elem.set("font-size", str(current_meta_font))
-		time_elem.set("font-family", '"SF Pro Text", "Avenir Next", "Helvetica Neue", "PingFang SC", "Noto Sans CJK SC", sans-serif')
+		time_elem.set("font-family", '"Yuanti SC", "SF Pro Text", "Avenir Next", "Helvetica Neue", "PingFang SC", "Noto Sans CJK SC", sans-serif')
 		time_elem.set("font-weight", "600")
 		time_elem.set("text-anchor", text_anchor)
 		time_elem.set("stroke", "none")
@@ -780,9 +752,9 @@ def _append_cover_panel(
 		distance_elem = ET.SubElement(panel, "text")
 		distance_elem.set("x", f"{text_x:.2f}")
 		distance_elem.set("y", f"{cursor_y:.2f}")
-		distance_elem.set("fill", "#FFF3DB")
+		distance_elem.set("fill", "#FFF9F2")
 		distance_elem.set("font-size", str(max(16, int(current_meta_font * 0.82))))
-		distance_elem.set("font-family", '"SF Pro Text", "Avenir Next", "Helvetica Neue", "PingFang SC", "Noto Sans CJK SC", sans-serif')
+		distance_elem.set("font-family", '"Yuanti SC", "SF Pro Text", "Avenir Next", "Helvetica Neue", "PingFang SC", "Noto Sans CJK SC", sans-serif')
 		distance_elem.set("font-weight", "500")
 		distance_elem.set("text-anchor", text_anchor)
 		distance_elem.set("stroke", "none")
@@ -794,16 +766,13 @@ def _append_cover_panel(
 	if not desc_lines:
 		return
 
-		if show_primary:
-			cursor_y += current_meta_font * 1.5
-
 	for line in desc_lines:
 		line_elem = ET.SubElement(panel, "text")
 		line_elem.set("x", f"{text_x:.2f}")
 		line_elem.set("y", f"{cursor_y:.2f}")
-		line_elem.set("fill", "#FFF2E1")
+		line_elem.set("fill", "#FFF9F2")
 		line_elem.set("font-size", str(current_desc_font))
-		line_elem.set("font-family", '"Gill Sans", "Avenir Next", "PingFang SC", "Noto Sans CJK SC", sans-serif')
+		line_elem.set("font-family", '"Avenir Next", "PingFang SC", "Noto Sans CJK SC", sans-serif')
 		line_elem.set("font-weight", "500")
 		line_elem.set("text-anchor", text_anchor)
 		line_elem.set("stroke", "none")
@@ -848,7 +817,7 @@ def build_svg_cover(
 	bg = ET.SubElement(svg, "rect")
 	bg.set("width", str(canvas_width))
 	bg.set("height", str(canvas_height))
-	bg.set("fill", "#eaf6ff")
+	bg.set("fill", "#eaf5fd")
 
 	overlay_grad = ET.SubElement(defs, "linearGradient", id="cover-text-gradient")
 	overlay_grad.set("x1", "0")
@@ -865,18 +834,6 @@ def build_svg_cover(
 	vignette_grad.set("r", "72%")
 	ET.SubElement(vignette_grad, "stop", offset="55%", style="stop-color:#000000;stop-opacity:0")
 	ET.SubElement(vignette_grad, "stop", offset="100%", style="stop-color:#000000;stop-opacity:0.10")
-
-	# _append_cover_panel(
-	# 	svg,
-	# 	canvas_width,
-	# 	canvas_height,
-	# 	0.0,
-	# 	canvas_width,
-	# 	cover_title,
-	# 	cover_subtitle,
-	# 	cover_time_range,
-	# 	cover_desc,
-	# )
 
 	if geojson_path and Path(geojson_path).is_file():
 		mini.geojson_elements(
@@ -1015,8 +972,8 @@ def main():
 
 	parser.add_argument("--padding", type=float, default=mini.PADDING_RATIO,
 						help=f"Bbox padding fraction (default: {mini.PADDING_RATIO}).")
-	parser.add_argument("--dark", type=bool, default=False,
-						help="use a dark background and color scheme for better visibility in low-light conditions")
+	parser.add_argument("--from", dest="from_date", default="",
+						help="skip photos whose EXIF original date is earlier than this cutoff; accepts YYYY-MM-DD, YYYY-MM-DD HH:MM[:SS], or EXIF-style YYYY:MM:DD[ HH:MM[:SS]]")
 	parser.add_argument("--simple", type=bool, default=False,
 						help="only render major highways (motorway, trunk, primary) for visual clarity")
 	parser.add_argument("--landmark-distance", type=float, default=mini.LANDMARK_DISTANCE_M_DEFAULT,
@@ -1028,10 +985,16 @@ def main():
 	meta = _load_cover_meta(meta_path)
 	saved_title = (meta.get("title") or "").strip()
 	saved_desc = (meta.get("desc") or "").strip()
+	saved_from_date = (meta.get("from_date") or "").strip()
+
+	effective_from_date = (args.from_date or "").strip() or saved_from_date
+	from_dt = mini._parse_from_filter(effective_from_date)
 
 	print()
 	print(f"Last title: {saved_title or '(none)'}")
 	print(f"Last desc : {saved_desc or '(none)'}")
+	if saved_from_date:
+		print(f"Last from : {saved_from_date}")
 	print()
 
 	cover_title = input("Cover title (leave blank to keep last): ").strip()
@@ -1044,7 +1007,9 @@ def main():
 	print()
 
 	print(f"Scanning photos in: {args.photos_dir}")
-	records = mini.scan_photos(args.photos_dir)
+	if effective_from_date:
+		print(f"Using --from cutoff: {effective_from_date}")
+	records = mini.scan_photos(args.photos_dir, from_dt=from_dt)
 	if not records:
 		print("ERROR: No geotagged photos found.", file=sys.stderr)
 		sys.exit(1)
@@ -1131,10 +1096,7 @@ def main():
 
 	print(f"Loading GeoJSON: {osm_geojson_name}")
 	output_dir.mkdir(parents=True, exist_ok=True)
-
-	if args.dark:
-		mini._apply_dark_mode()
-
+ 
 	viz_cfg._apply_cover_mode_colors()
 	mini._sync_palette_from_config()
 
@@ -1171,6 +1133,7 @@ def main():
 
 	meta["title"] = cover_title
 	meta["desc"] = cover_desc
+	meta["from_date"] = effective_from_date
 	_save_cover_meta(meta_path, meta)
 	print(f"Meta saved -> {meta_path}")
 

@@ -186,7 +186,7 @@ def parse_exif(img: Image.Image):
 
 # ── Photo scanning ───────────────────────────────────────────────────────────
 
-def scan_photos(folder: str) -> list[dict]:
+def scan_photos(folder: str, from_dt: dt.datetime | None = None) -> list[dict]:
     """
     Iterate all supported image files in folder, extract EXIF metadata.
     Returns list of dicts with keys: id, lat, lon, datetime.
@@ -206,6 +206,14 @@ def scan_photos(folder: str) -> list[dict]:
             if lat is None or lon is None:
                 print(f"[skip-no-gps] {entry.name}", file=sys.stderr)
                 continue
+            if from_dt is not None:
+                photo_dt = _parse_photo_datetime(dt)
+                if photo_dt is None:
+                    print(f"[skip-no-datetimeoriginal] {entry.name}", file=sys.stderr)
+                    continue
+                if photo_dt < from_dt:
+                    print(f"[skip-before-from] {entry.name}", file=sys.stderr)
+                    continue
             records.append({"id": entry.name, "lat": lat, "lon": lon, "datetime": dt})
         except Exception as err:
             print(f"[skip] {entry.name}: {err}", file=sys.stderr)
@@ -465,6 +473,76 @@ def _parse_photo_datetime(datetime_str: str | None) -> dt.datetime | None:
         return dt.datetime.fromisoformat(raw)
     except ValueError:
         return None
+
+
+def _parse_from_filter(datetime_str: str | None) -> dt.datetime | None:
+    """Parse the inclusive --from cutoff used for filtering scanned photos."""
+    text = (datetime_str or "").strip()
+    if not text:
+        return None
+
+    candidates = (text, text.replace("T", " "))
+    formats = (
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M",
+        "%Y-%m-%d",
+        "%Y:%m:%d %H:%M:%S",
+        "%Y:%m:%d %H:%M",
+        "%Y:%m:%d",
+    )
+    for candidate in candidates:
+        for fmt in formats:
+            try:
+                return dt.datetime.strptime(candidate, fmt)
+            except ValueError:
+                continue
+
+    raise ValueError(
+        "Invalid --from value. Use YYYY-MM-DD, YYYY-MM-DD HH:MM[:SS], or EXIF-style YYYY:MM:DD[ HH:MM[:SS]]."
+    )
+
+
+def _load_meta_from_tmp(photos_dir: str) -> dict[str, str]:
+    """Load key/value metadata from __tmp/<photos_dir_name>/_meta.md."""
+    meta_path = Path.cwd() / "__tmp" / Path(photos_dir).name / "_meta.md"
+    try:
+        raw_text = meta_path.read_text(encoding="utf-8")
+    except OSError:
+        return {}
+
+    meta: dict[str, str] = {}
+    for raw_line in raw_text.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        meta[key.strip().lower()] = value.strip()
+    return meta
+
+
+def _save_meta_from_tmp(photos_dir: str, meta: dict[str, str]):
+    """Persist key/value metadata to __tmp/<photos_dir_name>/_meta.md."""
+    meta_dir = Path.cwd() / "__tmp" / Path(photos_dir).name
+    meta_dir.mkdir(parents=True, exist_ok=True)
+    meta_path = meta_dir / "_meta.md"
+
+    ordered_keys = [
+        "title",
+        "desc",
+        "from_date",
+        "subtitle",
+        "location_source",
+        "location_confidence",
+        "location_center_lat",
+        "location_center_lon",
+        "location_updated_at",
+    ]
+
+    lines = ["# Cover Meta"]
+    for key in ordered_keys:
+        lines.append(f"{key}: {(meta.get(key) or '').strip()}")
+    lines.append("")
+    meta_path.write_text("\n".join(lines), encoding="utf-8")
 
 
 def _build_time_progress_map(records: list[dict]) -> dict[str, float]:
@@ -1352,29 +1430,12 @@ def geojson_elements(geojson_path: str,
 
             x, y = geo_to_svg(lon, lat, min_lon, min_lat, max_lon, max_lat)
 
-            outer_elem = ET.SubElement(landmarks_points_root, "circle")
-            outer_elem.set("cx", f"{x:.2f}")
-            outer_elem.set("cy", f"{y:.2f}")
-            outer_elem.set("r", str(LANDMARK_POINT_OUTER_RADIUS))
-            outer_elem.set("fill", "none")
-            outer_elem.set("opacity", str(LANDMARK_POINT_OUTER_OPACITY))
-            outer_elem.set("stroke", LANDMARK_POINT_STROKE_COLORS.get(category, LANDMARK_POINT_STROKE_COLORS["amenity"]))
-            outer_elem.set("stroke-width", str(LANDMARK_POINT_STROKE_WIDTH))
-
-            inner_elem = ET.SubElement(landmarks_points_root, "circle")
-            inner_elem.set("cx", f"{x:.2f}")
-            inner_elem.set("cy", f"{y:.2f}")
-            inner_elem.set("r", str(LANDMARK_POINT_RADIUS))
-            inner_elem.set("opacity", str(LANDMARK_POINT_INNER_OPACITY))
-            inner_elem.set("fill", LANDMARK_POINT_COLORS.get(category, LANDMARK_POINT_COLORS["amenity"]))
-            inner_elem.set("stroke", "none")
-
             center_dot_elem = ET.SubElement(landmarks_points_root, "circle")
             center_dot_elem.set("cx", f"{x:.2f}")
             center_dot_elem.set("cy", f"{y:.2f}")
             center_dot_elem.set("r", str(LANDMARK_POINT_CENTER_DOT_RADIUS))
             center_dot_elem.set("fill", LANDMARK_POINT_CENTER_DOT_FILL)
-            center_dot_elem.set("opacity", "0.95")
+            center_dot_elem.set("opacity", "0.25")
 
             if show_labels and name:
                 landmark_candidates.append({
@@ -1596,10 +1657,10 @@ def main():
     
     parser.add_argument("--padding", type=float, default=PADDING_RATIO,
                         help=f"Bbox padding fraction (default: {PADDING_RATIO}).")
+    parser.add_argument("--from", dest="from_date", default="",
+                        help="skip photos whose EXIF original date is earlier than this cutoff; accepts YYYY-MM-DD, YYYY-MM-DD HH:MM[:SS], or EXIF-style YYYY:MM:DD[ HH:MM[:SS]]")
     parser.add_argument("--search", default="",
                         help="only generate minimap for photos whose names match the search query (case-insensitive substring match)")
-    parser.add_argument("--dark", type=bool, default=False,
-                        help="use a dark background and color scheme for better visibility in low-light conditions")
     parser.add_argument("--simple", type=bool, default=True,
                         help="only render major highways (motorway, trunk, primary) for visual clarity")
     parser.add_argument("--landmark-distance", type=float, default=LANDMARK_DISTANCE_M_DEFAULT,
@@ -1608,9 +1669,18 @@ def main():
                         help="corner placement for title text (top-left, top-right, bottom-left, bottom-right)")
     args = parser.parse_args()
 
+    meta = _load_meta_from_tmp(args.photos_dir)
+    saved_from_date = (meta.get("from_date") or "").strip()
+    effective_from_date = (args.from_date or "").strip() or saved_from_date
+    from_dt = _parse_from_filter(effective_from_date)
+    if effective_from_date:
+        print(f"Using --from cutoff: {effective_from_date}")
+    meta["from_date"] = effective_from_date
+    _save_meta_from_tmp(args.photos_dir, meta)
+
     # 1. Scan photos
     print(f"Scanning photos in: {args.photos_dir}")
-    records = scan_photos(args.photos_dir)
+    records = scan_photos(args.photos_dir, from_dt=from_dt)
     if not records:
         print("ERROR: No geotagged photos found.", file=sys.stderr)
         sys.exit(1)
@@ -1700,9 +1770,6 @@ def main():
     print(f"Loading GeoJSON: {osm_geojson_name}")
     output_dir = Path.cwd() / "__tmp" / Path(args.photos_dir).name
     output_dir.mkdir(parents=True, exist_ok=True)
-
-    if args.dark:
-        _apply_dark_mode()
 
     if args.simple:
         global use_highway_simple_filter
