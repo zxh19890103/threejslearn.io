@@ -651,10 +651,10 @@ def _append_cover_panel(
 		"gradientTransform",
 		f"translate({mask_cx:.2f} {mask_cy:.2f}) scale({mask_rx:.2f} {mask_ry:.2f})",
 	)
-	ET.SubElement(text_mask_grad, "stop", offset="0%", style="stop-color:#000000;stop-opacity:0.58")
-	ET.SubElement(text_mask_grad, "stop", offset="46%", style="stop-color:#000000;stop-opacity:0.32")
-	ET.SubElement(text_mask_grad, "stop", offset="76%", style="stop-color:#000000;stop-opacity:0.12")
-	ET.SubElement(text_mask_grad, "stop", offset="100%", style="stop-color:#000000;stop-opacity:0")
+	ET.SubElement(text_mask_grad, "stop", offset="0%", style="stop-color:#000000;stop-opacity:0.68")
+	ET.SubElement(text_mask_grad, "stop", offset="46%", style="stop-color:#000000;stop-opacity:0.52")
+	ET.SubElement(text_mask_grad, "stop", offset="76%", style="stop-color:#000000;stop-opacity:0.32")
+	ET.SubElement(text_mask_grad, "stop", offset="100%", style="stop-color:#000000;stop-opacity:0.2")
 
 	# Build a rounded, deterministic mask around the full text block with modest padding.
 	if center_overlay:
@@ -826,7 +826,7 @@ def build_svg_cover(
 	overlay_grad.set("y2", "1")
 	ET.SubElement(overlay_grad, "stop", offset="0%", style="stop-color:#0f0f0d;stop-opacity:0.01")
 	ET.SubElement(overlay_grad, "stop", offset="56%", style="stop-color:#0f0f0d;stop-opacity:0.06")
-	ET.SubElement(overlay_grad, "stop", offset="100%", style="stop-color:#0f0f0d;stop-opacity:0.34")
+	ET.SubElement(overlay_grad, "stop", offset="100%", style="stop-color:#0f0f0d;stop-opacity:0.18")
 
 	vignette_grad = ET.SubElement(defs, "radialGradient", id="cover-vignette")
 	vignette_grad.set("cx", "50%")
