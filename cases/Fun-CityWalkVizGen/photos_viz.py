@@ -596,24 +596,80 @@ def _build_title_parts(rec: dict, place_candidates: dict[str, list[tuple[str, st
     return place_name or "", time_part
 
 
-def _wrap_title_text(text_value: str, max_chars: int) -> list[str]:
-    """Wrap text into multiple lines with word-aware fallback splitting."""
+def _is_cjk_text(text_value: str) -> bool:
+    """Return True if text contains CJK characters."""
+    return any("\u4e00" <= ch <= "\u9fff" for ch in text_value or "")
+
+
+def _title_char_units(ch: str) -> float:
+    """Approximate width units for one title character at font-size 1.0."""
+    code = ord(ch)
+    if ch.isspace():
+        return 0.32
+    if 0x4E00 <= code <= 0x9FFF:  # CJK Unified Ideographs
+        return 1.00
+    if 0x3000 <= code <= 0x303F:  # CJK punctuation
+        return 0.90
+    if 0xFF00 <= code <= 0xFFEF:  # Fullwidth forms
+        return 1.00
+    if ch in ",.;:!|()[]{}'\"":
+        return 0.34
+    return 0.58
+
+
+def _estimate_title_units(text_value: str) -> float:
+    """Estimate title width in font-size-relative units."""
+    return sum(_title_char_units(ch) for ch in text_value)
+
+
+def _slice_by_units(text_value: str, max_units: float) -> list[str]:
+    """Split text by measured width units without breaking character order."""
+    if not text_value:
+        return []
+    if max_units <= 0.0:
+        return [text_value]
+
+    chunks: list[str] = []
+    current_chars: list[str] = []
+    current_units = 0.0
+
+    for ch in text_value:
+        ch_units = _title_char_units(ch)
+        if current_chars and current_units + ch_units > max_units:
+            chunks.append("".join(current_chars).strip())
+            current_chars = [ch]
+            current_units = ch_units
+        else:
+            current_chars.append(ch)
+            current_units += ch_units
+
+    if current_chars:
+        chunks.append("".join(current_chars).strip())
+
+    return [chunk for chunk in chunks if chunk]
+
+
+def _wrap_title_text(text_value: str, max_units: float, force_char_wrap: bool = False) -> list[str]:
+    """Wrap text into multiple lines using approximate rendered width."""
     text_value = (text_value or "").strip()
     if not text_value:
         return []
 
-    if max_chars <= 1:
+    if max_units <= 0.0:
         return [text_value]
+
+    if force_char_wrap:
+        return _slice_by_units(text_value, max_units)
 
     words = text_value.split()
     if not words:
-        return []
+        return _slice_by_units(text_value, max_units)
 
     lines: list[str] = []
     current = words[0]
     for word in words[1:]:
         candidate = f"{current} {word}"
-        if len(candidate) <= max_chars:
+        if _estimate_title_units(candidate) <= max_units:
             current = candidate
             continue
         lines.append(current)
@@ -622,13 +678,10 @@ def _wrap_title_text(text_value: str, max_chars: int) -> list[str]:
 
     folded: list[str] = []
     for line in lines:
-        if len(line) <= max_chars:
+        if _estimate_title_units(line) <= max_units:
             folded.append(line)
             continue
-        start = 0
-        while start < len(line):
-            folded.append(line[start:start + max_chars])
-            start += max_chars
+        folded.extend(_slice_by_units(line, max_units))
     return folded
 
 
@@ -653,21 +706,23 @@ def _set_title_position_and_text(title_elem: ET.Element | None,
 
     place_text = (place_text or "").strip()
     time_text = (time_text or "").strip()
+    is_cjk_place = _is_cjk_text(place_text)
 
     max_width = max(120.0, canvas_width * 0.9)
     place_font_size = TITLE_FONT_SIZE
     min_place_font_size = 26
     place_lines: list[str] = []
+    max_place_lines = 3 if is_cjk_place else 4
 
     while place_font_size >= min_place_font_size:
-        max_chars = max(7, int(max_width / (place_font_size * 0.58)))
-        place_lines = _wrap_title_text(place_text, max_chars)
+        max_units = max(4.0, max_width / max(1.0, float(place_font_size)))
+        place_lines = _wrap_title_text(place_text, max_units, force_char_wrap=is_cjk_place)
         if not place_lines:
             break
 
-        longest_line = max(len(line) for line in place_lines)
-        estimated_width = longest_line * place_font_size * 0.58
-        if len(place_lines) <= 4 and estimated_width <= max_width:
+        longest_units = max(_estimate_title_units(line) for line in place_lines)
+        estimated_width = longest_units * place_font_size
+        if len(place_lines) <= max_place_lines and estimated_width <= max_width:
             break
         place_font_size -= 3
 

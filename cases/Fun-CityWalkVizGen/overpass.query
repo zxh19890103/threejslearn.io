@@ -1,4 +1,4 @@
-[out:json][timeout:180];
+[out:json][timeout:360];
 (
   way["highway"~"motorway|trunk|primary|secondary|tertiary|residential|unclassified"]({{bbox}});
   way["waterway"="river"]({{bbox}});
